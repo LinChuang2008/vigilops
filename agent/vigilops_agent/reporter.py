@@ -33,10 +33,26 @@ class AgentReporter:
         return self._client
 
     def _get_local_ip(self) -> str:
-        """Get local IP address by connecting to server."""
+        """Get the host's primary IP address (public > private > loopback)."""
         import socket
+
+        # 1) Try public IP via external services (for cloud VMs)
+        for url in [
+            "https://api.ipify.org",
+            "https://ifconfig.me/ip",
+            "http://checkip.amazonaws.com",
+        ]:
+            try:
+                import urllib.request
+                with urllib.request.urlopen(url, timeout=3) as resp:
+                    ip = resp.read().decode().strip()
+                    if ip and ip != "127.0.0.1":
+                        return ip
+            except Exception:
+                continue
+
+        # 2) Fallback: UDP socket trick to get LAN IP
         try:
-            # Parse server host from URL
             from urllib.parse import urlparse
             parsed = urlparse(self.config.server.url)
             host = parsed.hostname or "10.211.55.2"
@@ -45,9 +61,12 @@ class AgentReporter:
             s.connect((host, port))
             ip = s.getsockname()[0]
             s.close()
-            return ip
+            if ip and ip != "127.0.0.1":
+                return ip
         except Exception:
-            return ""
+            pass
+
+        return ""
 
     async def register(self):
         """Register this agent with the server."""
