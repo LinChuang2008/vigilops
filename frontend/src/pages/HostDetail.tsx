@@ -38,7 +38,10 @@ export default function HostDetail() {
   if (loading && !host) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
   if (!host) return <Typography.Text>主机不存在</Typography.Text>;
 
-  const timestamps = metrics.map(m => new Date(m.timestamp).toLocaleTimeString());
+  const timestamps = metrics.map(m => {
+    const ts = (m as Record<string, unknown>).recorded_at || m.timestamp;
+    return ts ? new Date(ts as string).toLocaleTimeString() : '';
+  });
 
   const lineOption = (title: string, series: { name: string; data: number[]; color: string }[]) => ({
     title: { text: title, left: 'center', textStyle: { fontSize: 14 } },

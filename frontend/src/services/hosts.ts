@@ -16,17 +16,18 @@ export interface Host {
 export interface HostMetrics {
   cpu_percent: number;
   memory_percent: number;
-  memory_total: number;
-  memory_used: number;
+  memory_used_mb: number;
   disk_percent: number;
-  disk_total: number;
-  disk_used: number;
+  disk_used_mb: number;
+  disk_total_mb: number;
   net_bytes_sent: number;
   net_bytes_recv: number;
-  load_avg_1: number;
-  load_avg_5: number;
-  load_avg_15: number;
-  timestamp: string;
+  cpu_load_1: number;
+  cpu_load_5: number;
+  cpu_load_15: number;
+  recorded_at: string;
+  timestamp?: string;
+  [key: string]: unknown;
 }
 
 export interface HostListResponse {
