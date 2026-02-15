@@ -293,7 +293,8 @@
       "内置规则 seed 数据",
       "生成迁移"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T15:00:00+08:00"
   },
   {
     "id": "F023",
@@ -306,7 +307,8 @@
       "PUT/DELETE 规则",
       "内置规则不可删除"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T15:00:00+08:00"
   },
   {
     "id": "F024",
@@ -319,7 +321,8 @@
       "创建/恢复 Alert 记录",
       "持续时间判定"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T15:00:00+08:00"
   },
   {
     "id": "F025",
@@ -331,7 +334,8 @@
       "GET /api/v1/alerts/{id}",
       "POST /api/v1/alerts/{id}/ack"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T15:00:00+08:00"
   },
   {
     "id": "F026",
@@ -344,7 +348,8 @@
       "通知发送队列",
       "失败重试"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T15:00:00+08:00"
   },
   {
     "id": "F027",
@@ -357,7 +362,8 @@
       "Server URL + Token 配置",
       "守护进程模式"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T15:00:00+08:00"
   },
   {
     "id": "F028",
@@ -371,7 +377,8 @@
       "网络流量",
       "定时采集循环"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T15:00:00+08:00"
   },
   {
     "id": "F029",
@@ -384,7 +391,8 @@
       "心跳定时发送",
       "断线重连 + 本地缓存"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T15:00:00+08:00"
   },
   {
     "id": "F030",
@@ -397,7 +405,8 @@
       "检查结果上报",
       "可配置检查间隔"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T15:00:00+08:00"
   },
   {
     "id": "F031",

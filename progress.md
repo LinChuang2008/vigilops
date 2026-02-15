@@ -11,12 +11,12 @@
 | Agent Backend (F011-F013) | ✅ Done | Token + Register + Heartbeat |
 | Server Monitoring (F014-F018) | ✅ Done | Host model + Metrics + API |
 | Service Monitoring (F019-F021) | ✅ Done | Service model + Checks + API |
-| Alert (F022-F026) | ⬜ Not Started | Rules + Engine + Webhook |
-| Agent Client (F027-F030) | ⬜ Not Started | CLI + Collector + Reporter |
+| Alert (F022-F026) | ✅ Done | Models + CRUD + Engine + Alerts API + Webhook |
+| Agent Client (F027-F030) | ✅ Done | CLI + Collector + Reporter + Service Checker |
 | Frontend (F031-F037) | ⬜ Not Started | Layout + Pages |
 | Settings (F038) | ⬜ Not Started | System settings |
 
-**Total Features:** 38 | **Completed:** 21 | **Progress:** 55%
+**Total Features:** 38 | **Completed:** 30 | **Progress:** 79%
 
 ---
 
