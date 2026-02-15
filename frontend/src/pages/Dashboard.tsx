@@ -205,12 +205,12 @@ export default function Dashboard() {
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24}>
           <Card title="最近 1 小时日志统计">
-            {logStats ? (
+            {logStats && logStats.by_level.length > 0 ? (
               <Row gutter={16} align="middle">
                 <Col xs={24} md={8}>
-                  <Statistic title="日志总量" value={logStats.total} />
+                  <Statistic title="日志总量" value={logStats.by_level.reduce((s, l) => s + l.count, 0)} />
                   <div style={{ marginTop: 8 }}>
-                    {Object.entries(logStats.by_level || {}).map(([level, count]) => (
+                    {logStats.by_level.map(({ level, count }) => (
                       <Tag key={level} color={{ DEBUG: 'default', INFO: 'blue', WARN: 'orange', ERROR: 'red', FATAL: 'purple' }[level] || 'default'} style={{ marginBottom: 4 }}>
                         {level}: {count}
                       </Tag>
@@ -223,9 +223,9 @@ export default function Dashboard() {
                     series: [{
                       type: 'pie' as const,
                       radius: ['40%', '70%'],
-                      data: Object.entries(logStats.by_level || {}).filter(([, v]) => v > 0).map(([name, value]) => ({
-                        name, value,
-                        itemStyle: { color: { DEBUG: '#bfbfbf', INFO: '#1677ff', WARN: '#faad14', ERROR: '#ff4d4f', FATAL: '#722ed1' }[name] || '#999' },
+                      data: logStats.by_level.filter(l => l.count > 0).map(({ level, count }) => ({
+                        name: level, value: count,
+                        itemStyle: { color: { DEBUG: '#bfbfbf', INFO: '#1677ff', WARN: '#faad14', ERROR: '#ff4d4f', FATAL: '#722ed1' }[level] || '#999' },
                       })),
                       label: { formatter: '{b}: {c}' },
                     }],

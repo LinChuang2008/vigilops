@@ -17,10 +17,19 @@ export interface LogsResponse {
   total: number;
 }
 
+export interface LevelCount {
+  level: string;
+  count: number;
+}
+
+export interface TimeCount {
+  time_bucket: string;
+  count: number;
+}
+
 export interface LogStats {
-  period: string;
-  total: number;
-  by_level: Record<string, number>;
+  by_level: LevelCount[];
+  by_time: TimeCount[];
 }
 
 export interface LogQueryParams {

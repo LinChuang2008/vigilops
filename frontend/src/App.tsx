@@ -1,3 +1,4 @@
+// Phase 2: logs + databases + enhanced alerts
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ConfigProvider, App as AntApp } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
