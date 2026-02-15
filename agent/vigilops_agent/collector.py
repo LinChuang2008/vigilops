@@ -2,14 +2,15 @@
 import logging
 import platform
 import time
+from typing import Optional
 
 import psutil
 
 logger = logging.getLogger(__name__)
 
 # Module-level state for rate calculation
-_prev_net: dict | None = None
-_prev_time: float | None = None
+_prev_net: Optional[dict] = None
+_prev_time: Optional[float] = None
 
 
 def collect_system_info() -> dict:
