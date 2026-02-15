@@ -15,6 +15,7 @@ const dbTypeIcon: Record<string, string> = {
   postgres: '🐘',
   postgresql: '🐘',
   mysql: '🐬',
+  oracle: '🔴',
 };
 
 export default function Databases() {
@@ -45,7 +46,7 @@ export default function Databases() {
     },
     {
       title: '类型', dataIndex: 'db_type', key: 'db_type',
-      render: (t: string) => t === 'postgres' || t === 'postgresql' ? 'PostgreSQL' : t === 'mysql' ? 'MySQL' : t,
+      render: (t: string) => t === 'postgres' || t === 'postgresql' ? 'PostgreSQL' : t === 'mysql' ? 'MySQL' : t === 'oracle' ? 'Oracle' : t,
     },
     {
       title: '状态', dataIndex: 'status', key: 'status',
@@ -70,6 +71,15 @@ export default function Databases() {
     {
       title: 'QPS', key: 'qps',
       render: (_: unknown, r: DatabaseItem) => r.latest_metrics?.qps?.toFixed(1) ?? '-',
+    },
+    {
+      title: '表空间使用率', key: 'tablespace',
+      render: (_: unknown, r: DatabaseItem) => {
+        if (r.db_type !== 'oracle') return '-';
+        const v = r.latest_metrics?.tablespace_used_pct;
+        if (v == null) return '-';
+        return v > 90 ? <Tag color="error">{v.toFixed(1)}%</Tag> : v > 75 ? <Tag color="warning">{v.toFixed(1)}%</Tag> : `${v.toFixed(1)}%`;
+      },
     },
   ];
 

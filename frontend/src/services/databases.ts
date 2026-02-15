@@ -17,8 +17,21 @@ export interface DatabaseItem {
     transactions_committed: number | null;
     transactions_rolled_back: number | null;
     qps: number | null;
+    tablespace_used_pct: number | null;
     recorded_at: string | null;
   };
+}
+
+export interface SlowQuery {
+  sql_id: string;
+  avg_seconds: number;
+  executions: number;
+  sql_text: string;
+}
+
+export interface SlowQueriesResponse {
+  database_id: number;
+  slow_queries: SlowQuery[];
 }
 
 export interface DatabaseMetric {
@@ -30,6 +43,7 @@ export interface DatabaseMetric {
   transactions_committed: number | null;
   transactions_rolled_back: number | null;
   qps: number | null;
+  tablespace_used_pct: number | null;
   recorded_at: string | null;
 }
 
@@ -48,4 +62,5 @@ export const databaseService = {
   list: (params?: Record<string, unknown>) => api.get<DatabaseListResponse>('/databases', { params }),
   get: (id: number | string) => api.get<DatabaseItem>(`/databases/${id}`),
   getMetrics: (id: number | string, period = '1h') => api.get<DatabaseMetricsResponse>(`/databases/${id}/metrics`, { params: { period } }),
+  getSlowQueries: (id: number | string) => api.get<SlowQueriesResponse>(`/databases/${id}/slow-queries`),
 };

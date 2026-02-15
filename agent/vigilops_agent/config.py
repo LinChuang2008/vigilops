@@ -60,6 +60,9 @@ class DatabaseMonitorConfig:
     username: str = ""
     password: str = ""
     interval: int = 60      # collection interval seconds
+    container_name: str = ""  # Docker container name (for Oracle)
+    oracle_sid: str = ""      # Oracle SID
+    oracle_home: str = ""     # ORACLE_HOME (optional, defaults to .bash_profile)
 
 
 @dataclass
@@ -174,6 +177,9 @@ def load_config(path: str) -> AgentConfig:
             username=db_conf.get("username", ""),
             password=db_conf.get("password", ""),
             interval=_parse_interval(db_conf.get("interval", 60)),
+            container_name=db_conf.get("container_name", ""),
+            oracle_sid=db_conf.get("oracle_sid", ""),
+            oracle_home=db_conf.get("oracle_home", ""),
         )
         cfg.databases.append(dmc)
 

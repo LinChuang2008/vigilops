@@ -1,7 +1,7 @@
 """F062: Database monitoring models."""
 from datetime import datetime
 
-from sqlalchemy import Integer, Float, BigInteger, String, DateTime, ForeignKey, func
+from sqlalchemy import Integer, Float, BigInteger, String, DateTime, ForeignKey, JSON, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -13,8 +13,9 @@ class MonitoredDatabase(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     host_id: Mapped[int] = mapped_column(Integer, ForeignKey("hosts.id"), index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    db_type: Mapped[str] = mapped_column(String(20), nullable=False)  # postgres / mysql
+    db_type: Mapped[str] = mapped_column(String(20), nullable=False)  # postgres / mysql / oracle
     status: Mapped[str] = mapped_column(String(20), default="unknown")  # healthy/warning/critical/unknown
+    slow_queries_detail = mapped_column(JSON, nullable=True)  # Latest top 10 slow queries (Oracle)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -32,4 +33,5 @@ class DbMetric(Base):
     transactions_committed: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     transactions_rolled_back: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     qps: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tablespace_used_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)

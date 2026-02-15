@@ -66,6 +66,7 @@ async def list_databases(
                 "transactions_committed": metric.transactions_committed,
                 "transactions_rolled_back": metric.transactions_rolled_back,
                 "qps": metric.qps,
+                "tablespace_used_pct": metric.tablespace_used_pct,
                 "recorded_at": metric.recorded_at.isoformat() if metric.recorded_at else None,
             }
         items.append(item)
@@ -110,9 +111,24 @@ async def get_database(
             "transactions_committed": metric.transactions_committed,
             "transactions_rolled_back": metric.transactions_rolled_back,
             "qps": metric.qps,
+                "tablespace_used_pct": metric.tablespace_used_pct,
             "recorded_at": metric.recorded_at.isoformat() if metric.recorded_at else None,
         }
     return data
+
+
+@router.get("/{database_id}/slow-queries")
+async def get_slow_queries(
+    database_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """Get latest slow queries for a database (Oracle)."""
+    result = await db.execute(select(MonitoredDatabase).where(MonitoredDatabase.id == database_id))
+    mdb = result.scalar_one_or_none()
+    if not mdb:
+        raise HTTPException(status_code=404, detail="Database not found")
+    return {"database_id": database_id, "slow_queries": mdb.slow_queries_detail or []}
 
 
 @router.get("/{database_id}/metrics")
@@ -151,6 +167,7 @@ async def get_database_metrics(
                 "transactions_committed": m.transactions_committed,
                 "transactions_rolled_back": m.transactions_rolled_back,
                 "qps": m.qps,
+                "tablespace_used_pct": m.tablespace_used_pct,
                 "recorded_at": m.recorded_at.isoformat() if m.recorded_at else None,
             }
             for m in metrics

@@ -237,6 +237,11 @@ async def report_db_metrics(
         monitored_db.updated_at = now
         monitored_db.status = "healthy"
 
+    # Update slow queries detail if provided (Oracle)
+    slow_queries_detail = body.get("slow_queries_detail")
+    if slow_queries_detail is not None:
+        monitored_db.slow_queries_detail = slow_queries_detail
+
     # Insert metric
     metric = DbMetric(
         database_id=monitored_db.id,
@@ -248,6 +253,7 @@ async def report_db_metrics(
         transactions_committed=body.get("transactions_committed"),
         transactions_rolled_back=body.get("transactions_rolled_back"),
         qps=body.get("qps"),
+        tablespace_used_pct=body.get("tablespace_used_pct"),
         recorded_at=now,
     )
     db.add(metric)

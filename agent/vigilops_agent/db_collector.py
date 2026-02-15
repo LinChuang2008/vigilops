@@ -1,7 +1,10 @@
-"""F059/F060: Database metrics collection for PostgreSQL and MySQL."""
+"""F059/F060: Database metrics collection for PostgreSQL, MySQL, and Oracle."""
+import json
 import logging
+import re
+import subprocess
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from vigilops_agent.config import DatabaseMonitorConfig
 
@@ -141,12 +144,145 @@ def collect_mysql_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
         return None
 
 
+def collect_oracle_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
+    """Collect Oracle metrics via docker exec + sqlplus."""
+    container = cfg.container_name
+    if not container:
+        logger.warning("Oracle monitoring requires container_name for %s", cfg.name)
+        return None
+
+    if cfg.oracle_home:
+        oracle_env = (
+            f"export ORACLE_HOME={cfg.oracle_home}; "
+            f"export ORACLE_SID={cfg.oracle_sid}; "
+            f"export PATH=$ORACLE_HOME/bin:$PATH; "
+        )
+    else:
+        oracle_env = "source /home/oracle/.bash_profile 2>/dev/null; "
+
+    # Basic metrics SQL
+    sql_script = (
+        "SET PAGESIZE 0 FEEDBACK OFF VERIFY OFF HEADING OFF ECHO OFF\n"
+        "SELECT 'TOTAL_SESSIONS=' || count(*) FROM v$session;\n"
+        "SELECT 'ACTIVE_SESSIONS=' || count(*) FROM v$session WHERE status = 'ACTIVE';\n"
+        "SELECT 'DB_SIZE_MB=' || ROUND(SUM(bytes)/1024/1024, 2) FROM dba_data_files;\n"
+        "SELECT 'TABLESPACE_USED_PCT=' || ROUND(MAX(used_percent), 2) FROM dba_tablespace_usage_metrics;\n"
+        "SELECT 'SLOW_QUERIES=' || count(*) FROM v$sql WHERE elapsed_time/GREATEST(executions,1) > 5000000 AND executions > 0;\n"
+        "EXIT;\n"
+    )
+
+    cmd = [
+        "docker", "exec", container, "bash", "-c",
+        oracle_env + "echo \"" + sql_script.replace('"', '\\"') + "\" | sqlplus -s / as sysdba"
+    ]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        output = result.stdout
+    except subprocess.TimeoutExpired:
+        logger.error("Oracle sqlplus timed out for %s", cfg.name)
+        return None
+    except Exception as e:
+        logger.error("Oracle collection failed for %s: %s", cfg.name, e)
+        return None
+
+    # Parse KEY=VALUE pairs
+    values = {}  # type: Dict[str, str]
+    for line in output.splitlines():
+        line = line.strip()
+        if "=" in line:
+            key, _, val = line.partition("=")
+            key = key.strip()
+            val = val.strip()
+            if key in ("TOTAL_SESSIONS", "ACTIVE_SESSIONS", "DB_SIZE_MB", "TABLESPACE_USED_PCT", "SLOW_QUERIES"):
+                values[key] = val
+
+    if not values:
+        logger.error("Oracle: no metrics parsed from sqlplus output for %s", cfg.name)
+        return None
+
+    def _int(k: str, default: int = 0) -> int:
+        try:
+            return int(values.get(k, str(default)))
+        except (ValueError, TypeError):
+            return default
+
+    def _float(k: str, default: float = 0.0) -> float:
+        try:
+            return float(values.get(k, str(default)))
+        except (ValueError, TypeError):
+            return default
+
+    # Collect slow queries detail
+    slow_queries_detail = _collect_oracle_slow_queries(container, oracle_env)
+
+    metrics = {
+        "db_name": cfg.name or cfg.database or cfg.oracle_sid,
+        "db_type": "oracle",
+        "connections_total": _int("TOTAL_SESSIONS"),
+        "connections_active": _int("ACTIVE_SESSIONS"),
+        "database_size_mb": _float("DB_SIZE_MB"),
+        "slow_queries": _int("SLOW_QUERIES"),
+        "tables_count": 0,
+        "transactions_committed": 0,
+        "transactions_rolled_back": 0,
+        "tablespace_used_pct": _float("TABLESPACE_USED_PCT"),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    if slow_queries_detail:
+        metrics["slow_queries_detail"] = slow_queries_detail
+
+    return metrics
+
+
+def _collect_oracle_slow_queries(container: str, oracle_env: str) -> Optional[List[Dict]]:
+    """Collect top 10 slow queries from Oracle v$sql."""
+    sql = (
+        "SET PAGESIZE 0 FEEDBACK OFF VERIFY OFF HEADING OFF ECHO OFF LINESIZE 500\n"
+        "SELECT sql_id || '|||' || ROUND(elapsed_time/executions/1000000, 2) || '|||' || executions || '|||' || SUBSTR(sql_text, 1, 200)\n"
+        "FROM (SELECT sql_id, elapsed_time, executions, sql_text\n"
+        "      FROM v$sql WHERE executions > 0 ORDER BY elapsed_time/executions DESC)\n"
+        "WHERE ROWNUM <= 10;\n"
+        "EXIT;\n"
+    )
+    cmd = [
+        "docker", "exec", container, "bash", "-c",
+        oracle_env + "echo \"" + sql.replace('"', '\\"') + "\" | sqlplus -s / as sysdba"
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        output = result.stdout
+    except Exception:
+        return None
+
+    queries = []  # type: List[Dict]
+    for line in output.splitlines():
+        line = line.strip()
+        if not line or "|||" not in line:
+            continue
+        parts = line.split("|||", 3)
+        if len(parts) < 4:
+            continue
+        try:
+            queries.append({
+                "sql_id": parts[0].strip(),
+                "avg_seconds": float(parts[1].strip()),
+                "executions": int(parts[2].strip()),
+                "sql_text": parts[3].strip(),
+            })
+        except (ValueError, IndexError):
+            continue
+    return queries if queries else None
+
+
 def collect_db_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
     """Collect metrics based on database type."""
     if cfg.type == "postgres":
         return collect_postgres_metrics(cfg)
     elif cfg.type == "mysql":
         return collect_mysql_metrics(cfg)
+    elif cfg.type == "oracle":
+        return collect_oracle_metrics(cfg)
     else:
         logger.warning("Unsupported database type: %s", cfg.type)
         return None

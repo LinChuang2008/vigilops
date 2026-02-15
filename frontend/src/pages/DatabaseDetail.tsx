@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, Row, Col, Descriptions, Tag, Spin, Typography, Select, Space } from 'antd';
+import { Card, Row, Col, Descriptions, Tag, Spin, Typography, Select, Space, Table } from 'antd';
 import ReactECharts from 'echarts-for-react';
 import { databaseService } from '../services/databases';
-import type { DatabaseItem, DatabaseMetric } from '../services/databases';
+import type { DatabaseItem, DatabaseMetric, SlowQuery } from '../services/databases';
 
 const statusColor: Record<string, string> = { healthy: 'success', warning: 'warning', critical: 'error', unknown: 'default' };
 
@@ -11,6 +11,7 @@ export default function DatabaseDetail() {
   const { id } = useParams<{ id: string }>();
   const [db, setDb] = useState<DatabaseItem | null>(null);
   const [metrics, setMetrics] = useState<DatabaseMetric[]>([]);
+  const [slowQueries, setSlowQueries] = useState<SlowQuery[]>([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('1h');
 
@@ -24,6 +25,13 @@ export default function DatabaseDetail() {
       ]);
       setDb(dbRes.data);
       setMetrics(metricsRes.data.metrics || []);
+      // Fetch slow queries for Oracle
+      if (dbRes.data.db_type === 'oracle') {
+        try {
+          const sqRes = await databaseService.getSlowQueries(id);
+          setSlowQueries(sqRes.data.slow_queries || []);
+        } catch { /* ignore */ }
+      }
     } catch { /* ignore */ } finally { setLoading(false); }
   };
 
@@ -32,6 +40,18 @@ export default function DatabaseDetail() {
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, [id, timeRange]);
+
+  // Refresh slow queries every 60s for Oracle
+  useEffect(() => {
+    if (!id || !db || db.db_type !== 'oracle') return;
+    const interval = setInterval(async () => {
+      try {
+        const sqRes = await databaseService.getSlowQueries(id);
+        setSlowQueries(sqRes.data.slow_queries || []);
+      } catch { /* ignore */ }
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [id, db?.db_type]);
 
   if (loading && !db) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
   if (!db) return <Typography.Text>数据库不存在</Typography.Text>;
@@ -48,7 +68,15 @@ export default function DatabaseDetail() {
     grid: { top: 40, bottom: 60, left: 60, right: 20 },
   });
 
-  const dbTypeName = db.db_type === 'postgres' || db.db_type === 'postgresql' ? 'PostgreSQL' : db.db_type === 'mysql' ? 'MySQL' : db.db_type;
+  const dbTypeName = db.db_type === 'postgres' || db.db_type === 'postgresql' ? 'PostgreSQL' : db.db_type === 'mysql' ? 'MySQL' : db.db_type === 'oracle' ? 'Oracle' : db.db_type;
+  const isOracle = db.db_type === 'oracle';
+
+  const slowQueryColumns = [
+    { title: 'SQL ID', dataIndex: 'sql_id', key: 'sql_id', width: 140 },
+    { title: '平均耗时(秒)', dataIndex: 'avg_seconds', key: 'avg_seconds', width: 120, render: (v: number) => v?.toFixed(2) },
+    { title: '执行次数', dataIndex: 'executions', key: 'executions', width: 100 },
+    { title: 'SQL 文本', dataIndex: 'sql_text', key: 'sql_text', ellipsis: true },
+  ];
 
   return (
     <div>
@@ -109,6 +137,29 @@ export default function DatabaseDetail() {
           </Card>
         </Col>
       </Row>
+
+      {isOracle && (
+        <>
+          <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+            <Col xs={24} md={12}>
+              <Card>
+                <ReactECharts option={lineOption('表空间使用率趋势', [
+                  { name: '使用率 (%)', data: metrics.map(m => m.tablespace_used_pct), color: '#722ed1' },
+                ], '{value}%')} style={{ height: 280 }} />
+              </Card>
+            </Col>
+          </Row>
+          <Card title="慢查询 Top 10" style={{ marginTop: 16 }}>
+            <Table
+              dataSource={slowQueries}
+              columns={slowQueryColumns}
+              rowKey="sql_id"
+              size="small"
+              pagination={false}
+            />
+          </Card>
+        </>
+      )}
     </div>
   );
 }
