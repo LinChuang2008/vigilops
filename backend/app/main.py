@@ -17,11 +17,20 @@ from app.routers import hosts
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import asyncio
+    from app.tasks.offline_detector import offline_detector_loop
+
     # Startup: create tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Start background tasks
+    task = asyncio.create_task(offline_detector_loop())
+
     yield
+
     # Shutdown
+    task.cancel()
     await close_redis()
     await engine.dispose()
 
