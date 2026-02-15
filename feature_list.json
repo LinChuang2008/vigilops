@@ -143,7 +143,8 @@
       "token 验证中间件",
       "吊销端点"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T14:49:00+08:00"
   },
   {
     "id": "F012",
@@ -156,7 +157,8 @@
       "返回 host_id",
       "支持重复注册(幂等)"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T14:49:00+08:00"
   },
   {
     "id": "F013",
@@ -168,7 +170,8 @@
       "存入 Redis",
       "返回 server 配置"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T14:49:00+08:00"
   },
   {
     "id": "F014",
@@ -181,7 +184,8 @@
       "Pydantic schemas",
       "生成迁移"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T14:49:00+08:00"
   },
   {
     "id": "F015",
@@ -193,7 +197,8 @@
       "批量写入 host_metrics 表",
       "更新 Redis 最新值"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T14:49:00+08:00"
   },
   {
     "id": "F016",
@@ -206,7 +211,8 @@
       "附带最新指标(从 Redis)",
       "在线/离线状态"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T14:49:00+08:00"
   },
   {
     "id": "F017",
@@ -219,7 +225,8 @@
       "支持时间范围查询",
       "数据聚合(5min/1h/1d)"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T14:49:00+08:00"
   },
   {
     "id": "F018",
@@ -231,7 +238,8 @@
       "超时标记 Host offline",
       "触发 Agent 离线告警"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T14:49:00+08:00"
   },
   {
     "id": "F019",
@@ -244,7 +252,8 @@
       "Pydantic schemas",
       "生成迁移"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T14:49:00+08:00"
   },
   {
     "id": "F020",
@@ -256,7 +265,8 @@
       "写入 service_checks 表",
       "更新 service 状态"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T14:49:00+08:00"
   },
   {
     "id": "F021",
@@ -269,7 +279,8 @@
       "GET /api/v1/services/{id}/checks",
       "可用率计算"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T14:49:00+08:00"
   },
   {
     "id": "F022",
