@@ -8,7 +8,7 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.core.redis import get_redis, close_redis
-from app.models import User, AgentToken, Host, HostMetric, Service, ServiceCheck  # noqa: F401 — register models
+from app.models import User, AgentToken, Host, HostMetric, Service, ServiceCheck, Alert, AlertRule  # noqa: F401 — register models
 from app.routers import auth
 from app.routers import agent_tokens
 from app.routers import agent
@@ -20,10 +20,16 @@ from app.routers import services
 async def lifespan(app: FastAPI):
     import asyncio
     from app.tasks.offline_detector import offline_detector_loop
+    from app.services.alert_seed import seed_builtin_rules
+    from app.core.database import async_session
 
     # Startup: create tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Seed built-in alert rules
+    async with async_session() as session:
+        await seed_builtin_rules(session)
 
     # Start background tasks
     task = asyncio.create_task(offline_detector_loop())
