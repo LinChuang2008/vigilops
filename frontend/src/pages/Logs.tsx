@@ -6,7 +6,8 @@ import {
   SearchOutlined, PauseCircleOutlined, PlayCircleOutlined, ClearOutlined,
 } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
-import { fetchLogs, LogEntry, LogQueryParams } from '../services/logs';
+import { fetchLogs } from '../services/logs';
+import type { LogEntry, LogQueryParams } from '../services/logs';
 import api from '../services/api';
 
 const { RangePicker } = DatePicker;

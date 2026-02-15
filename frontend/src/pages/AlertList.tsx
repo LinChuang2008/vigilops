@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Table, Card, Tag, Typography, Select, Space, Button, Drawer, Descriptions, Tabs, Modal, Form, Input, InputNumber, Switch, Row, Col, message } from 'antd';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 import { alertService } from '../services/alerts';
-import { databaseService, DatabaseItem } from '../services/databases';
+import { databaseService } from '../services/databases';
+import type { DatabaseItem } from '../services/databases';
 import type { Alert, AlertRule } from '../services/alerts';
 
 const severityColor: Record<string, string> = { critical: 'red', warning: 'orange', info: 'blue' };

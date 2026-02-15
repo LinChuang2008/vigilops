@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Table, Tag, Typography, Spin } from 'antd';
-import { databaseService, DatabaseItem } from '../services/databases';
+import { databaseService } from '../services/databases';
+import type { DatabaseItem } from '../services/databases';
 
 const statusColor: Record<string, string> = {
   healthy: 'success',

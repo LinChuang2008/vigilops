@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, Row, Col, Descriptions, Tag, Spin, Typography, Select, Space } from 'antd';
 import ReactECharts from 'echarts-for-react';
-import { databaseService, DatabaseItem, DatabaseMetric } from '../services/databases';
+import { databaseService } from '../services/databases';
+import type { DatabaseItem, DatabaseMetric } from '../services/databases';
 
 const statusColor: Record<string, string> = { healthy: 'success', warning: 'warning', critical: 'error', unknown: 'default' };
 

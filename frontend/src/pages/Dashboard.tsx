@@ -9,8 +9,10 @@ import {
 } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import api from '../services/api';
-import { fetchLogStats, LogStats } from '../services/logs';
-import { databaseService, DatabaseItem } from '../services/databases';
+import { fetchLogStats } from '../services/logs';
+import type { LogStats } from '../services/logs';
+import { databaseService } from '../services/databases';
+import type { DatabaseItem } from '../services/databases';
 import { DatabaseOutlined } from '@ant-design/icons';
 
 const { Title } = Typography;
