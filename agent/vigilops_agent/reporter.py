@@ -191,6 +191,19 @@ class AgentReporter:
         else:
             raise RuntimeError("Failed to register after 10 attempts")
 
+        # Auto-discover services
+        if self.config.discovery.docker:
+            from vigilops_agent.discovery import discover_docker_services
+            discovered = discover_docker_services(interval=self.config.discovery.interval)
+            # Merge: skip discovered services whose name already in manual config
+            manual_names = {s.name for s in self.config.services}
+            for svc in discovered:
+                if svc.name not in manual_names:
+                    self.config.services.append(svc)
+            if discovered:
+                logger.info(f"Auto-discovered {len(discovered)} services, "
+                            f"total after merge: {len(self.config.services)}")
+
         # Register services
         if self.config.services:
             await self.register_services()

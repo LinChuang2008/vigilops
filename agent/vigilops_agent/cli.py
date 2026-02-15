@@ -58,7 +58,8 @@ def run(ctx):
     logger.info(f"Server: {cfg.server.url}")
     logger.info(f"Host: {cfg.host.name}")
     logger.info(f"Metrics interval: {cfg.metrics.interval}s")
-    logger.info(f"Service checks: {len(cfg.services)}")
+    logger.info(f"Service checks: {len(cfg.services)} (manual)")
+    logger.info(f"Docker auto-discovery: {'enabled' if cfg.discovery.docker else 'disabled'}")
 
     from vigilops_agent.reporter import AgentReporter
 

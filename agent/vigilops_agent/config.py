@@ -35,11 +35,18 @@ class ServiceCheckConfig:
 
 
 @dataclass
+class DiscoveryConfig:
+    docker: bool = True  # Auto-discover Docker containers
+    interval: int = 30   # Default check interval for discovered services
+
+
+@dataclass
 class AgentConfig:
     server: ServerConfig = field(default_factory=ServerConfig)
     host: HostConfig = field(default_factory=HostConfig)
     metrics: MetricsConfig = field(default_factory=MetricsConfig)
     services: list[ServiceCheckConfig] = field(default_factory=list)
+    discovery: DiscoveryConfig = field(default_factory=DiscoveryConfig)
 
 
 def _parse_interval(val) -> int:
@@ -81,15 +88,41 @@ def load_config(path: str) -> AgentConfig:
 
     # Services
     for svc in data.get("services", []):
+        svc_type = svc.get("type", "http")
+        target = svc.get("target", "")
+        url = svc.get("url", "")
+        host = svc.get("host", "")
+        port = svc.get("port", 0)
+
+        # Parse 'target' shorthand: "http://..." → url, "host:port" → host+port
+        if target and not url and not host:
+            if target.startswith("http://") or target.startswith("https://"):
+                url = target
+            elif ":" in target:
+                parts = target.rsplit(":", 1)
+                host = parts[0]
+                try:
+                    port = int(parts[1])
+                except ValueError:
+                    host = target
+
         sc = ServiceCheckConfig(
             name=svc.get("name", ""),
-            type=svc.get("type", "http"),
-            url=svc.get("url", ""),
-            host=svc.get("host", ""),
-            port=svc.get("port", 0),
+            type=svc_type,
+            url=url,
+            host=host,
+            port=port,
             interval=_parse_interval(svc.get("interval", 30)),
             timeout=svc.get("timeout", 10),
         )
         cfg.services.append(sc)
+
+    # Discovery
+    disc = data.get("discovery", {})
+    if isinstance(disc, bool):
+        cfg.discovery.docker = disc
+    elif isinstance(disc, dict):
+        cfg.discovery.docker = disc.get("docker", True)
+        cfg.discovery.interval = _parse_interval(disc.get("interval", 30))
 
     return cfg
