@@ -661,7 +661,7 @@
       "F002",
       "F005"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F048",
@@ -678,7 +678,7 @@
       "F047",
       "F046"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F049",
@@ -694,7 +694,7 @@
     "dependencies": [
       "F047"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F050",
@@ -711,7 +711,7 @@
     "dependencies": [
       "F049"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F051",
@@ -728,7 +728,7 @@
       "F047",
       "F038"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F052",
@@ -746,7 +746,7 @@
       "F048",
       "F003"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F053",
@@ -762,7 +762,7 @@
     "dependencies": [
       "F047"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F054",

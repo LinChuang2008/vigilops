@@ -19,6 +19,8 @@ from app.schemas.agent import (
     AgentHeartbeatResponse,
     MetricReport,
 )
+from app.models.log_entry import LogEntry
+from app.schemas.log_entry import LogBatchRequest, LogBatchResponse
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 
@@ -195,3 +197,31 @@ async def report_service_check(
 
     await db.commit()
     return {"status": "ok", "check_id": check.id}
+
+
+@router.post("/logs", response_model=LogBatchResponse, status_code=201)
+async def ingest_logs(
+    body: LogBatchRequest,
+    agent_token: AgentToken = Depends(verify_agent_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """F048: Batch ingest log entries from agent."""
+    from sqlalchemy.dialects.postgresql import insert
+    from app.routers.logs import log_broadcaster
+
+    if not body.logs:
+        return LogBatchResponse(received=0)
+
+    rows = [item.model_dump() for item in body.logs]
+    await db.execute(insert(LogEntry), rows)
+    await db.commit()
+
+    # Broadcast to WebSocket subscribers
+    broadcast_entries = []
+    for item in body.logs:
+        entry = item.model_dump()
+        entry["timestamp"] = entry["timestamp"].isoformat()
+        broadcast_entries.append(entry)
+    await log_broadcaster.publish(broadcast_entries)
+
+    return LogBatchResponse(received=len(rows))
