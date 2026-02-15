@@ -6,6 +6,7 @@ import {
   CloudServerOutlined,
   ApiOutlined,
   AlertOutlined,
+  FileTextOutlined,
   SettingOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -19,6 +20,7 @@ const menuItems = [
   { key: '/', icon: <DashboardOutlined />, label: '仪表盘' },
   { key: '/hosts', icon: <CloudServerOutlined />, label: '服务器' },
   { key: '/services', icon: <ApiOutlined />, label: '服务监控' },
+  { key: '/logs', icon: <FileTextOutlined />, label: '日志管理' },
   { key: '/alerts', icon: <AlertOutlined />, label: '告警中心' },
   { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
 ];

@@ -781,7 +781,7 @@
       "F050",
       "F031"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F055",
@@ -799,7 +799,7 @@
       "F052",
       "F054"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F056",
@@ -815,7 +815,7 @@
     "dependencies": [
       "F054"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F057",
@@ -832,7 +832,7 @@
       "F053",
       "F033"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F058",

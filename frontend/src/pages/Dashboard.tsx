@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import api from '../services/api';
+import { fetchLogStats, LogStats } from '../services/logs';
 
 const { Title } = Typography;
 
@@ -21,6 +22,7 @@ interface DashboardData {
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [logStats, setLogStats] = useState<LogStats | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -51,6 +53,11 @@ export default function Dashboard() {
             items: alerts.items || [],
           },
         });
+        // Fetch log stats
+        try {
+          const stats = await fetchLogStats('1h');
+          setLogStats(stats);
+        } catch { /* ignore */ }
       } catch {
         // API might not be accessible yet
       } finally {
@@ -172,6 +179,44 @@ export default function Dashboard() {
                 }} />
               );
             })()}
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Log Stats - F057 */}
+      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+        <Col xs={24}>
+          <Card title="最近 1 小时日志统计">
+            {logStats ? (
+              <Row gutter={16} align="middle">
+                <Col xs={24} md={8}>
+                  <Statistic title="日志总量" value={logStats.total} />
+                  <div style={{ marginTop: 8 }}>
+                    {Object.entries(logStats.by_level || {}).map(([level, count]) => (
+                      <Tag key={level} color={{ DEBUG: 'default', INFO: 'blue', WARN: 'orange', ERROR: 'red', FATAL: 'purple' }[level] || 'default'} style={{ marginBottom: 4 }}>
+                        {level}: {count}
+                      </Tag>
+                    ))}
+                  </div>
+                </Col>
+                <Col xs={24} md={16}>
+                  <ReactECharts style={{ height: 200 }} option={{
+                    tooltip: { trigger: 'item' as const },
+                    series: [{
+                      type: 'pie' as const,
+                      radius: ['40%', '70%'],
+                      data: Object.entries(logStats.by_level || {}).filter(([, v]) => v > 0).map(([name, value]) => ({
+                        name, value,
+                        itemStyle: { color: { DEBUG: '#bfbfbf', INFO: '#1677ff', WARN: '#faad14', ERROR: '#ff4d4f', FATAL: '#722ed1' }[name] || '#999' },
+                      })),
+                      label: { formatter: '{b}: {c}' },
+                    }],
+                  }} />
+                </Col>
+              </Row>
+            ) : (
+              <Typography.Text type="secondary">暂无数据</Typography.Text>
+            )}
           </Card>
         </Col>
       </Row>
