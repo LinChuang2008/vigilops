@@ -171,10 +171,9 @@ def collect_oracle_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
         "EXIT;\n"
     )
 
-    cmd = [
-        "docker", "exec", container, "bash", "-c",
-        oracle_env + "echo \"" + sql_script.replace('"', '\\"') + "\" | sqlplus -s / as sysdba"
-    ]
+    # Use printf with %s to avoid shell variable expansion of $session/$sql
+    bash_cmd = oracle_env + "printf '%s' '" + sql_script.replace("'", "'\\''") + "' | sqlplus -s / as sysdba"
+    cmd = ["docker", "exec", container, "bash", "-c", bash_cmd]
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
@@ -245,10 +244,8 @@ def _collect_oracle_slow_queries(container: str, oracle_env: str) -> Optional[Li
         "WHERE ROWNUM <= 10;\n"
         "EXIT;\n"
     )
-    cmd = [
-        "docker", "exec", container, "bash", "-c",
-        oracle_env + "echo \"" + sql.replace('"', '\\"') + "\" | sqlplus -s / as sysdba"
-    ]
+    bash_cmd = oracle_env + "printf '%s' '" + sql.replace("'", "'\\''") + "' | sqlplus -s / as sysdba"
+    cmd = ["docker", "exec", container, "bash", "-c", bash_cmd]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         output = result.stdout
