@@ -9,11 +9,13 @@ from app.core.database import get_db
 from app.core.redis import get_redis
 from app.models.agent_token import AgentToken
 from app.models.host import Host
+from app.models.host_metric import HostMetric
 from app.schemas.agent import (
     AgentRegisterRequest,
     AgentRegisterResponse,
     AgentHeartbeatRequest,
     AgentHeartbeatResponse,
+    MetricReport,
 )
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
@@ -90,3 +92,41 @@ async def heartbeat(
     await redis.set(f"heartbeat:{body.host_id}", now.isoformat(), ex=300)
 
     return AgentHeartbeatResponse(status="ok", server_time=now)
+
+
+@router.post("/metrics", status_code=201)
+async def report_metrics(
+    body: MetricReport,
+    agent_token: AgentToken = Depends(verify_agent_token),
+    db: AsyncSession = Depends(get_db),
+):
+    import json as _json
+
+    now = datetime.now(timezone.utc)
+    recorded_at = body.timestamp or now
+
+    metric = HostMetric(
+        host_id=body.host_id,
+        cpu_percent=body.cpu_percent,
+        cpu_load_1=body.cpu_load_1,
+        cpu_load_5=body.cpu_load_5,
+        cpu_load_15=body.cpu_load_15,
+        memory_used_mb=body.memory_used_mb,
+        memory_percent=body.memory_percent,
+        disk_used_mb=body.disk_used_mb,
+        disk_total_mb=body.disk_total_mb,
+        disk_percent=body.disk_percent,
+        net_bytes_sent=body.net_bytes_sent,
+        net_bytes_recv=body.net_bytes_recv,
+        recorded_at=recorded_at,
+    )
+    db.add(metric)
+    await db.commit()
+
+    # Cache latest metrics in Redis
+    redis = await get_redis()
+    latest = body.model_dump(exclude={"host_id", "timestamp"}, exclude_none=True)
+    latest["recorded_at"] = recorded_at.isoformat()
+    await redis.set(f"metrics:latest:{body.host_id}", _json.dumps(latest), ex=600)
+
+    return {"status": "ok", "metric_id": metric.id}
