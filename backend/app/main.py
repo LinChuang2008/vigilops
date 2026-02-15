@@ -13,6 +13,7 @@ from app.routers import auth
 from app.routers import agent_tokens
 from app.routers import agent
 from app.routers import hosts
+from app.routers import services
 
 
 @asynccontextmanager
@@ -54,6 +55,7 @@ app.include_router(auth.router)
 app.include_router(agent_tokens.router)
 app.include_router(agent.router)
 app.include_router(hosts.router)
+app.include_router(services.router)
 
 
 @app.get("/health")

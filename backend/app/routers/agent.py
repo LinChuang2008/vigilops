@@ -10,6 +10,8 @@ from app.core.redis import get_redis
 from app.models.agent_token import AgentToken
 from app.models.host import Host
 from app.models.host_metric import HostMetric
+from app.models.service import Service, ServiceCheck
+from app.schemas.service import ServiceCheckReport
 from app.schemas.agent import (
     AgentRegisterRequest,
     AgentRegisterResponse,
@@ -130,3 +132,31 @@ async def report_metrics(
     await redis.set(f"metrics:latest:{body.host_id}", _json.dumps(latest), ex=600)
 
     return {"status": "ok", "metric_id": metric.id}
+
+
+@router.post("/services", status_code=201)
+async def report_service_check(
+    body: ServiceCheckReport,
+    agent_token: AgentToken = Depends(verify_agent_token),
+    db: AsyncSession = Depends(get_db),
+):
+    now = datetime.now(timezone.utc)
+
+    check = ServiceCheck(
+        service_id=body.service_id,
+        status=body.status,
+        response_time_ms=body.response_time_ms,
+        status_code=body.status_code,
+        error=body.error,
+        checked_at=body.checked_at or now,
+    )
+    db.add(check)
+
+    # Update service status
+    result = await db.execute(select(Service).where(Service.id == body.service_id))
+    service = result.scalar_one_or_none()
+    if service:
+        service.status = body.status
+
+    await db.commit()
+    return {"status": "ok", "check_id": check.id}
