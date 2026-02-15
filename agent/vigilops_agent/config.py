@@ -51,6 +51,18 @@ class DiscoveryConfig:
 
 
 @dataclass
+class DatabaseMonitorConfig:
+    name: str = ""          # display name
+    type: str = "postgres"  # postgres / mysql
+    host: str = "localhost"
+    port: int = 5432
+    database: str = ""
+    username: str = ""
+    password: str = ""
+    interval: int = 60      # collection interval seconds
+
+
+@dataclass
 class AgentConfig:
     server: ServerConfig = field(default_factory=ServerConfig)
     host: HostConfig = field(default_factory=HostConfig)
@@ -58,6 +70,7 @@ class AgentConfig:
     services: List[ServiceCheckConfig] = field(default_factory=list)
     discovery: DiscoveryConfig = field(default_factory=DiscoveryConfig)
     log_sources: List[LogSourceConfig] = field(default_factory=list)
+    databases: List[DatabaseMonitorConfig] = field(default_factory=list)
 
 
 def _parse_interval(val) -> int:
@@ -147,5 +160,21 @@ def load_config(path: str) -> AgentConfig:
         )
         if ls.path:
             cfg.log_sources.append(ls)
+
+    # Databases
+    for db_conf in data.get("databases", []):
+        db_type = db_conf.get("type", "postgres")
+        default_port = 3306 if db_type == "mysql" else 5432
+        dmc = DatabaseMonitorConfig(
+            name=db_conf.get("name", ""),
+            type=db_type,
+            host=db_conf.get("host", "localhost"),
+            port=db_conf.get("port", default_port),
+            database=db_conf.get("database", ""),
+            username=db_conf.get("username", ""),
+            password=db_conf.get("password", ""),
+            interval=_parse_interval(db_conf.get("interval", 60)),
+        )
+        cfg.databases.append(dmc)
 
     return cfg

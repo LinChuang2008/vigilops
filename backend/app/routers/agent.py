@@ -20,6 +20,7 @@ from app.schemas.agent import (
     MetricReport,
 )
 from app.models.log_entry import LogEntry
+from app.models.db_metric import MonitoredDatabase, DbMetric
 from app.schemas.log_entry import LogBatchRequest, LogBatchResponse
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
@@ -197,6 +198,62 @@ async def report_service_check(
 
     await db.commit()
     return {"status": "ok", "check_id": check.id}
+
+
+@router.post("/db-metrics", status_code=201)
+async def report_db_metrics(
+    body: dict,
+    agent_token: AgentToken = Depends(verify_agent_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """F063: Receive database metrics from agent."""
+    now = datetime.now(timezone.utc)
+    host_id = body.get("host_id")
+    db_name = body.get("db_name", "")
+    db_type = body.get("db_type", "postgres")
+
+    if not host_id or not db_name:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="host_id and db_name required")
+
+    # Upsert MonitoredDatabase
+    result = await db.execute(
+        select(MonitoredDatabase).where(
+            MonitoredDatabase.host_id == host_id,
+            MonitoredDatabase.name == db_name,
+        )
+    )
+    monitored_db = result.scalar_one_or_none()
+    if not monitored_db:
+        monitored_db = MonitoredDatabase(
+            host_id=host_id,
+            name=db_name,
+            db_type=db_type,
+            status="healthy",
+        )
+        db.add(monitored_db)
+        await db.flush()
+    else:
+        monitored_db.updated_at = now
+        monitored_db.status = "healthy"
+
+    # Insert metric
+    metric = DbMetric(
+        database_id=monitored_db.id,
+        connections_total=body.get("connections_total"),
+        connections_active=body.get("connections_active"),
+        database_size_mb=body.get("database_size_mb"),
+        slow_queries=body.get("slow_queries"),
+        tables_count=body.get("tables_count"),
+        transactions_committed=body.get("transactions_committed"),
+        transactions_rolled_back=body.get("transactions_rolled_back"),
+        qps=body.get("qps"),
+        recorded_at=now,
+    )
+    db.add(metric)
+    await db.commit()
+
+    return {"status": "ok", "database_id": monitored_db.id, "metric_id": metric.id}
 
 
 @router.post("/logs", response_model=LogBatchResponse, status_code=201)

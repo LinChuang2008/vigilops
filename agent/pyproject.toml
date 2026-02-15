@@ -14,5 +14,10 @@ dependencies = [
     "click>=8.1",
 ]
 
+[project.optional-dependencies]
+postgres = ["psycopg2-binary>=2.9"]
+mysql = ["pymysql>=1.1"]
+db = ["psycopg2-binary>=2.9", "pymysql>=1.1"]
+
 [project.scripts]
 vigilops-agent = "vigilops_agent.cli:main"

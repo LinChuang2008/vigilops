@@ -8,7 +8,7 @@ import httpx
 from vigilops_agent import __version__
 from vigilops_agent.collector import collect_system_info, collect_metrics
 from vigilops_agent.checker import run_check
-from vigilops_agent.config import AgentConfig, ServiceCheckConfig
+from vigilops_agent.config import AgentConfig, ServiceCheckConfig, DatabaseMonitorConfig
 from typing import Optional, List, Dict
 
 logger = logging.getLogger(__name__)
@@ -163,6 +163,28 @@ class AgentReporter:
             logger.warning(f"Log report failed ({len(logs)} entries): {e}")
             return False
 
+    async def report_db_metrics(self, metrics: dict):
+        """Report database metrics to backend."""
+        if not self.host_id:
+            return
+        metrics["host_id"] = self.host_id
+        client = await self._get_client()
+        resp = await client.post("/api/v1/agent/db-metrics", json=metrics)
+        resp.raise_for_status()
+        logger.debug("DB metrics reported: %s", metrics.get("db_name"))
+
+    async def _db_monitor_loop(self, db_config: DatabaseMonitorConfig):
+        """Periodic database metrics collection loop."""
+        from vigilops_agent.db_collector import collect_db_metrics
+        while True:
+            try:
+                metrics = collect_db_metrics(db_config)
+                if metrics:
+                    await self.report_db_metrics(metrics)
+            except Exception as e:
+                logger.warning("DB monitor failed for %s: %s", db_config.name, e)
+            await asyncio.sleep(db_config.interval)
+
     async def _service_check_loop(self, svc: ServiceCheckConfig):
         """Run periodic checks for a single service."""
         while True:
@@ -243,6 +265,12 @@ class AgentReporter:
         for svc in self.config.services:
             if svc.name in self._service_ids:
                 tasks.append(asyncio.create_task(self._service_check_loop(svc)))
+
+        # Database monitoring loops
+        for db_config in self.config.databases:
+            tasks.append(asyncio.create_task(self._db_monitor_loop(db_config)))
+        if self.config.databases:
+            logger.info("Database monitoring started for %d database(s)", len(self.config.databases))
 
         if log_sources:
             from vigilops_agent.log_collector import LogCollector

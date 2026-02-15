@@ -8,7 +8,7 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.core.redis import get_redis, close_redis
-from app.models import User, AgentToken, Host, HostMetric, Service, ServiceCheck, Alert, AlertRule, NotificationChannel, NotificationLog, LogEntry  # noqa: F401 — register models
+from app.models import User, AgentToken, Host, HostMetric, Service, ServiceCheck, Alert, AlertRule, NotificationChannel, NotificationLog, LogEntry, MonitoredDatabase, DbMetric  # noqa: F401 — register models
 from app.routers import auth
 from app.routers import agent_tokens
 from app.routers import agent
@@ -19,6 +19,7 @@ from app.routers import alerts
 from app.routers import notifications
 from app.routers import settings
 from app.routers import logs
+from app.routers import databases
 
 
 @asynccontextmanager
@@ -28,6 +29,7 @@ async def lifespan(app: FastAPI):
     from app.tasks.offline_detector import offline_detector_loop
     from app.tasks.alert_engine import alert_engine_loop
     from app.tasks.log_cleanup import log_cleanup_loop
+    from app.tasks.db_metric_cleanup import db_metric_cleanup_loop
     from app.services.alert_seed import seed_builtin_rules
     from app.core.database import async_session
 
@@ -44,6 +46,8 @@ async def lifespan(app: FastAPI):
     alert_task = asyncio.create_task(alert_engine_loop())
     retention_days = int(os.environ.get("LOG_RETENTION_DAYS", "7"))
     log_cleanup_task = asyncio.create_task(log_cleanup_loop(retention_days))
+    db_retention = int(os.environ.get("DB_METRIC_RETENTION_DAYS", "30"))
+    db_cleanup_task = asyncio.create_task(db_metric_cleanup_loop(db_retention))
 
     yield
 
@@ -51,6 +55,7 @@ async def lifespan(app: FastAPI):
     task.cancel()
     alert_task.cancel()
     log_cleanup_task.cancel()
+    db_cleanup_task.cancel()
     await close_redis()
     await engine.dispose()
 
@@ -81,6 +86,7 @@ app.include_router(notifications.router)
 app.include_router(settings.router)
 app.include_router(logs.router)
 app.include_router(logs.ws_router)
+app.include_router(databases.router)
 
 
 @app.get("/health")
