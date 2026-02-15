@@ -1,0 +1,27 @@
+from datetime import datetime
+
+from sqlalchemy import Integer, Float, BigInteger, DateTime, func
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.core.database import Base
+
+
+class HostMetric(Base):
+    __tablename__ = "host_metrics"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    host_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    cpu_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cpu_load_1: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cpu_load_5: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cpu_load_15: Mapped[float | None] = mapped_column(Float, nullable=True)
+    memory_used_mb: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    memory_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
+    disk_used_mb: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    disk_total_mb: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    disk_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
+    net_bytes_sent: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    net_bytes_recv: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
