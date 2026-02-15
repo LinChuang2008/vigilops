@@ -32,12 +32,29 @@ class AgentReporter:
             )
         return self._client
 
+    def _get_local_ip(self) -> str:
+        """Get local IP address by connecting to server."""
+        import socket
+        try:
+            # Parse server host from URL
+            from urllib.parse import urlparse
+            parsed = urlparse(self.config.server.url)
+            host = parsed.hostname or "10.211.55.2"
+            port = parsed.port or 80
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect((host, port))
+            ip = s.getsockname()[0]
+            s.close()
+            return ip
+        except Exception:
+            return ""
+
     async def register(self):
         """Register this agent with the server."""
         info = collect_system_info()
         payload = {
             "hostname": self.config.host.name or info["hostname"],
-            "ip_address": None,
+            "ip_address": self._get_local_ip(),
             "os": info["os"],
             "os_version": info["os_version"],
             "arch": info["arch"],
