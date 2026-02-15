@@ -253,7 +253,54 @@ async def report_db_metrics(
     db.add(metric)
     await db.commit()
 
+    # F072: Check database metric alert rules
+    try:
+        await _check_db_metric_alerts(monitored_db.id, body, db)
+    except Exception:
+        pass
+
     return {"status": "ok", "database_id": monitored_db.id, "metric_id": metric.id}
+
+
+async def _check_db_metric_alerts(database_id: int, body: dict, db: AsyncSession):
+    """F072: Check database metric alert rules against incoming metrics."""
+    from app.models.alert import AlertRule, Alert
+    import operator as op_module
+
+    result = await db.execute(
+        select(AlertRule).where(
+            AlertRule.rule_type == "db_metric",
+            AlertRule.is_enabled == True,
+        )
+    )
+    rules = result.scalars().all()
+
+    ops = {">": op_module.gt, ">=": op_module.ge, "<": op_module.lt, "<=": op_module.le, "==": op_module.eq, "!=": op_module.ne}
+
+    for rule in rules:
+        if rule.db_id and rule.db_id != database_id:
+            continue
+        metric_name = rule.db_metric_name
+        if not metric_name:
+            continue
+        value = body.get(metric_name)
+        if value is None:
+            continue
+        compare = ops.get(rule.operator, op_module.gt)
+        if compare(float(value), rule.threshold):
+            alert = Alert(
+                rule_id=rule.id,
+                host_id=body.get("host_id"),
+                severity=rule.severity,
+                status="firing",
+                title=f"数据库告警: {rule.name}",
+                message=f"{metric_name} = {value} {rule.operator} {rule.threshold}",
+                metric_value=float(value),
+                threshold=rule.threshold,
+            )
+            db.add(alert)
+
+    await db.commit()
 
 
 @router.post("/logs", response_model=LogBatchResponse, status_code=201)
@@ -281,4 +328,51 @@ async def ingest_logs(
         broadcast_entries.append(entry)
     await log_broadcaster.publish(broadcast_entries)
 
+    # F070: Check log keyword alert rules
+    try:
+        await _check_log_keyword_alerts(body.logs, db)
+    except Exception:
+        pass  # Don't fail log ingestion if alert check fails
+
     return LogBatchResponse(received=len(rows))
+
+
+async def _check_log_keyword_alerts(logs: list, db: AsyncSession):
+    """F070: Match incoming logs against log_keyword alert rules."""
+    from app.models.alert import AlertRule, Alert
+
+    result = await db.execute(
+        select(AlertRule).where(
+            AlertRule.rule_type == "log_keyword",
+            AlertRule.is_enabled == True,
+        )
+    )
+    rules = result.scalars().all()
+    if not rules:
+        return
+
+    for log_item in logs:
+        msg = (log_item.message or "").lower()
+        level = (log_item.level or "").upper()
+        svc = log_item.service or ""
+
+        for rule in rules:
+            keyword = (rule.log_keyword or "").lower()
+            if not keyword or keyword not in msg:
+                continue
+            if rule.log_level and rule.log_level.upper() != level:
+                continue
+            if rule.log_service and rule.log_service != svc:
+                continue
+
+            alert = Alert(
+                rule_id=rule.id,
+                host_id=log_item.host_id,
+                severity=rule.severity,
+                status="firing",
+                title=f"日志关键字告警: {rule.name}",
+                message=f"匹配关键字 '{rule.log_keyword}' in: {log_item.message[:200]}",
+            )
+            db.add(alert)
+
+    await db.commit()

@@ -8,13 +8,19 @@ class AlertRuleCreate(BaseModel):
     name: str
     description: str | None = None
     severity: str = "warning"
-    metric: str
+    metric: str = ""
     operator: str = ">"
-    threshold: float
+    threshold: float = 0
     duration_seconds: int = 300
     is_enabled: bool = True
     target_type: str = "host"
     target_filter: dict | None = None
+    rule_type: str = "metric"
+    log_keyword: str | None = None
+    log_level: str | None = None
+    log_service: str | None = None
+    db_metric_name: str | None = None
+    db_id: int | None = None
 
 
 class AlertRuleUpdate(BaseModel):
@@ -27,6 +33,12 @@ class AlertRuleUpdate(BaseModel):
     duration_seconds: int | None = None
     is_enabled: bool | None = None
     target_filter: dict | None = None
+    rule_type: str | None = None
+    log_keyword: str | None = None
+    log_level: str | None = None
+    log_service: str | None = None
+    db_metric_name: str | None = None
+    db_id: int | None = None
 
 
 class AlertRuleResponse(BaseModel):
@@ -42,6 +54,12 @@ class AlertRuleResponse(BaseModel):
     is_enabled: bool
     target_type: str
     target_filter: dict | None
+    rule_type: str | None = "metric"
+    log_keyword: str | None = None
+    log_level: str | None = None
+    log_service: str | None = None
+    db_metric_name: str | None = None
+    db_id: int | None = None
     created_at: datetime
     updated_at: datetime
 

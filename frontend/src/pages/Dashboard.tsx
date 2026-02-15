@@ -10,6 +10,8 @@ import {
 import ReactECharts from 'echarts-for-react';
 import api from '../services/api';
 import { fetchLogStats, LogStats } from '../services/logs';
+import { databaseService, DatabaseItem } from '../services/databases';
+import { DatabaseOutlined } from '@ant-design/icons';
 
 const { Title } = Typography;
 
@@ -23,6 +25,7 @@ export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [logStats, setLogStats] = useState<LogStats | null>(null);
+  const [dbItems, setDbItems] = useState<DatabaseItem[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -57,6 +60,10 @@ export default function Dashboard() {
         try {
           const stats = await fetchLogStats('1h');
           setLogStats(stats);
+        } catch { /* ignore */ }
+        try {
+          const dbRes = await databaseService.list();
+          setDbItems(dbRes.data.databases || []);
         } catch { /* ignore */ }
       } catch {
         // API might not be accessible yet
@@ -96,7 +103,7 @@ export default function Dashboard() {
     <div>
       <Title level={4}>系统概览</Title>
       <Row gutter={[16, 16]}>
-        <Col xs={24} sm={8}>
+        <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic title="服务器总数" value={d.hosts.total} prefix={<CloudServerOutlined />} />
             <div style={{ marginTop: 8 }}>
@@ -105,7 +112,7 @@ export default function Dashboard() {
             </div>
           </Card>
         </Col>
-        <Col xs={24} sm={8}>
+        <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic title="服务总数" value={d.services.total} prefix={<ApiOutlined />} />
             <div style={{ marginTop: 8 }}>
@@ -114,7 +121,16 @@ export default function Dashboard() {
             </div>
           </Card>
         </Col>
-        <Col xs={24} sm={8}>
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic title="数据库" value={dbItems.length} prefix={<DatabaseOutlined />} />
+            <div style={{ marginTop: 8 }}>
+              <Tag color="success">健康 {dbItems.filter(d => d.status === 'healthy').length}</Tag>
+              <Tag color="error">异常 {dbItems.filter(d => d.status !== 'healthy' && d.status !== 'unknown').length}</Tag>
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic title="活跃告警" value={d.alerts.firing} prefix={<AlertOutlined />} valueStyle={{ color: d.alerts.firing > 0 ? '#cf1322' : '#3f8600' }} />
           </Card>

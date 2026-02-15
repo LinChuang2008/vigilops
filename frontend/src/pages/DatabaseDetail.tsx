@@ -1,0 +1,113 @@
+import { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { Card, Row, Col, Descriptions, Tag, Spin, Typography, Select, Space } from 'antd';
+import ReactECharts from 'echarts-for-react';
+import { databaseService, DatabaseItem, DatabaseMetric } from '../services/databases';
+
+const statusColor: Record<string, string> = { healthy: 'success', warning: 'warning', critical: 'error', unknown: 'default' };
+
+export default function DatabaseDetail() {
+  const { id } = useParams<{ id: string }>();
+  const [db, setDb] = useState<DatabaseItem | null>(null);
+  const [metrics, setMetrics] = useState<DatabaseMetric[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState('1h');
+
+  const fetchData = async () => {
+    if (!id) return;
+    setLoading(true);
+    try {
+      const [dbRes, metricsRes] = await Promise.all([
+        databaseService.get(id),
+        databaseService.getMetrics(id, timeRange),
+      ]);
+      setDb(dbRes.data);
+      setMetrics(metricsRes.data.metrics || []);
+    } catch { /* ignore */ } finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetchData(); }, [id, timeRange]);
+  useEffect(() => {
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, [id, timeRange]);
+
+  if (loading && !db) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
+  if (!db) return <Typography.Text>数据库不存在</Typography.Text>;
+
+  const timestamps = metrics.map(m => m.recorded_at ? new Date(m.recorded_at).toLocaleTimeString() : '');
+
+  const lineOption = (title: string, series: { name: string; data: (number | null)[]; color: string }[], yFormatter = '{value}') => ({
+    title: { text: title, left: 'center', textStyle: { fontSize: 14 } },
+    tooltip: { trigger: 'axis' as const },
+    legend: { bottom: 0 },
+    xAxis: { type: 'category' as const, data: timestamps, axisLabel: { rotate: 30 } },
+    yAxis: { type: 'value' as const, axisLabel: { formatter: yFormatter } },
+    series: series.map(s => ({ ...s, type: 'line' as const, smooth: true, areaStyle: { opacity: 0.1 } })),
+    grid: { top: 40, bottom: 60, left: 60, right: 20 },
+  });
+
+  const dbTypeName = db.db_type === 'postgres' || db.db_type === 'postgresql' ? 'PostgreSQL' : db.db_type === 'mysql' ? 'MySQL' : db.db_type;
+
+  return (
+    <div>
+      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
+        <Col><Typography.Title level={4} style={{ margin: 0 }}>{db.name}</Typography.Title></Col>
+        <Col>
+          <Space>
+            <Typography.Text type="secondary">时间范围:</Typography.Text>
+            <Select value={timeRange} onChange={setTimeRange} style={{ width: 120 }}
+              options={[
+                { label: '1小时', value: '1h' },
+                { label: '6小时', value: '6h' },
+                { label: '24小时', value: '24h' },
+                { label: '7天', value: '7d' },
+              ]} />
+          </Space>
+        </Col>
+      </Row>
+
+      <Card style={{ marginBottom: 16 }}>
+        <Descriptions column={{ xs: 1, sm: 2, md: 4 }}>
+          <Descriptions.Item label="数据库名">{db.name}</Descriptions.Item>
+          <Descriptions.Item label="类型">{dbTypeName}</Descriptions.Item>
+          <Descriptions.Item label="状态"><Tag color={statusColor[db.status] || 'default'}>{db.status}</Tag></Descriptions.Item>
+          <Descriptions.Item label="更新时间">{db.updated_at ? new Date(db.updated_at).toLocaleString() : '-'}</Descriptions.Item>
+        </Descriptions>
+      </Card>
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} md={12}>
+          <Card>
+            <ReactECharts option={lineOption('连接数趋势', [
+              { name: '总连接', data: metrics.map(m => m.connections_total), color: '#1677ff' },
+              { name: '活跃连接', data: metrics.map(m => m.connections_active), color: '#52c41a' },
+            ])} style={{ height: 280 }} />
+          </Card>
+        </Col>
+        <Col xs={24} md={12}>
+          <Card>
+            <ReactECharts option={lineOption('数据库大小趋势', [
+              { name: '大小 (MB)', data: metrics.map(m => m.database_size_mb), color: '#faad14' },
+            ], '{value} MB')} style={{ height: 280 }} />
+          </Card>
+        </Col>
+        <Col xs={24} md={12}>
+          <Card>
+            <ReactECharts option={lineOption('慢查询趋势', [
+              { name: '慢查询', data: metrics.map(m => m.slow_queries), color: '#ff4d4f' },
+            ])} style={{ height: 280 }} />
+          </Card>
+        </Col>
+        <Col xs={24} md={12}>
+          <Card>
+            <ReactECharts option={lineOption('事务趋势', [
+              { name: '已提交', data: metrics.map(m => m.transactions_committed), color: '#1677ff' },
+              { name: '已回滚', data: metrics.map(m => m.transactions_rolled_back), color: '#ff4d4f' },
+            ])} style={{ height: 280 }} />
+          </Card>
+        </Col>
+      </Row>
+    </div>
+  );
+}

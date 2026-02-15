@@ -12,6 +12,8 @@ import ServiceDetail from './pages/ServiceDetail';
 import AlertList from './pages/AlertList';
 import Settings from './pages/Settings';
 import Logs from './pages/Logs';
+import Databases from './pages/Databases';
+import DatabaseDetail from './pages/DatabaseDetail';
 
 export default function App() {
   return (
@@ -41,6 +43,8 @@ export default function App() {
               <Route path="/services" element={<ServiceList />} />
               <Route path="/services/:id" element={<ServiceDetail />} />
               <Route path="/logs" element={<Logs />} />
+              <Route path="/databases" element={<Databases />} />
+              <Route path="/databases/:id" element={<DatabaseDetail />} />
               <Route path="/alerts" element={<AlertList />} />
               <Route path="/settings" element={<Settings />} />
             </Route>

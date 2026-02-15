@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Table, Card, Tag, Typography, Select, Space, Button, Drawer, Descriptions, Tabs, Modal, Form, Input, InputNumber, Switch, Row, Col, message } from 'antd';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 import { alertService } from '../services/alerts';
+import { databaseService, DatabaseItem } from '../services/databases';
 import type { Alert, AlertRule } from '../services/alerts';
 
 const severityColor: Record<string, string> = { critical: 'red', warning: 'orange', info: 'blue' };
@@ -19,6 +20,8 @@ export default function AlertList() {
   const [rulesLoading, setRulesLoading] = useState(false);
   const [ruleModalOpen, setRuleModalOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<AlertRule | null>(null);
+  const [ruleType, setRuleType] = useState<string>('metric');
+  const [dbList, setDbList] = useState<DatabaseItem[]>([]);
   const [form] = Form.useForm();
   const [messageApi, contextHolder] = message.useMessage();
 
@@ -40,6 +43,13 @@ export default function AlertList() {
       const { data } = await alertService.listRules();
       setRules(Array.isArray(data) ? data : []);
     } catch { /* ignore */ } finally { setRulesLoading(false); }
+  };
+
+  const loadDbList = async () => {
+    try {
+      const { data } = await databaseService.list();
+      setDbList(data.databases || []);
+    } catch { /* ignore */ }
   };
 
   useEffect(() => { fetchAlerts(); }, [page, statusFilter, severityFilter]);
@@ -96,18 +106,31 @@ export default function AlertList() {
     },
   ];
 
+  const ruleTypeLabel: Record<string, string> = { metric: '指标', log_keyword: '日志关键字', db_metric: '数据库' };
+  const ruleTypeColor: Record<string, string> = { metric: 'blue', log_keyword: 'purple', db_metric: 'cyan' };
+
   const ruleColumns = [
     { title: '名称', dataIndex: 'name' },
-    { title: '指标', dataIndex: 'metric' },
-    { title: '条件', key: 'cond', render: (_: unknown, r: AlertRule) => `${r.operator} ${r.threshold}` },
-    { title: '持续(秒)', dataIndex: 'duration_seconds' },
+    {
+      title: '类型', dataIndex: 'rule_type', key: 'rule_type',
+      render: (t: string) => <Tag color={ruleTypeColor[t] || 'default'}>{ruleTypeLabel[t] || t || '指标'}</Tag>,
+    },
+    {
+      title: '条件', key: 'cond',
+      render: (_: unknown, r: AlertRule) => {
+        const rt = r.rule_type || 'metric';
+        if (rt === 'log_keyword') return `关键字: ${r.log_keyword || '-'}`;
+        if (rt === 'db_metric') return `${r.db_metric_name || '-'} ${r.operator} ${r.threshold}`;
+        return `${r.metric} ${r.operator} ${r.threshold}`;
+      },
+    },
     { title: '级别', dataIndex: 'severity', render: (s: string) => <Tag color={severityColor[s]}>{s}</Tag> },
-    { title: '启用', dataIndex: 'enabled', render: (v: boolean) => <Tag color={v ? 'success' : 'default'}>{v ? '是' : '否'}</Tag> },
+    { title: '启用', dataIndex: 'is_enabled', render: (v: boolean) => <Tag color={v ? 'success' : 'default'}>{v ? '是' : '否'}</Tag> },
     {
       title: '操作', key: 'action',
       render: (_: unknown, r: AlertRule) => (
         <Space>
-          <Button type="link" size="small" onClick={() => { setEditingRule(r); form.setFieldsValue(r); setRuleModalOpen(true); }}>编辑</Button>
+          <Button type="link" size="small" onClick={() => { setEditingRule(r); setRuleType(r.rule_type || 'metric'); form.setFieldsValue(r); loadDbList(); setRuleModalOpen(true); }}>编辑</Button>
           {!r.is_builtin && <Button type="link" size="small" danger onClick={() => handleRuleDelete(r.id)}>删除</Button>}
         </Space>
       ),
@@ -145,7 +168,7 @@ export default function AlertList() {
           children: (
             <>
               <Row justify="end" style={{ marginBottom: 16 }}>
-                <Button type="primary" onClick={() => { setEditingRule(null); form.resetFields(); setRuleModalOpen(true); }}>新建规则</Button>
+                <Button type="primary" onClick={() => { setEditingRule(null); setRuleType('metric'); form.resetFields(); setRuleModalOpen(true); loadDbList(); }}>新建规则</Button>
               </Row>
               <Card>
                 <Table dataSource={rules} columns={ruleColumns} rowKey="id" loading={rulesLoading} pagination={false} />
@@ -173,25 +196,75 @@ export default function AlertList() {
       </Drawer>
 
       <Modal title={editingRule ? '编辑规则' : '新建规则'} open={ruleModalOpen} onCancel={() => setRuleModalOpen(false)}
-        onOk={() => form.submit()} destroyOnClose>
-        <Form form={form} layout="vertical" onFinish={handleRuleSave}>
+        onOk={() => form.submit()} destroyOnClose width={560}>
+        <Form form={form} layout="vertical" onFinish={handleRuleSave} initialValues={{ rule_type: 'metric' }}>
           <Form.Item name="name" label="规则名称" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="metric" label="指标" rules={[{ required: true }]}>
-            <Select options={[
-              { label: 'CPU 使用率', value: 'cpu_percent' },
-              { label: '内存使用率', value: 'memory_percent' },
-              { label: '磁盘使用率', value: 'disk_percent' },
+          <Form.Item name="rule_type" label="规则类型" rules={[{ required: true }]}>
+            <Select onChange={(v: string) => setRuleType(v)} options={[
+              { label: '指标告警', value: 'metric' },
+              { label: '日志关键字', value: 'log_keyword' },
+              { label: '数据库告警', value: 'db_metric' },
             ]} />
           </Form.Item>
-          <Form.Item name="operator" label="运算符" rules={[{ required: true }]}>
-            <Select options={[{ label: '>', value: '>' }, { label: '>=', value: '>=' }, { label: '<', value: '<' }, { label: '<=', value: '<=' }]} />
-          </Form.Item>
-          <Form.Item name="threshold" label="阈值" rules={[{ required: true }]}><InputNumber style={{ width: '100%' }} /></Form.Item>
-          <Form.Item name="duration_seconds" label="持续时间(秒)" rules={[{ required: true }]}><InputNumber style={{ width: '100%' }} /></Form.Item>
+
+          {/* Metric fields */}
+          {ruleType === 'metric' && (
+            <Form.Item name="metric" label="指标" rules={[{ required: true }]}>
+              <Select options={[
+                { label: 'CPU 使用率', value: 'cpu_percent' },
+                { label: '内存使用率', value: 'memory_percent' },
+                { label: '磁盘使用率', value: 'disk_percent' },
+              ]} />
+            </Form.Item>
+          )}
+
+          {/* Log keyword fields */}
+          {ruleType === 'log_keyword' && (
+            <>
+              <Form.Item name="log_keyword" label="匹配关键字" rules={[{ required: true }]}><Input placeholder="例如: ERROR, OutOfMemory" /></Form.Item>
+              <Form.Item name="log_level" label="日志级别（留空匹配全部）">
+                <Select allowClear options={[
+                  { label: 'DEBUG', value: 'DEBUG' }, { label: 'INFO', value: 'INFO' },
+                  { label: 'WARN', value: 'WARN' }, { label: 'ERROR', value: 'ERROR' }, { label: 'FATAL', value: 'FATAL' },
+                ]} />
+              </Form.Item>
+              <Form.Item name="log_service" label="服务名（留空匹配全部）"><Input placeholder="例如: nginx, app" /></Form.Item>
+            </>
+          )}
+
+          {/* Database metric fields */}
+          {ruleType === 'db_metric' && (
+            <>
+              <Form.Item name="db_id" label="数据库（留空匹配全部）">
+                <Select allowClear options={dbList.map(d => ({ label: `${d.name} (${d.db_type})`, value: d.id }))} />
+              </Form.Item>
+              <Form.Item name="db_metric_name" label="数据库指标" rules={[{ required: true }]}>
+                <Select options={[
+                  { label: '连接数', value: 'connections_total' },
+                  { label: '活跃连接', value: 'connections_active' },
+                  { label: '慢查询', value: 'slow_queries' },
+                  { label: '数据库大小(MB)', value: 'database_size_mb' },
+                  { label: 'QPS', value: 'qps' },
+                ]} />
+              </Form.Item>
+            </>
+          )}
+
+          {/* Shared threshold fields for metric and db_metric */}
+          {(ruleType === 'metric' || ruleType === 'db_metric') && (
+            <>
+              <Form.Item name="operator" label="运算符" rules={[{ required: true }]}>
+                <Select options={[{ label: '>', value: '>' }, { label: '>=', value: '>=' }, { label: '<', value: '<' }, { label: '<=', value: '<=' }]} />
+              </Form.Item>
+              <Form.Item name="threshold" label="阈值" rules={[{ required: true }]}><InputNumber style={{ width: '100%' }} /></Form.Item>
+            </>
+          )}
+
+          <Form.Item name="duration_seconds" label="持续时间(秒)"><InputNumber style={{ width: '100%' }} /></Form.Item>
           <Form.Item name="severity" label="严重级别" rules={[{ required: true }]}>
             <Select options={[{ label: 'Critical', value: 'critical' }, { label: 'Warning', value: 'warning' }, { label: 'Info', value: 'info' }]} />
           </Form.Item>
-          <Form.Item name="enabled" label="启用" valuePropName="checked"><Switch /></Form.Item>
+          <Form.Item name="is_enabled" label="启用" valuePropName="checked"><Switch /></Form.Item>
         </Form>
       </Modal>
     </div>

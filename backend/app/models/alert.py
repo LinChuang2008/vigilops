@@ -21,6 +21,14 @@ class AlertRule(Base):
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     target_type: Mapped[str] = mapped_column(String(20), nullable=False, default="host")  # host / service
     target_filter: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # optional filter: {"group": "prod"}
+    # F069: log keyword alert fields
+    rule_type: Mapped[str | None] = mapped_column(String(20), nullable=True, default="metric")  # metric/log_keyword/db_metric
+    log_keyword: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    log_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    log_service: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # F071: database alert fields
+    db_metric_name: Mapped[str | None] = mapped_column(String(50), nullable=True)  # connections_total, slow_queries, etc.
+    db_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # monitored_databases.id
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

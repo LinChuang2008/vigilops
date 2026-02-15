@@ -25,7 +25,14 @@ export interface AlertRule {
   severity: string;
   enabled: boolean;
   is_builtin: boolean;
+  is_enabled: boolean;
   created_at: string;
+  rule_type?: string;
+  log_keyword?: string;
+  log_level?: string;
+  log_service?: string;
+  db_metric_name?: string;
+  db_id?: number;
 }
 
 export interface AlertListResponse {

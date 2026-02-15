@@ -980,7 +980,7 @@
       "F064",
       "F031"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F067",
@@ -997,7 +997,7 @@
     "dependencies": [
       "F066"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F068",
@@ -1013,7 +1013,7 @@
       "F064",
       "F033"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F069",
@@ -1030,7 +1030,7 @@
       "F022",
       "F047"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F070",
@@ -1048,7 +1048,7 @@
       "F048",
       "F024"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F071",
@@ -1065,7 +1065,7 @@
       "F022",
       "F062"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F072",
@@ -1083,7 +1083,7 @@
       "F063",
       "F024"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F073",
@@ -1101,6 +1101,6 @@
       "F071",
       "F037"
     ],
-    "passes": false
+    "passes": true
   }
 ]
