@@ -31,6 +31,8 @@ export default function ServiceDetail() {
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
   if (!service) return <Typography.Text>服务不存在</Typography.Text>;
 
+  const isUp = (s: string) => s === 'up' || s === 'healthy';
+
   const sorted = [...checks].sort((a, b) => new Date(a.checked_at).getTime() - new Date(b.checked_at).getTime());
   const timestamps = sorted.map(c => new Date(c.checked_at).toLocaleTimeString());
 
@@ -47,28 +49,38 @@ export default function ServiceDetail() {
     title: { text: '可用率趋势', left: 'center', textStyle: { fontSize: 14 } },
     tooltip: { trigger: 'axis' as const },
     xAxis: { type: 'category' as const, data: timestamps, axisLabel: { rotate: 30 } },
-    yAxis: { type: 'value' as const },
+    yAxis: { type: 'value' as const, min: 0, max: 1 },
     series: [{
       type: 'scatter' as const,
-      data: sorted.map(c => c.status === 'healthy' ? 1 : 0),
-      itemStyle: { color: (params: { value: number }) => params.value === 1 ? '#52c41a' : '#ff4d4f' },
+      data: sorted.map(c => isUp(c.status) ? 1 : 0),
+      itemStyle: { color: '#52c41a' },
       symbolSize: 8,
     }],
     grid: { top: 40, bottom: 60, left: 50, right: 20 },
   };
+
+  // Use target or url, type or check_type
+  const serviceUrl = service.target || service.url || '-';
+  const serviceType = service.type || service.check_type || '-';
+  const serviceIsUp = isUp(service.status);
+
+  // Find last check time from checks array
+  const lastCheckTime = checks.length > 0
+    ? new Date(checks[0].checked_at).toLocaleString()
+    : '-';
 
   return (
     <div>
       <Typography.Title level={4}>{service.name}</Typography.Title>
       <Card style={{ marginBottom: 16 }}>
         <Descriptions column={{ xs: 1, sm: 2, md: 3 }}>
-          <Descriptions.Item label="URL">{service.url}</Descriptions.Item>
-          <Descriptions.Item label="检查类型"><Tag>{service.check_type?.toUpperCase()}</Tag></Descriptions.Item>
+          <Descriptions.Item label="URL">{serviceUrl}</Descriptions.Item>
+          <Descriptions.Item label="检查类型"><Tag>{serviceType.toUpperCase()}</Tag></Descriptions.Item>
           <Descriptions.Item label="状态">
-            <Tag color={service.status === 'healthy' ? 'success' : 'error'}>{service.status === 'healthy' ? '健康' : '异常'}</Tag>
+            <Tag color={serviceIsUp ? 'success' : 'error'}>{serviceIsUp ? '健康' : '异常'}</Tag>
           </Descriptions.Item>
           <Descriptions.Item label="可用率">{service.uptime_percent != null ? `${service.uptime_percent}%` : '-'}</Descriptions.Item>
-          <Descriptions.Item label="最后检查">{service.last_check ? new Date(service.last_check).toLocaleString() : '-'}</Descriptions.Item>
+          <Descriptions.Item label="最后检查">{lastCheckTime}</Descriptions.Item>
         </Descriptions>
       </Card>
 
@@ -85,7 +97,7 @@ export default function ServiceDetail() {
         <Table dataSource={checks} rowKey="id" size="small"
           pagination={{ pageSize: 20 }}
           columns={[
-            { title: '状态', dataIndex: 'status', render: (s: string) => <Tag color={s === 'healthy' ? 'success' : 'error'}>{s}</Tag> },
+            { title: '状态', dataIndex: 'status', render: (s: string) => <Tag color={isUp(s) ? 'success' : 'error'}>{s}</Tag> },
             { title: '响应时间', dataIndex: 'response_time_ms', render: (v: number) => `${v} ms` },
             { title: '状态码', dataIndex: 'status_code', render: (v: number | null) => v || '-' },
             { title: '错误', dataIndex: 'error', render: (v: string | null) => v || '-', ellipsis: true },
