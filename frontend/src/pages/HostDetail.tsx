@@ -54,7 +54,7 @@ export default function HostDetail() {
   });
 
   const netOption = {
-    title: { text: '网络流量', left: 'center', textStyle: { fontSize: 14 } },
+    title: { text: '网络流量（累计）', left: 'center', textStyle: { fontSize: 14 } },
     tooltip: { trigger: 'axis' as const },
     legend: { bottom: 0 },
     xAxis: { type: 'category' as const, data: timestamps, axisLabel: { rotate: 30 } },
@@ -64,6 +64,30 @@ export default function HostDetail() {
       { name: '接收', type: 'line' as const, data: metrics.map(m => m.net_bytes_recv), smooth: true, itemStyle: { color: '#52c41a' } },
     ],
     grid: { top: 40, bottom: 60, left: 70, right: 20 },
+  };
+
+  const netRateOption = {
+    title: { text: '网络带宽 (KB/s)', left: 'center', textStyle: { fontSize: 14 } },
+    tooltip: { trigger: 'axis' as const },
+    legend: { bottom: 0 },
+    xAxis: { type: 'category' as const, data: timestamps, axisLabel: { rotate: 30 } },
+    yAxis: { type: 'value' as const, axisLabel: { formatter: '{value} KB/s' } },
+    series: [
+      { name: '上传', type: 'line' as const, data: metrics.map(m => m.net_send_rate_kb ?? 0), smooth: true, areaStyle: { opacity: 0.1 }, itemStyle: { color: '#1677ff' } },
+      { name: '下载', type: 'line' as const, data: metrics.map(m => m.net_recv_rate_kb ?? 0), smooth: true, areaStyle: { opacity: 0.1 }, itemStyle: { color: '#52c41a' } },
+    ],
+    grid: { top: 40, bottom: 60, left: 60, right: 20 },
+  };
+
+  const packetLossOption = {
+    title: { text: '丢包率', left: 'center', textStyle: { fontSize: 14 } },
+    tooltip: { trigger: 'axis' as const },
+    xAxis: { type: 'category' as const, data: timestamps, axisLabel: { rotate: 30 } },
+    yAxis: { type: 'value' as const, axisLabel: { formatter: '{value}%' } },
+    series: [
+      { name: '丢包率', type: 'line' as const, data: metrics.map(m => m.net_packet_loss_rate ?? 0), smooth: true, areaStyle: { opacity: 0.15 }, itemStyle: { color: '#faad14' } },
+    ],
+    grid: { top: 40, bottom: 40, left: 50, right: 20 },
   };
 
   return (
@@ -123,6 +147,16 @@ export default function HostDetail() {
         <Col xs={24} md={12}>
           <Card>
             <ReactECharts option={netOption} style={{ height: 280 }} />
+          </Card>
+        </Col>
+        <Col xs={24} md={12}>
+          <Card>
+            <ReactECharts option={netRateOption} style={{ height: 280 }} />
+          </Card>
+        </Col>
+        <Col xs={24} md={12}>
+          <Card>
+            <ReactECharts option={packetLossOption} style={{ height: 280 }} />
           </Card>
         </Col>
       </Row>

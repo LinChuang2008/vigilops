@@ -1,10 +1,15 @@
 """System metrics collector using psutil."""
 import logging
 import platform
+import time
 
 import psutil
 
 logger = logging.getLogger(__name__)
+
+# Module-level state for rate calculation
+_prev_net: dict | None = None
+_prev_time: float | None = None
 
 
 def collect_system_info() -> dict:
@@ -42,8 +47,33 @@ def collect_metrics() -> dict:
         disk_used_mb = disk_total_mb = 0
         disk_percent = 0.0
 
-    # Network — cumulative counters
+    # Network — cumulative counters + rate calculation
+    global _prev_net, _prev_time
     net = psutil.net_io_counters()
+    now = time.monotonic()
+
+    net_send_rate_kb = 0.0
+    net_recv_rate_kb = 0.0
+    net_packet_loss_rate = 0.0
+
+    if _prev_net is not None and _prev_time is not None:
+        dt = now - _prev_time
+        if dt > 0:
+            net_send_rate_kb = round((net.bytes_sent - _prev_net["bytes_sent"]) / 1024 / dt, 2)
+            net_recv_rate_kb = round((net.bytes_recv - _prev_net["bytes_recv"]) / 1024 / dt, 2)
+
+    # Packet loss rate: dropped / (received + dropped) as percentage
+    total_in = net.packets_recv + net.dropin
+    total_out = net.packets_sent + net.dropout
+    total_packets = total_in + total_out
+    if total_packets > 0:
+        net_packet_loss_rate = round((net.dropin + net.dropout) / total_packets * 100, 4)
+
+    _prev_net = {
+        "bytes_sent": net.bytes_sent,
+        "bytes_recv": net.bytes_recv,
+    }
+    _prev_time = now
 
     return {
         "cpu_percent": round(cpu_percent, 1),
@@ -57,4 +87,7 @@ def collect_metrics() -> dict:
         "disk_percent": round(disk_percent, 1),
         "net_bytes_sent": net.bytes_sent,
         "net_bytes_recv": net.bytes_recv,
+        "net_send_rate_kb": net_send_rate_kb,
+        "net_recv_rate_kb": net_recv_rate_kb,
+        "net_packet_loss_rate": net_packet_loss_rate,
     }

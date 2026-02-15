@@ -120,6 +120,9 @@ async def report_metrics(
         disk_percent=body.disk_percent,
         net_bytes_sent=body.net_bytes_sent,
         net_bytes_recv=body.net_bytes_recv,
+        net_send_rate_kb=body.net_send_rate_kb,
+        net_recv_rate_kb=body.net_recv_rate_kb,
+        net_packet_loss_rate=body.net_packet_loss_rate,
         recorded_at=recorded_at,
     )
     db.add(metric)

@@ -13,7 +13,7 @@ import api from '../services/api';
 const { Title } = Typography;
 
 interface DashboardData {
-  hosts: { total: number; online: number; offline: number; items: Array<{ id: string; hostname: string; status: string; latest_metrics?: { cpu_percent: number; memory_percent: number } }> };
+  hosts: { total: number; online: number; offline: number; items: Array<{ id: string; hostname: string; status: string; latest_metrics?: { cpu_percent: number; memory_percent: number; net_send_rate_kb?: number; net_recv_rate_kb?: number; net_packet_loss_rate?: number } }> };
   services: { total: number; healthy: number; unhealthy: number };
   alerts: { total: number; firing: number; items: Array<{ id: string; title: string; severity: string; status: string; fired_at: string }> };
 }
@@ -131,6 +131,47 @@ export default function Dashboard() {
             ) : (
               <Typography.Text type="secondary">暂无数据</Typography.Text>
             )}
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+        <Col xs={24} md={12}>
+          <Card title="网络带宽 (KB/s)">
+            {(() => {
+              const netHosts = d.hosts.items.filter(h => h.latest_metrics?.net_send_rate_kb != null);
+              if (netHosts.length === 0) return <Typography.Text type="secondary">暂无数据</Typography.Text>;
+              return (
+                <ReactECharts style={{ height: 250 }} option={{
+                  tooltip: { trigger: 'axis' as const },
+                  legend: { bottom: 0 },
+                  xAxis: { type: 'category' as const, data: netHosts.map(h => h.hostname), axisLabel: { rotate: 30 } },
+                  yAxis: { type: 'value' as const, axisLabel: { formatter: '{value} KB/s' } },
+                  series: [
+                    { name: '上传', type: 'bar' as const, data: netHosts.map(h => h.latest_metrics!.net_send_rate_kb ?? 0), itemStyle: { color: '#1677ff' } },
+                    { name: '下载', type: 'bar' as const, data: netHosts.map(h => h.latest_metrics!.net_recv_rate_kb ?? 0), itemStyle: { color: '#52c41a' } },
+                  ],
+                  grid: { top: 20, bottom: 60, left: 60, right: 20 },
+                }} />
+              );
+            })()}
+          </Card>
+        </Col>
+        <Col xs={24} md={12}>
+          <Card title="丢包率">
+            {(() => {
+              const netHosts = d.hosts.items.filter(h => h.latest_metrics?.net_packet_loss_rate != null);
+              if (netHosts.length === 0) return <Typography.Text type="secondary">暂无数据</Typography.Text>;
+              return (
+                <ReactECharts style={{ height: 250 }} option={{
+                  tooltip: { trigger: 'axis' as const },
+                  xAxis: { type: 'category' as const, data: netHosts.map(h => h.hostname), axisLabel: { rotate: 30 } },
+                  yAxis: { type: 'value' as const, axisLabel: { formatter: '{value}%' } },
+                  series: [{ name: '丢包率', type: 'bar' as const, data: netHosts.map(h => h.latest_metrics!.net_packet_loss_rate ?? 0), itemStyle: { color: '#faad14' } }],
+                  grid: { top: 20, bottom: 60, left: 50, right: 20 },
+                }} />
+              );
+            })()}
           </Card>
         </Col>
       </Row>

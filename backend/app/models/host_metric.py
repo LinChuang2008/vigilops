@@ -22,6 +22,9 @@ class HostMetric(Base):
     disk_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
     net_bytes_sent: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     net_bytes_recv: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    net_send_rate_kb: Mapped[float | None] = mapped_column(Float, nullable=True)
+    net_recv_rate_kb: Mapped[float | None] = mapped_column(Float, nullable=True)
+    net_packet_loss_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
     recorded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True
     )

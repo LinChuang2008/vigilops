@@ -22,6 +22,9 @@ export interface HostMetrics {
   disk_total_mb: number;
   net_bytes_sent: number;
   net_bytes_recv: number;
+  net_send_rate_kb: number;
+  net_recv_rate_kb: number;
+  net_packet_loss_rate: number;
   cpu_load_1: number;
   cpu_load_5: number;
   cpu_load_15: number;

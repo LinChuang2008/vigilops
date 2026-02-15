@@ -47,4 +47,7 @@ class MetricReport(BaseModel):
     disk_percent: float | None = None
     net_bytes_sent: int | None = None
     net_bytes_recv: int | None = None
+    net_send_rate_kb: float | None = None
+    net_recv_rate_kb: float | None = None
+    net_packet_loss_rate: float | None = None
     timestamp: datetime | None = None
