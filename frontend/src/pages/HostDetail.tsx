@@ -91,7 +91,7 @@ export default function HostDetail() {
           </Descriptions.Item>
           <Descriptions.Item label="分组">{host.group || '-'}</Descriptions.Item>
           <Descriptions.Item label="最后心跳">{host.last_heartbeat ? new Date(host.last_heartbeat).toLocaleString() : '-'}</Descriptions.Item>
-          <Descriptions.Item label="标签">{host.tags?.map(t => <Tag key={t}>{t}</Tag>) || '-'}</Descriptions.Item>
+          <Descriptions.Item label="标签">{host.tags ? (Array.isArray(host.tags) ? host.tags : Object.keys(host.tags)).map((t: string) => <Tag key={t}>{t}</Tag>) : '-'}</Descriptions.Item>
         </Descriptions>
       </Card>
 
