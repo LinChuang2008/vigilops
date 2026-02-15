@@ -158,7 +158,7 @@ export default function Logs() {
   // --- columns ---
   const columns = [
     { title: '时间', dataIndex: 'timestamp', key: 'timestamp', width: 180, render: (t: string) => dayjs(t).format('YYYY-MM-DD HH:mm:ss') },
-    { title: '服务器', dataIndex: 'hostname', key: 'hostname', width: 140 },
+    { title: '服务器', dataIndex: 'host_id', key: 'host_id', width: 140, render: (id: number) => hostOptions.find(h => String(h.value) === String(id))?.label || `Host #${id}` },
     { title: '服务', dataIndex: 'service', key: 'service', width: 120 },
     { title: '级别', dataIndex: 'level', key: 'level', width: 90, render: (l: string) => <Tag color={LEVEL_COLOR[l] || 'default'}>{l}</Tag> },
     { title: '消息', dataIndex: 'message', key: 'message', ellipsis: true },
@@ -229,7 +229,7 @@ export default function Logs() {
                   [{log.level}]
                 </span>
                 {' '}
-                <span style={{ color: '#9cdcfe' }}>{log.hostname}/{log.service}</span>
+                <span style={{ color: '#9cdcfe' }}>{hostOptions.find(h => String(h.value) === String(log.host_id))?.label || `Host#${log.host_id}`}/{log.service}</span>
                 {' '}
                 <span>{log.message}</span>
               </div>
