@@ -84,7 +84,7 @@ export default function AlertList() {
     { title: '标题', dataIndex: 'title', key: 'title', ellipsis: true },
     { title: '严重级别', dataIndex: 'severity', render: (s: string) => <Tag color={severityColor[s]}>{s}</Tag> },
     { title: '状态', dataIndex: 'status', render: (s: string) => <Tag color={statusColor[s]}>{s}</Tag> },
-    { title: '触发时间', dataIndex: 'triggered_at', render: (t: string) => new Date(t).toLocaleString() },
+    { title: '触发时间', dataIndex: 'fired_at', render: (t: string) => new Date(t).toLocaleString() },
     {
       title: '操作', key: 'action',
       render: (_: unknown, record: Alert) => (
@@ -162,7 +162,7 @@ export default function AlertList() {
             <Descriptions.Item label="消息">{selectedAlert.message}</Descriptions.Item>
             <Descriptions.Item label="严重级别"><Tag color={severityColor[selectedAlert.severity]}>{selectedAlert.severity}</Tag></Descriptions.Item>
             <Descriptions.Item label="状态"><Tag color={statusColor[selectedAlert.status]}>{selectedAlert.status}</Tag></Descriptions.Item>
-            <Descriptions.Item label="触发时间">{new Date(selectedAlert.triggered_at).toLocaleString()}</Descriptions.Item>
+            <Descriptions.Item label="触发时间">{new Date(selectedAlert.fired_at).toLocaleString()}</Descriptions.Item>
             <Descriptions.Item label="恢复时间">{selectedAlert.resolved_at ? new Date(selectedAlert.resolved_at).toLocaleString() : '-'}</Descriptions.Item>
             <Descriptions.Item label="确认时间">{selectedAlert.acknowledged_at ? new Date(selectedAlert.acknowledged_at).toLocaleString() : '-'}</Descriptions.Item>
           </Descriptions>

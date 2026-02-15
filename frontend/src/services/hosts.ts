@@ -6,7 +6,7 @@ export interface Host {
   ip_address: string;
   os: string;
   status: string;
-  tags: string[];
+  tags: Record<string, boolean> | string[] | null;
   group: string;
   last_heartbeat: string | null;
   created_at: string;

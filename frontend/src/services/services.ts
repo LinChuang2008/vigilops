@@ -3,11 +3,15 @@ import api from './api';
 export interface Service {
   id: string;
   name: string;
-  url: string;
-  check_type: string;
+  url?: string;
+  target?: string;
+  type?: string;
+  check_type?: string;
   status: string;
   uptime_percent: number;
-  last_check: string | null;
+  last_check?: string | null;
+  is_active?: boolean;
+  host_id?: number;
   created_at: string;
 }
 

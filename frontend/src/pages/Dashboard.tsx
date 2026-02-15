@@ -15,7 +15,7 @@ const { Title } = Typography;
 interface DashboardData {
   hosts: { total: number; online: number; offline: number; items: Array<{ id: string; hostname: string; status: string; latest_metrics?: { cpu_percent: number; memory_percent: number } }> };
   services: { total: number; healthy: number; unhealthy: number };
-  alerts: { total: number; firing: number; items: Array<{ id: string; title: string; severity: string; status: string; triggered_at: string }> };
+  alerts: { total: number; firing: number; items: Array<{ id: string; title: string; severity: string; status: string; fired_at: string }> };
 }
 
 export default function Dashboard() {
@@ -42,8 +42,8 @@ export default function Dashboard() {
           },
           services: {
             total: services.total,
-            healthy: services.items?.filter((s: { status: string }) => s.status === 'healthy').length || 0,
-            unhealthy: services.items?.filter((s: { status: string }) => s.status !== 'healthy').length || 0,
+            healthy: services.items?.filter((s: { status: string }) => s.status === 'healthy' || s.status === 'up').length || 0,
+            unhealthy: services.items?.filter((s: { status: string }) => s.status !== 'healthy' && s.status !== 'up').length || 0,
           },
           alerts: {
             total: alerts.total,
@@ -147,7 +147,7 @@ export default function Dashboard() {
               title: '严重级别', dataIndex: 'severity', key: 'severity',
               render: (s: string) => <Tag color={severityColor[s] || 'default'}>{s}</Tag>,
             },
-            { title: '触发时间', dataIndex: 'triggered_at', key: 'triggered_at', render: (t: string) => new Date(t).toLocaleString() },
+            { title: '触发时间', dataIndex: 'fired_at', key: 'fired_at', render: (t: string) => new Date(t).toLocaleString() },
           ]}
           locale={{ emptyText: '暂无活跃告警' }}
         />

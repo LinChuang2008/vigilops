@@ -9,7 +9,7 @@ export interface Alert {
   status: string;
   title: string;
   message: string;
-  triggered_at: string;
+  fired_at: string;
   resolved_at: string | null;
   acknowledged_at: string | null;
   acknowledged_by: string | null;

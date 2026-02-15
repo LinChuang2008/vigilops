@@ -31,11 +31,15 @@ export default function ServiceList() {
       title: '服务名', dataIndex: 'name', key: 'name',
       render: (text: string, record: Service) => <Button type="link" onClick={() => navigate(`/services/${record.id}`)}>{text}</Button>,
     },
-    { title: 'URL', dataIndex: 'url', key: 'url', ellipsis: true },
-    { title: '检查类型', dataIndex: 'check_type', key: 'check_type', render: (t: string) => <Tag>{t?.toUpperCase()}</Tag> },
+    { title: 'URL', key: 'url', ellipsis: true, render: (_: unknown, r: Service) => r.target || r.url || '-' },
+    { title: '检查类型', key: 'check_type', render: (_: unknown, r: Service) => <Tag>{(r.type || r.check_type || '')?.toUpperCase()}</Tag> },
     {
       title: '状态', dataIndex: 'status', key: 'status',
-      render: (s: string) => <Tag color={s === 'healthy' ? 'success' : s === 'degraded' ? 'warning' : 'error'}>{s === 'healthy' ? '健康' : s === 'degraded' ? '降级' : '异常'}</Tag>,
+      render: (s: string) => {
+        const isHealthy = s === 'healthy' || s === 'up';
+        const isDegraded = s === 'degraded';
+        return <Tag color={isHealthy ? 'success' : isDegraded ? 'warning' : 'error'}>{isHealthy ? '健康' : isDegraded ? '降级' : '异常'}</Tag>;
+      },
     },
     {
       title: '可用率', dataIndex: 'uptime_percent', key: 'uptime',

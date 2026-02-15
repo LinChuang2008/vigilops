@@ -67,7 +67,11 @@ export default function HostList() {
     },
     {
       title: '标签', dataIndex: 'tags', key: 'tags',
-      render: (tags: string[]) => tags?.map(t => <Tag key={t}>{t}</Tag>),
+      render: (tags: Record<string, boolean> | string[] | null) => {
+        if (!tags) return '-';
+        const arr = Array.isArray(tags) ? tags : Object.keys(tags);
+        return arr.map(t => <Tag key={t}>{t}</Tag>);
+      },
     },
   ];
 
