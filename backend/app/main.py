@@ -21,6 +21,7 @@ from app.routers import alert_rules
 async def lifespan(app: FastAPI):
     import asyncio
     from app.tasks.offline_detector import offline_detector_loop
+    from app.tasks.alert_engine import alert_engine_loop
     from app.services.alert_seed import seed_builtin_rules
     from app.core.database import async_session
 
@@ -34,11 +35,13 @@ async def lifespan(app: FastAPI):
 
     # Start background tasks
     task = asyncio.create_task(offline_detector_loop())
+    alert_task = asyncio.create_task(alert_engine_loop())
 
     yield
 
     # Shutdown
     task.cancel()
+    alert_task.cancel()
     await close_redis()
     await engine.dispose()
 
