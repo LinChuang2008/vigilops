@@ -7,7 +7,8 @@ import httpx
 
 from vigilops_agent import __version__
 from vigilops_agent.collector import collect_system_info, collect_metrics
-from vigilops_agent.config import AgentConfig
+from vigilops_agent.checker import run_check
+from vigilops_agent.config import AgentConfig, ServiceCheckConfig
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ class AgentReporter:
         self.config = config
         self.host_id: int | None = None
         self._client: httpx.AsyncClient | None = None
+        self._service_ids: dict[str, int] = {}  # svc name -> service_id
 
     def _headers(self) -> dict:
         return {"Authorization": f"Bearer {self.config.server.token}"}
@@ -71,6 +73,55 @@ class AgentReporter:
         resp.raise_for_status()
         logger.debug(f"Metrics reported: cpu={metrics['cpu_percent']}% mem={metrics['memory_percent']}%")
 
+    async def register_services(self):
+        """Register configured services with the server."""
+        client = await self._get_client()
+        for svc in self.config.services:
+            try:
+                payload = {
+                    "name": svc.name,
+                    "type": svc.type,
+                    "target": svc.url or f"{svc.host}:{svc.port}",
+                    "host_id": self.host_id,
+                    "check_interval": svc.interval,
+                    "timeout": svc.timeout,
+                }
+                resp = await client.post("/api/v1/agent/services/register", json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+                self._service_ids[svc.name] = data["service_id"]
+                logger.info(f"Service registered: {svc.name} -> id={data['service_id']}")
+            except Exception as e:
+                logger.warning(f"Failed to register service {svc.name}: {e}")
+
+    async def report_service_check(self, svc: ServiceCheckConfig, result: dict):
+        """Report a service check result."""
+        service_id = self._service_ids.get(svc.name)
+        if not service_id:
+            return
+        client = await self._get_client()
+        payload = {
+            "service_id": service_id,
+            "status": result["status"],
+            "response_time_ms": result["response_time_ms"],
+            "status_code": result["status_code"],
+            "error": result["error"],
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+        }
+        resp = await client.post("/api/v1/agent/services", json=payload)
+        resp.raise_for_status()
+        logger.debug(f"Service check reported: {svc.name} = {result['status']}")
+
+    async def _service_check_loop(self, svc: ServiceCheckConfig):
+        """Run periodic checks for a single service."""
+        while True:
+            try:
+                result = await run_check(svc)
+                await self.report_service_check(svc, result)
+            except Exception as e:
+                logger.warning(f"Service check failed for {svc.name}: {e}")
+            await asyncio.sleep(svc.interval)
+
     async def _heartbeat_loop(self):
         """Heartbeat every 60s."""
         while True:
@@ -104,11 +155,18 @@ class AgentReporter:
         else:
             raise RuntimeError("Failed to register after 10 attempts")
 
+        # Register services
+        if self.config.services:
+            await self.register_services()
+
         # Run loops concurrently
         tasks = [
             asyncio.create_task(self._heartbeat_loop()),
             asyncio.create_task(self._metrics_loop()),
         ]
+        for svc in self.config.services:
+            if svc.name in self._service_ids:
+                tasks.append(asyncio.create_task(self._service_check_loop(svc)))
 
         logger.info("Agent running. Press Ctrl+C to stop.")
         try:

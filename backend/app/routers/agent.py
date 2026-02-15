@@ -134,6 +134,38 @@ async def report_metrics(
     return {"status": "ok", "metric_id": metric.id}
 
 
+@router.post("/services/register", status_code=200)
+async def register_service(
+    body: dict,
+    agent_token: AgentToken = Depends(verify_agent_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Register/find a service by name + target. Returns service_id."""
+    name = body.get("name", "")
+    target = body.get("target", body.get("url", ""))
+    svc_type = body.get("type", "http")
+    host_id = body.get("host_id")
+    check_interval = body.get("check_interval", 60)
+    timeout = body.get("timeout", 10)
+
+    # Find existing
+    result = await db.execute(
+        select(Service).where(Service.name == name, Service.target == target)
+    )
+    existing = result.scalar_one_or_none()
+    if existing:
+        return {"service_id": existing.id, "created": False}
+
+    svc = Service(
+        name=name, type=svc_type, target=target, host_id=host_id,
+        check_interval=check_interval, timeout=timeout,
+    )
+    db.add(svc)
+    await db.commit()
+    await db.refresh(svc)
+    return {"service_id": svc.id, "created": True}
+
+
 @router.post("/services", status_code=201)
 async def report_service_check(
     body: ServiceCheckReport,
