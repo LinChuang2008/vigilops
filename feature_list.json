@@ -4,87 +4,145 @@
     "category": "infrastructure",
     "priority": 1,
     "description": "Backend FastAPI 项目骨架 + 健康检查端点",
-    "steps": ["创建 FastAPI app 入口", "配置 CORS", "实现 /health 端点", "配置 uvicorn 启动"],
-    "passes": false
+    "steps": [
+      "创建 FastAPI app 入口",
+      "配置 CORS",
+      "实现 /health 端点",
+      "配置 uvicorn 启动"
+    ],
+    "passes": true,
+    "completed_at": "2026-02-15T14:40:00+08:00"
   },
   {
     "id": "F002",
     "category": "infrastructure",
     "priority": 1,
     "description": "PostgreSQL 数据库连接 + SQLAlchemy 配置",
-    "steps": ["配置 SQLAlchemy async engine", "创建 Base model", "实现 get_db 依赖", "数据库初始化脚本"],
-    "passes": false
+    "steps": [
+      "配置 SQLAlchemy async engine",
+      "创建 Base model",
+      "实现 get_db 依赖",
+      "数据库初始化脚本"
+    ],
+    "passes": true,
+    "completed_at": "2026-02-15T14:40:00+08:00"
   },
   {
     "id": "F003",
     "category": "infrastructure",
     "priority": 1,
     "description": "Redis 连接配置",
-    "steps": ["配置 redis-py async client", "实现连接池", "创建 Redis 工具函数"],
-    "passes": false
+    "steps": [
+      "配置 redis-py async client",
+      "实现连接池",
+      "创建 Redis 工具函数"
+    ],
+    "passes": true,
+    "completed_at": "2026-02-15T14:40:00+08:00"
   },
   {
     "id": "F004",
     "category": "infrastructure",
     "priority": 1,
     "description": "配置管理 (.env + Pydantic Settings)",
-    "steps": ["创建 Settings class", "定义所有环境变量", "实现配置单例"],
-    "passes": false
+    "steps": [
+      "创建 Settings class",
+      "定义所有环境变量",
+      "实现配置单例"
+    ],
+    "passes": true,
+    "completed_at": "2026-02-15T14:40:00+08:00"
   },
   {
     "id": "F005",
     "category": "infrastructure",
     "priority": 1,
     "description": "Alembic 数据库迁移配置",
-    "steps": ["初始化 alembic", "配置 async 迁移", "创建初始迁移脚本"],
-    "passes": false
+    "steps": [
+      "初始化 alembic",
+      "配置 async 迁移",
+      "创建初始迁移脚本"
+    ],
+    "passes": true,
+    "completed_at": "2026-02-15T14:40:00+08:00"
   },
   {
     "id": "F006",
     "category": "auth",
     "priority": 2,
     "description": "用户数据模型 + Schema",
-    "steps": ["创建 User model (id, email, name, hashed_password, role, created_at)", "创建 Pydantic schemas", "生成迁移"],
-    "passes": false
+    "steps": [
+      "创建 User model (id, email, name, hashed_password, role, created_at)",
+      "创建 Pydantic schemas",
+      "生成迁移"
+    ],
+    "passes": true,
+    "completed_at": "2026-02-15T14:40:00+08:00"
   },
   {
     "id": "F007",
     "category": "auth",
     "priority": 2,
     "description": "密码哈希 + JWT 工具",
-    "steps": ["实现 bcrypt 密码哈希", "实现 JWT encode/decode", "access token (2h) + refresh token (7d)"],
-    "passes": false
+    "steps": [
+      "实现 bcrypt 密码哈希",
+      "实现 JWT encode/decode",
+      "access token (2h) + refresh token (7d)"
+    ],
+    "passes": true,
+    "completed_at": "2026-02-15T14:40:00+08:00"
   },
   {
     "id": "F008",
     "category": "auth",
     "priority": 2,
     "description": "注册端点 POST /api/v1/auth/register",
-    "steps": ["实现注册逻辑", "首个用户自动成为 Admin", "邮箱唯一校验", "返回 token"],
-    "passes": false
+    "steps": [
+      "实现注册逻辑",
+      "首个用户自动成为 Admin",
+      "邮箱唯一校验",
+      "返回 token"
+    ],
+    "passes": true,
+    "completed_at": "2026-02-15T14:40:00+08:00"
   },
   {
     "id": "F009",
     "category": "auth",
     "priority": 2,
     "description": "登录端点 POST /api/v1/auth/login",
-    "steps": ["实现登录逻辑", "验证密码", "返回 access + refresh token"],
-    "passes": false
+    "steps": [
+      "实现登录逻辑",
+      "验证密码",
+      "返回 access + refresh token"
+    ],
+    "passes": true,
+    "completed_at": "2026-02-15T14:40:00+08:00"
   },
   {
     "id": "F010",
     "category": "auth",
     "priority": 2,
     "description": "Token 刷新 + 当前用户端点",
-    "steps": ["POST /api/v1/auth/refresh", "GET /api/v1/auth/me", "实现 get_current_user 依赖"],
-    "passes": false
+    "steps": [
+      "POST /api/v1/auth/refresh",
+      "GET /api/v1/auth/me",
+      "实现 get_current_user 依赖"
+    ],
+    "passes": true,
+    "completed_at": "2026-02-15T14:40:00+08:00"
   },
   {
     "id": "F011",
     "category": "agent",
     "priority": 3,
     "description": "Agent Token 管理 (生成/验证/吊销)",
-    "steps": ["创建 AgentToken model", "生成 token 端点", "token 验证中间件", "吊销端点"],
+    "steps": [
+      "创建 AgentToken model",
+      "生成 token 端点",
+      "token 验证中间件",
+      "吊销端点"
+    ],
     "passes": false
   },
   {
@@ -92,7 +150,12 @@
     "category": "agent",
     "priority": 3,
     "description": "Agent 注册端点 POST /api/v1/agent/register",
-    "steps": ["Agent 首次上报时注册", "创建 Host 记录", "返回 host_id", "支持重复注册(幂等)"],
+    "steps": [
+      "Agent 首次上报时注册",
+      "创建 Host 记录",
+      "返回 host_id",
+      "支持重复注册(幂等)"
+    ],
     "passes": false
   },
   {
@@ -100,7 +163,11 @@
     "category": "agent",
     "priority": 3,
     "description": "Agent 心跳端点 POST /api/v1/agent/heartbeat",
-    "steps": ["更新 last_heartbeat", "存入 Redis", "返回 server 配置"],
+    "steps": [
+      "更新 last_heartbeat",
+      "存入 Redis",
+      "返回 server 配置"
+    ],
     "passes": false
   },
   {
@@ -108,7 +175,12 @@
     "category": "server-monitoring",
     "priority": 3,
     "description": "Host 数据模型 + Schema",
-    "steps": ["创建 Host model", "创建 HostMetric model", "Pydantic schemas", "生成迁移"],
+    "steps": [
+      "创建 Host model",
+      "创建 HostMetric model",
+      "Pydantic schemas",
+      "生成迁移"
+    ],
     "passes": false
   },
   {
@@ -116,7 +188,11 @@
     "category": "server-monitoring",
     "priority": 3,
     "description": "指标上报端点 POST /api/v1/agent/metrics",
-    "steps": ["接收 CPU/内存/磁盘/网络指标", "批量写入 host_metrics 表", "更新 Redis 最新值"],
+    "steps": [
+      "接收 CPU/内存/磁盘/网络指标",
+      "批量写入 host_metrics 表",
+      "更新 Redis 最新值"
+    ],
     "passes": false
   },
   {
@@ -124,7 +200,12 @@
     "category": "server-monitoring",
     "priority": 3,
     "description": "服务器列表端点 GET /api/v1/hosts",
-    "steps": ["列表查询 + 分页", "支持标签/分组筛选", "附带最新指标(从 Redis)", "在线/离线状态"],
+    "steps": [
+      "列表查询 + 分页",
+      "支持标签/分组筛选",
+      "附带最新指标(从 Redis)",
+      "在线/离线状态"
+    ],
     "passes": false
   },
   {
@@ -132,7 +213,12 @@
     "category": "server-monitoring",
     "priority": 3,
     "description": "服务器详情 + 历史指标端点",
-    "steps": ["GET /api/v1/hosts/{id}", "GET /api/v1/hosts/{id}/metrics", "支持时间范围查询", "数据聚合(5min/1h/1d)"],
+    "steps": [
+      "GET /api/v1/hosts/{id}",
+      "GET /api/v1/hosts/{id}/metrics",
+      "支持时间范围查询",
+      "数据聚合(5min/1h/1d)"
+    ],
     "passes": false
   },
   {
@@ -140,7 +226,11 @@
     "category": "server-monitoring",
     "priority": 3,
     "description": "Agent 离线检测后台任务",
-    "steps": ["定时扫描 Redis 心跳", "超时标记 Host offline", "触发 Agent 离线告警"],
+    "steps": [
+      "定时扫描 Redis 心跳",
+      "超时标记 Host offline",
+      "触发 Agent 离线告警"
+    ],
     "passes": false
   },
   {
@@ -148,7 +238,12 @@
     "category": "service-monitoring",
     "priority": 4,
     "description": "Service 数据模型 + Schema",
-    "steps": ["创建 Service model", "创建 ServiceCheck model", "Pydantic schemas", "生成迁移"],
+    "steps": [
+      "创建 Service model",
+      "创建 ServiceCheck model",
+      "Pydantic schemas",
+      "生成迁移"
+    ],
     "passes": false
   },
   {
@@ -156,7 +251,11 @@
     "category": "service-monitoring",
     "priority": 4,
     "description": "服务检查结果上报端点 POST /api/v1/agent/services",
-    "steps": ["接收 HTTP/TCP 检查结果", "写入 service_checks 表", "更新 service 状态"],
+    "steps": [
+      "接收 HTTP/TCP 检查结果",
+      "写入 service_checks 表",
+      "更新 service 状态"
+    ],
     "passes": false
   },
   {
@@ -164,7 +263,12 @@
     "category": "service-monitoring",
     "priority": 4,
     "description": "服务列表 + 详情 + 检查历史端点",
-    "steps": ["GET /api/v1/services", "GET /api/v1/services/{id}", "GET /api/v1/services/{id}/checks", "可用率计算"],
+    "steps": [
+      "GET /api/v1/services",
+      "GET /api/v1/services/{id}",
+      "GET /api/v1/services/{id}/checks",
+      "可用率计算"
+    ],
     "passes": false
   },
   {
@@ -172,7 +276,12 @@
     "category": "alert",
     "priority": 5,
     "description": "Alert 数据模型 (alerts + alert_rules)",
-    "steps": ["创建 Alert model", "创建 AlertRule model", "内置规则 seed 数据", "生成迁移"],
+    "steps": [
+      "创建 Alert model",
+      "创建 AlertRule model",
+      "内置规则 seed 数据",
+      "生成迁移"
+    ],
     "passes": false
   },
   {
@@ -180,7 +289,12 @@
     "category": "alert",
     "priority": 5,
     "description": "告警规则 CRUD 端点",
-    "steps": ["GET /api/v1/alert-rules", "POST /api/v1/alert-rules", "PUT/DELETE 规则", "内置规则不可删除"],
+    "steps": [
+      "GET /api/v1/alert-rules",
+      "POST /api/v1/alert-rules",
+      "PUT/DELETE 规则",
+      "内置规则不可删除"
+    ],
     "passes": false
   },
   {
@@ -188,7 +302,12 @@
     "category": "alert",
     "priority": 5,
     "description": "告警引擎 - 指标阈值检测",
-    "steps": ["后台任务定时检查指标", "匹配告警规则条件", "创建/恢复 Alert 记录", "持续时间判定"],
+    "steps": [
+      "后台任务定时检查指标",
+      "匹配告警规则条件",
+      "创建/恢复 Alert 记录",
+      "持续时间判定"
+    ],
     "passes": false
   },
   {
@@ -196,7 +315,11 @@
     "category": "alert",
     "priority": 5,
     "description": "告警列表 + 详情 + 确认端点",
-    "steps": ["GET /api/v1/alerts (筛选/分页)", "GET /api/v1/alerts/{id}", "POST /api/v1/alerts/{id}/ack"],
+    "steps": [
+      "GET /api/v1/alerts (筛选/分页)",
+      "GET /api/v1/alerts/{id}",
+      "POST /api/v1/alerts/{id}/ack"
+    ],
     "passes": false
   },
   {
@@ -204,7 +327,12 @@
     "category": "alert",
     "priority": 5,
     "description": "Webhook 通知渠道",
-    "steps": ["通知渠道抽象接口", "Webhook 实现 (POST JSON)", "通知发送队列", "失败重试"],
+    "steps": [
+      "通知渠道抽象接口",
+      "Webhook 实现 (POST JSON)",
+      "通知发送队列",
+      "失败重试"
+    ],
     "passes": false
   },
   {
@@ -212,7 +340,12 @@
     "category": "agent",
     "priority": 3,
     "description": "Agent CLI 骨架 + 配置加载",
-    "steps": ["创建 CLI 入口 (click)", "YAML 配置文件解析", "Server URL + Token 配置", "守护进程模式"],
+    "steps": [
+      "创建 CLI 入口 (click)",
+      "YAML 配置文件解析",
+      "Server URL + Token 配置",
+      "守护进程模式"
+    ],
     "passes": false
   },
   {
@@ -220,7 +353,13 @@
     "category": "agent",
     "priority": 3,
     "description": "Agent 服务器指标采集 (psutil)",
-    "steps": ["CPU 使用率/负载", "内存使用", "磁盘使用/IO", "网络流量", "定时采集循环"],
+    "steps": [
+      "CPU 使用率/负载",
+      "内存使用",
+      "磁盘使用/IO",
+      "网络流量",
+      "定时采集循环"
+    ],
     "passes": false
   },
   {
@@ -228,7 +367,12 @@
     "category": "agent",
     "priority": 3,
     "description": "Agent 数据上报 + 心跳",
-    "steps": ["HTTP client (httpx)", "指标批量上报", "心跳定时发送", "断线重连 + 本地缓存"],
+    "steps": [
+      "HTTP client (httpx)",
+      "指标批量上报",
+      "心跳定时发送",
+      "断线重连 + 本地缓存"
+    ],
     "passes": false
   },
   {
@@ -236,7 +380,12 @@
     "category": "agent",
     "priority": 4,
     "description": "Agent HTTP/TCP 服务健康检查",
-    "steps": ["HTTP 拨测 (状态码+响应时间)", "TCP 连接检测", "检查结果上报", "可配置检查间隔"],
+    "steps": [
+      "HTTP 拨测 (状态码+响应时间)",
+      "TCP 连接检测",
+      "检查结果上报",
+      "可配置检查间隔"
+    ],
     "passes": false
   },
   {
@@ -244,7 +393,12 @@
     "category": "frontend",
     "priority": 6,
     "description": "前端项目配置 + 路由 + 布局",
-    "steps": ["Ant Design 主题配置", "React Router 路由表", "侧边栏布局组件", "API client (axios) 配置"],
+    "steps": [
+      "Ant Design 主题配置",
+      "React Router 路由表",
+      "侧边栏布局组件",
+      "API client (axios) 配置"
+    ],
     "passes": false
   },
   {
@@ -252,7 +406,12 @@
     "category": "frontend",
     "priority": 6,
     "description": "登录 + 注册页面",
-    "steps": ["登录表单", "注册表单", "JWT token 存储", "路由守卫 (未登录跳转)"],
+    "steps": [
+      "登录表单",
+      "注册表单",
+      "JWT token 存储",
+      "路由守卫 (未登录跳转)"
+    ],
     "passes": false
   },
   {
@@ -260,7 +419,12 @@
     "category": "frontend",
     "priority": 6,
     "description": "全局仪表盘页面",
-    "steps": ["服务器总数/在线数统计卡片", "服务状态概览", "告警统计", "关键指标趋势图 (ECharts)"],
+    "steps": [
+      "服务器总数/在线数统计卡片",
+      "服务状态概览",
+      "告警统计",
+      "关键指标趋势图 (ECharts)"
+    ],
     "passes": false
   },
   {
@@ -268,7 +432,12 @@
     "category": "frontend",
     "priority": 6,
     "description": "服务器列表页面",
-    "steps": ["卡片/列表双视图", "状态筛选 + 标签筛选", "关键指标展示 (CPU/内存/磁盘)", "在线/离线状态标识"],
+    "steps": [
+      "卡片/列表双视图",
+      "状态筛选 + 标签筛选",
+      "关键指标展示 (CPU/内存/磁盘)",
+      "在线/离线状态标识"
+    ],
     "passes": false
   },
   {
@@ -276,7 +445,12 @@
     "category": "frontend",
     "priority": 6,
     "description": "服务器详情页面",
-    "steps": ["基本信息展示", "CPU/内存/磁盘/网络 ECharts 图表", "时间范围选择器", "实时数据自动刷新"],
+    "steps": [
+      "基本信息展示",
+      "CPU/内存/磁盘/网络 ECharts 图表",
+      "时间范围选择器",
+      "实时数据自动刷新"
+    ],
     "passes": false
   },
   {
@@ -284,7 +458,11 @@
     "category": "frontend",
     "priority": 6,
     "description": "服务列表 + 详情页面",
-    "steps": ["服务列表 (状态/可用率)", "服务详情 (可用率趋势/响应时间图表)", "检查历史记录表格"],
+    "steps": [
+      "服务列表 (状态/可用率)",
+      "服务详情 (可用率趋势/响应时间图表)",
+      "检查历史记录表格"
+    ],
     "passes": false
   },
   {
@@ -292,7 +470,12 @@
     "category": "frontend",
     "priority": 6,
     "description": "告警中心页面",
-    "steps": ["告警列表 (筛选: 状态/严重级别)", "告警详情抽屉", "确认告警操作", "告警规则管理页"],
+    "steps": [
+      "告警列表 (筛选: 状态/严重级别)",
+      "告警详情抽屉",
+      "确认告警操作",
+      "告警规则管理页"
+    ],
     "passes": false
   },
   {
@@ -300,7 +483,11 @@
     "category": "settings",
     "priority": 7,
     "description": "系统设置端点 GET/PUT /api/v1/settings",
-    "steps": ["Settings model (KV store)", "Agent Token 管理页", "数据保留配置"],
+    "steps": [
+      "Settings model (KV store)",
+      "Agent Token 管理页",
+      "数据保留配置"
+    ],
     "passes": false
   }
 ]
