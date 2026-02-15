@@ -124,7 +124,11 @@ async def _evaluate_rule(db, redis, rule: AlertRule, host: Host, metrics: dict):
             threshold=rule.threshold,
         )
         db.add(alert)
+        await db.flush()  # get alert.id
         logger.info(f"Alert fired: {alert.title}")
+        # Send notification
+        from app.services.notifier import send_alert_notification
+        await send_alert_notification(db, alert)
 
     else:
         # Condition resolved
@@ -136,6 +140,8 @@ async def _evaluate_rule(db, redis, rule: AlertRule, host: Host, metrics: dict):
             existing_alert.status = "resolved"
             existing_alert.resolved_at = datetime.now(timezone.utc)
             logger.info(f"Alert resolved: {existing_alert.title}")
+            from app.services.notifier import send_alert_notification
+            await send_alert_notification(db, existing_alert)
 
 
 async def alert_engine_loop():

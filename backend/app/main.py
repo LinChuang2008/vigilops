@@ -8,7 +8,7 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.core.redis import get_redis, close_redis
-from app.models import User, AgentToken, Host, HostMetric, Service, ServiceCheck, Alert, AlertRule  # noqa: F401 — register models
+from app.models import User, AgentToken, Host, HostMetric, Service, ServiceCheck, Alert, AlertRule, NotificationChannel, NotificationLog  # noqa: F401 — register models
 from app.routers import auth
 from app.routers import agent_tokens
 from app.routers import agent
@@ -16,6 +16,7 @@ from app.routers import hosts
 from app.routers import services
 from app.routers import alert_rules
 from app.routers import alerts
+from app.routers import notifications
 
 
 @asynccontextmanager
@@ -69,6 +70,7 @@ app.include_router(hosts.router)
 app.include_router(services.router)
 app.include_router(alert_rules.router)
 app.include_router(alerts.router)
+app.include_router(notifications.router)
 
 
 @app.get("/health")
