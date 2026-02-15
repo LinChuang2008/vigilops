@@ -59,6 +59,7 @@ def run(ctx):
     logger.info(f"Host: {cfg.host.name}")
     logger.info(f"Metrics interval: {cfg.metrics.interval}s")
     logger.info(f"Service checks: {len(cfg.services)} (manual)")
+    logger.info(f"Log sources: {len(cfg.log_sources)} (manual)")
     logger.info(f"Docker auto-discovery: {'enabled' if cfg.discovery.docker else 'disabled'}")
 
     from vigilops_agent.reporter import AgentReporter
@@ -93,6 +94,7 @@ def check(ctx):
         click.echo(f"   Host: {cfg.host.name or '(auto-detect)'}")
         click.echo(f"   Metrics interval: {cfg.metrics.interval}s")
         click.echo(f"   Services: {len(cfg.services)}")
+        click.echo(f"   Log sources: {len(cfg.log_sources)}")
     except Exception as e:
         click.echo(f"❌ Config error: {e}", err=True)
         sys.exit(1)

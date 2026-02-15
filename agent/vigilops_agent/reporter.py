@@ -9,6 +9,7 @@ from vigilops_agent import __version__
 from vigilops_agent.collector import collect_system_info, collect_metrics
 from vigilops_agent.checker import run_check
 from vigilops_agent.config import AgentConfig, ServiceCheckConfig
+from typing import Optional, List, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -16,9 +17,9 @@ logger = logging.getLogger(__name__)
 class AgentReporter:
     def __init__(self, config: AgentConfig):
         self.config = config
-        self.host_id: int | None = None
-        self._client: httpx.AsyncClient | None = None
-        self._service_ids: dict[str, int] = {}  # svc name -> service_id
+        self.host_id: Optional[int] = None
+        self._client: Optional[httpx.AsyncClient] = None
+        self._service_ids: Dict[str, int] = {}  # svc name -> service_id
 
     def _headers(self) -> dict:
         return {"Authorization": f"Bearer {self.config.server.token}"}
@@ -148,6 +149,20 @@ class AgentReporter:
         resp.raise_for_status()
         logger.debug(f"Service check reported: {svc.name} = {result['status']}")
 
+    async def report_logs(self, logs: List[Dict]) -> bool:
+        """Report a batch of log entries. Returns True on success."""
+        if not self.host_id or not logs:
+            return False
+        try:
+            client = await self._get_client()
+            resp = await client.post("/api/v1/agent/logs", json={"logs": logs})
+            resp.raise_for_status()
+            logger.debug(f"Reported {len(logs)} log entries")
+            return True
+        except Exception as e:
+            logger.warning(f"Log report failed ({len(logs)} entries): {e}")
+            return False
+
     async def _service_check_loop(self, svc: ServiceCheckConfig):
         """Run periodic checks for a single service."""
         while True:
@@ -208,6 +223,18 @@ class AgentReporter:
         if self.config.services:
             await self.register_services()
 
+        # Log collection
+        log_sources = list(self.config.log_sources)
+        if self.config.discovery.docker:
+            from vigilops_agent.discovery import discover_docker_log_sources
+            docker_logs = discover_docker_log_sources()
+            existing_paths = {s.path for s in log_sources}
+            for src in docker_logs:
+                if src.path not in existing_paths:
+                    log_sources.append(src)
+            if docker_logs:
+                logger.info(f"Auto-discovered {len(docker_logs)} Docker log sources")
+
         # Run loops concurrently
         tasks = [
             asyncio.create_task(self._heartbeat_loop()),
@@ -216,6 +243,12 @@ class AgentReporter:
         for svc in self.config.services:
             if svc.name in self._service_ids:
                 tasks.append(asyncio.create_task(self._service_check_loop(svc)))
+
+        if log_sources:
+            from vigilops_agent.log_collector import LogCollector
+            collector = LogCollector(self.host_id, log_sources, self.report_logs)
+            log_tasks = await collector.start()
+            tasks.extend(log_tasks)
 
         logger.info("Agent running. Press Ctrl+C to stop.")
         try:

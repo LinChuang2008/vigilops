@@ -2,6 +2,7 @@
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import List, Optional
 
 import yaml
 
@@ -15,7 +16,7 @@ class ServerConfig:
 @dataclass
 class HostConfig:
     name: str = ""
-    tags: list[str] = field(default_factory=list)
+    tags: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -35,6 +36,15 @@ class ServiceCheckConfig:
 
 
 @dataclass
+class LogSourceConfig:
+    path: str = ""           # 日志文件路径，如 /var/log/app.log
+    service: str = ""        # 服务名
+    multiline: bool = False  # 是否启用多行合并
+    multiline_pattern: str = "^\\d{4}-\\d{2}-\\d{2}|^\\["  # 新日志行起始pattern
+    docker: bool = False     # 是否为 Docker json-log 格式
+
+
+@dataclass
 class DiscoveryConfig:
     docker: bool = True  # Auto-discover Docker containers
     interval: int = 30   # Default check interval for discovered services
@@ -45,8 +55,9 @@ class AgentConfig:
     server: ServerConfig = field(default_factory=ServerConfig)
     host: HostConfig = field(default_factory=HostConfig)
     metrics: MetricsConfig = field(default_factory=MetricsConfig)
-    services: list[ServiceCheckConfig] = field(default_factory=list)
+    services: List[ServiceCheckConfig] = field(default_factory=list)
     discovery: DiscoveryConfig = field(default_factory=DiscoveryConfig)
+    log_sources: List[LogSourceConfig] = field(default_factory=list)
 
 
 def _parse_interval(val) -> int:
@@ -124,5 +135,17 @@ def load_config(path: str) -> AgentConfig:
     elif isinstance(disc, dict):
         cfg.discovery.docker = disc.get("docker", True)
         cfg.discovery.interval = _parse_interval(disc.get("interval", 30))
+
+    # Log sources
+    for src in data.get("log_sources", []):
+        ls = LogSourceConfig(
+            path=src.get("path", ""),
+            service=src.get("service", ""),
+            multiline=src.get("multiline", False),
+            multiline_pattern=src.get("multiline_pattern", LogSourceConfig.multiline_pattern),
+            docker=src.get("docker", False),
+        )
+        if ls.path:
+            cfg.log_sources.append(ls)
 
     return cfg

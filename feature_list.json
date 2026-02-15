@@ -517,5 +517,590 @@
     ],
     "passes": true,
     "completed_at": "2026-02-15T15:13:41+08:00"
+  },
+  {
+    "id": "F039",
+    "category": "log-collection",
+    "priority": 8,
+    "description": "Agent 日志采集配置模型 + log_sources 配置解析",
+    "steps": [
+      "agent config 中新增 log_sources 配置段",
+      "支持配置文件路径、服务名、日志格式",
+      "YAML 配置解析 + 校验",
+      "支持多日志源配置"
+    ],
+    "passes": true
+  },
+  {
+    "id": "F040",
+    "category": "log-collection",
+    "priority": 8,
+    "description": "Agent tail-f 日志文件实时采集 (asyncio + aiofiles)",
+    "steps": [
+      "asyncio tail -f 实现",
+      "文件 inotify/poll 监听",
+      "按行读取日志",
+      "支持文件 rotate 检测",
+      "采集循环管理"
+    ],
+    "dependencies": [
+      "F039"
+    ],
+    "passes": true
+  },
+  {
+    "id": "F041",
+    "category": "log-collection",
+    "priority": 8,
+    "description": "Agent 日志元数据附加 (服务器、服务名、文件路径、时间戳)",
+    "steps": [
+      "日志行解析 + 元数据包装",
+      "时间戳提取 (多种格式)",
+      "日志级别提取 (INFO/WARN/ERROR)",
+      "LogEntry 数据结构定义"
+    ],
+    "dependencies": [
+      "F040"
+    ],
+    "passes": true
+  },
+  {
+    "id": "F042",
+    "category": "log-collection",
+    "priority": 8,
+    "description": "Agent 多行日志合并 (Java stack trace 等)",
+    "steps": [
+      "多行合并策略配置 (正则 pattern)",
+      "缓冲区 + 超时刷新",
+      "stack trace 自动识别",
+      "合并后作为单条日志上报"
+    ],
+    "dependencies": [
+      "F041"
+    ],
+    "passes": true
+  },
+  {
+    "id": "F043",
+    "category": "log-collection",
+    "priority": 8,
+    "description": "Agent 日志采集 offset 持久化 (断线续采)",
+    "steps": [
+      "记录文件 offset 到本地文件",
+      "启动时恢复上次 offset",
+      "文件 inode 变化检测 (rotate)",
+      "定时刷新 offset"
+    ],
+    "dependencies": [
+      "F040"
+    ],
+    "passes": true
+  },
+  {
+    "id": "F044",
+    "category": "log-collection",
+    "priority": 8,
+    "description": "Agent Docker 容器自动发现",
+    "steps": [
+      "Docker API/socket 连接",
+      "列出运行中容器",
+      "定时扫描新/停止的容器",
+      "容器元数据提取 (name, image, labels)"
+    ],
+    "dependencies": [
+      "F039"
+    ],
+    "passes": true
+  },
+  {
+    "id": "F045",
+    "category": "log-collection",
+    "priority": 8,
+    "description": "Agent Docker 容器日志采集",
+    "steps": [
+      "docker logs --follow 实现",
+      "或读取 /var/lib/docker/containers/ json-log",
+      "容器日志与文件日志统一格式",
+      "容器停止时自动停止采集"
+    ],
+    "dependencies": [
+      "F044",
+      "F041"
+    ],
+    "passes": true
+  },
+  {
+    "id": "F046",
+    "category": "log-collection",
+    "priority": 8,
+    "description": "Agent 日志批量上报端点 POST /api/v1/agent/logs",
+    "steps": [
+      "日志批量上报 (batch)",
+      "上报失败本地缓存",
+      "背压控制 (rate limiting)",
+      "压缩传输 (gzip)"
+    ],
+    "dependencies": [
+      "F041",
+      "F029"
+    ],
+    "passes": true
+  },
+  {
+    "id": "F047",
+    "category": "log-storage",
+    "priority": 9,
+    "description": "LogEntry 数据模型 + 数据库表 + 迁移",
+    "steps": [
+      "LogEntry model (id, host_id, service_name, level, message, file_path, timestamp, metadata)",
+      "全文索引 (tsvector)",
+      "时间分区或索引优化",
+      "Alembic 迁移"
+    ],
+    "dependencies": [
+      "F002",
+      "F005"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F048",
+    "category": "log-storage",
+    "priority": 9,
+    "description": "Backend 日志接收端点 POST /api/v1/agent/logs",
+    "steps": [
+      "接收 Agent 批量日志",
+      "校验 + 写入数据库",
+      "异步批量插入优化",
+      "返回确认"
+    ],
+    "dependencies": [
+      "F047",
+      "F046"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F049",
+    "category": "log-storage",
+    "priority": 9,
+    "description": "日志全文搜索端点 GET /api/v1/logs",
+    "steps": [
+      "关键字搜索 (PostgreSQL tsvector/tsquery)",
+      "正则表达式搜索",
+      "分页 + 排序",
+      "搜索结果高亮"
+    ],
+    "dependencies": [
+      "F047"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F050",
+    "category": "log-storage",
+    "priority": 9,
+    "description": "日志筛选 (服务器/服务名/级别/时间范围)",
+    "steps": [
+      "按 host_id 筛选",
+      "按 service_name 筛选",
+      "按 level 筛选 (INFO/WARN/ERROR/FATAL)",
+      "时间范围筛选",
+      "组合筛选"
+    ],
+    "dependencies": [
+      "F049"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F051",
+    "category": "log-storage",
+    "priority": 9,
+    "description": "过期日志自动清理后台任务",
+    "steps": [
+      "可配置保留天数 (默认7天)",
+      "定时清理任务 (每小时)",
+      "批量删除优化",
+      "清理日志记录"
+    ],
+    "dependencies": [
+      "F047",
+      "F038"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F052",
+    "category": "log-storage",
+    "priority": 9,
+    "description": "实时日志流 WebSocket 端点 /ws/logs",
+    "steps": [
+      "FastAPI WebSocket endpoint",
+      "按服务器/服务名订阅",
+      "新日志实时推送",
+      "连接管理 + 心跳",
+      "Redis pub/sub 广播"
+    ],
+    "dependencies": [
+      "F048",
+      "F003"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F053",
+    "category": "log-storage",
+    "priority": 9,
+    "description": "日志统计端点 (按级别/服务/时间段)",
+    "steps": [
+      "GET /api/v1/logs/stats",
+      "按级别统计 (ERROR/WARN 数量趋势)",
+      "按服务聚合",
+      "时间段分布"
+    ],
+    "dependencies": [
+      "F047"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F054",
+    "category": "log-frontend",
+    "priority": 10,
+    "description": "日志查看页面 — 搜索 + 筛选",
+    "steps": [
+      "日志列表表格 (时间/服务器/服务/级别/内容)",
+      "搜索框 (关键字/正则)",
+      "筛选器 (服务器/服务/级别/时间范围)",
+      "分页 + 排序",
+      "搜索高亮"
+    ],
+    "dependencies": [
+      "F049",
+      "F050",
+      "F031"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F055",
+    "category": "log-frontend",
+    "priority": 10,
+    "description": "日志实时流页面 (WebSocket)",
+    "steps": [
+      "WebSocket 连接管理",
+      "实时日志滚动显示",
+      "暂停/继续按钮",
+      "按服务器/服务订阅切换",
+      "日志级别颜色标记"
+    ],
+    "dependencies": [
+      "F052",
+      "F054"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F056",
+    "category": "log-frontend",
+    "priority": 10,
+    "description": "日志详情抽屉 + 上下文查看",
+    "steps": [
+      "点击日志行展开详情",
+      "显示完整日志内容 + 元数据",
+      "上下文日志 (前后N条)",
+      "复制日志内容"
+    ],
+    "dependencies": [
+      "F054"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F057",
+    "category": "log-frontend",
+    "priority": 10,
+    "description": "仪表盘日志统计卡片集成",
+    "steps": [
+      "Dashboard 添加日志统计卡片",
+      "ERROR/WARN 数量趋势图",
+      "最近告警日志列表",
+      "快速跳转到日志页"
+    ],
+    "dependencies": [
+      "F053",
+      "F033"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F058",
+    "category": "db-monitoring",
+    "priority": 11,
+    "description": "Agent 数据库监控配置 (连接信息配置)",
+    "steps": [
+      "agent config 新增 db_sources 配置段",
+      "支持 PostgreSQL/MySQL 类型",
+      "连接信息 (host/port/user/password/dbname)",
+      "采集间隔配置"
+    ],
+    "dependencies": [
+      "F039"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F059",
+    "category": "db-monitoring",
+    "priority": 11,
+    "description": "Agent PostgreSQL 指标采集 (asyncpg)",
+    "steps": [
+      "连接数采集 (active/idle/total)",
+      "活跃查询列表",
+      "慢查询检测 (超过阈值)",
+      "表大小 TOP N",
+      "数据库大小"
+    ],
+    "dependencies": [
+      "F058"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F060",
+    "category": "db-monitoring",
+    "priority": 11,
+    "description": "Agent MySQL 指标采集 (aiomysql)",
+    "steps": [
+      "连接数采集",
+      "慢查询检测",
+      "QPS 计算 (Questions/Uptime)",
+      "线程状态",
+      "数据库大小"
+    ],
+    "dependencies": [
+      "F058"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F061",
+    "category": "db-monitoring",
+    "priority": 11,
+    "description": "Agent 数据库指标上报 POST /api/v1/agent/db-metrics",
+    "steps": [
+      "数据库指标批量上报",
+      "定时采集循环",
+      "上报失败重试"
+    ],
+    "dependencies": [
+      "F059",
+      "F060",
+      "F029"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F062",
+    "category": "db-monitoring",
+    "priority": 11,
+    "description": "DbMetric 数据模型 + 数据库表 + 迁移",
+    "steps": [
+      "DbSource model (id, host_id, db_type, name, config)",
+      "DbMetric model (connections, queries, slow_queries, sizes)",
+      "Alembic 迁移"
+    ],
+    "dependencies": [
+      "F002",
+      "F005"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F063",
+    "category": "db-monitoring",
+    "priority": 11,
+    "description": "Backend 数据库指标接收 + 存储端点",
+    "steps": [
+      "POST /api/v1/agent/db-metrics 端点",
+      "数据校验 + 写入",
+      "Redis 缓存最新值"
+    ],
+    "dependencies": [
+      "F062",
+      "F061"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F064",
+    "category": "db-monitoring",
+    "priority": 11,
+    "description": "数据库列表 + 详情 + 历史指标端点",
+    "steps": [
+      "GET /api/v1/db-sources (列表)",
+      "GET /api/v1/db-sources/{id} (详情)",
+      "GET /api/v1/db-sources/{id}/metrics (历史)",
+      "慢查询列表端点"
+    ],
+    "dependencies": [
+      "F063"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F065",
+    "category": "db-monitoring",
+    "priority": 11,
+    "description": "数据库指标过期清理 + 数据聚合",
+    "steps": [
+      "复用日志清理策略",
+      "定时聚合 (5min/1h/1d)",
+      "过期数据清理"
+    ],
+    "dependencies": [
+      "F063",
+      "F051"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F066",
+    "category": "db-frontend",
+    "priority": 12,
+    "description": "数据库监控列表页面",
+    "steps": [
+      "数据库源列表 (类型/状态/连接数)",
+      "关键指标概览卡片",
+      "状态图标 (PG/MySQL)",
+      "跳转到详情"
+    ],
+    "dependencies": [
+      "F064",
+      "F031"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F067",
+    "category": "db-frontend",
+    "priority": 12,
+    "description": "数据库详情页面 (连接数/QPS/慢查询图表)",
+    "steps": [
+      "连接数趋势 ECharts",
+      "QPS/查询数趋势",
+      "慢查询列表表格",
+      "表大小 TOP N",
+      "时间范围选择器"
+    ],
+    "dependencies": [
+      "F066"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F068",
+    "category": "db-frontend",
+    "priority": 12,
+    "description": "仪表盘数据库监控卡片集成",
+    "steps": [
+      "Dashboard 添加数据库状态卡片",
+      "连接数/慢查询概览",
+      "异常数据库快速定位"
+    ],
+    "dependencies": [
+      "F064",
+      "F033"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F069",
+    "category": "alert-enhanced",
+    "priority": 13,
+    "description": "日志关键字告警规则模型扩展",
+    "steps": [
+      "AlertRule 新增 rule_type: log_keyword",
+      "关键字/正则匹配配置",
+      "日志级别匹配 (ERROR/FATAL)",
+      "频率阈值 (N次/M分钟内)"
+    ],
+    "dependencies": [
+      "F022",
+      "F047"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F070",
+    "category": "alert-enhanced",
+    "priority": 13,
+    "description": "日志关键字告警引擎",
+    "steps": [
+      "日志写入时触发关键字匹配",
+      "匹配规则检测",
+      "频率统计 (Redis 计数)",
+      "触发告警 + 通知"
+    ],
+    "dependencies": [
+      "F069",
+      "F048",
+      "F024"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F071",
+    "category": "alert-enhanced",
+    "priority": 13,
+    "description": "数据库告警规则模型扩展",
+    "steps": [
+      "AlertRule 新增 rule_type: db_metric",
+      "连接数阈值规则",
+      "慢查询数量阈值规则",
+      "QPS 异常规则"
+    ],
+    "dependencies": [
+      "F022",
+      "F062"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F072",
+    "category": "alert-enhanced",
+    "priority": 13,
+    "description": "数据库指标告警引擎",
+    "steps": [
+      "数据库指标到达时检查规则",
+      "阈值匹配",
+      "触发告警 + 通知",
+      "告警恢复检测"
+    ],
+    "dependencies": [
+      "F071",
+      "F063",
+      "F024"
+    ],
+    "passes": false
+  },
+  {
+    "id": "F073",
+    "category": "alert-enhanced",
+    "priority": 13,
+    "description": "告警规则管理页面增强 (日志+数据库规则)",
+    "steps": [
+      "告警规则创建表单支持日志关键字类型",
+      "告警规则创建表单支持数据库指标类型",
+      "规则类型切换 UI",
+      "规则测试功能"
+    ],
+    "dependencies": [
+      "F069",
+      "F071",
+      "F037"
+    ],
+    "passes": false
   }
 ]

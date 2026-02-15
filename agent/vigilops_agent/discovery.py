@@ -5,7 +5,7 @@ import shutil
 import subprocess
 from typing import List
 
-from vigilops_agent.config import ServiceCheckConfig
+from vigilops_agent.config import LogSourceConfig, ServiceCheckConfig
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +90,46 @@ def discover_docker_services(interval: int = 30) -> List[ServiceCheckConfig]:
 
 def _count_containers(stdout: str) -> int:
     return len([l for l in stdout.strip().splitlines() if l.strip()])
+
+
+def discover_docker_log_sources() -> List[LogSourceConfig]:
+    """Discover log file paths from running Docker containers."""
+    if not shutil.which("docker"):
+        return []
+
+    try:
+        result = subprocess.run(
+            ["docker", "ps", "--format", "{{.Names}}"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            return []
+    except Exception as e:
+        logger.warning(f"Docker log discovery error: {e}")
+        return []
+
+    sources: List[LogSourceConfig] = []
+    for name in result.stdout.strip().splitlines():
+        name = name.strip()
+        if not name:
+            continue
+        try:
+            insp = subprocess.run(
+                ["docker", "inspect", "--format", "{{.LogPath}}", name],
+                capture_output=True, text=True, timeout=10,
+            )
+            log_path = insp.stdout.strip()
+            if insp.returncode == 0 and log_path and log_path != "<no value>":
+                sources.append(LogSourceConfig(
+                    path=log_path,
+                    service=name,
+                    docker=True,
+                ))
+        except Exception:
+            continue
+
+    logger.info(f"Docker log discovery: found {len(sources)} log sources")
+    return sources
 
 
 def discover_listening_ports(interval: int = 30) -> List[ServiceCheckConfig]:

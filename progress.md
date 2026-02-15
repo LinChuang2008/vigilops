@@ -85,3 +85,36 @@
 - Docker container name conflict → removed stale container
 
 **Result:** All 38/38 features complete. MVP is done!
+
+---
+
+## Phase 2 — 日志采集 + 数据库监控
+
+### Status: 📋 Planned (0/35)
+
+| Category | Features | Status | Notes |
+|----------|----------|--------|-------|
+| 日志采集 Agent端 (F039-F046) | 8 | ⬜ Planned | tail-f采集 + Docker日志发现 + 多行合并 + offset持久化 |
+| 日志存储 Backend (F047-F053) | 7 | ⬜ Planned | PostgreSQL存储 + 全文搜索 + WebSocket实时流 + 自动清理 |
+| 日志前端 (F054-F057) | 4 | ⬜ Planned | 搜索筛选页 + 实时流 + 详情抽屉 + 仪表盘集成 |
+| 数据库监控 Agent+Backend (F058-F065) | 8 | ⬜ Planned | PG/MySQL指标采集 + 存储 + API |
+| 数据库前端 (F066-F068) | 3 | ⬜ Planned | 数据库列表/详情页 + 仪表盘集成 |
+| 告警增强 (F069-F073) | 5 | ⬜ Planned | 日志关键字告警 + 数据库告警 + 前端增强 |
+
+**Total Phase 2 Features:** 35 | **Completed:** 0 | **Progress:** 0%
+
+### Recommended Development Order
+
+1. **日志采集 Agent端** (F039-F046) — Agent 先能采集日志
+2. **日志存储 Backend** (F047-F053) — Backend 接收和存储日志
+3. **日志前端** (F054-F057) — 日志可视化
+4. **数据库监控** (F058-F065) — Agent 采集 + Backend 存储
+5. **数据库前端** (F066-F068) — 数据库监控可视化
+6. **告警增强** (F069-F073) — 日志/数据库告警规则
+
+### Technical Decisions
+- 日志存储：PostgreSQL (tsvector 全文搜索)，后续可迁移 ClickHouse
+- Agent 日志采集：Python asyncio + aiofiles，tail -f 模式
+- 实时日志流：FastAPI WebSocket + Redis pub/sub
+- 数据库监控：asyncpg (PostgreSQL) + aiomysql (MySQL)
+- Docker 日志：docker SDK / 读取 json-log 文件
