@@ -1,0 +1,16 @@
+server:
+  url: http://localhost:8000
+  token: "your-agent-token"
+
+host:
+  name: "my-server-01"
+  tags: ["production", "web"]
+
+metrics:
+  interval: 15s
+
+services:
+  - name: "My API"
+    type: http
+    url: http://localhost:8080/health
+    interval: 30s
