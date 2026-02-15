@@ -17,6 +17,7 @@ from app.routers import services
 from app.routers import alert_rules
 from app.routers import alerts
 from app.routers import notifications
+from app.routers import settings
 
 
 @asynccontextmanager
@@ -71,6 +72,7 @@ app.include_router(services.router)
 app.include_router(alert_rules.router)
 app.include_router(alerts.router)
 app.include_router(notifications.router)
+app.include_router(settings.router)
 
 
 @app.get("/health")

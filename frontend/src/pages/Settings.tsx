@@ -1,4 +1,137 @@
-import { Typography } from 'antd';
+import { useEffect, useState } from 'react';
+import { Card, Form, InputNumber, Button, Typography, Spin, message, Tabs, Table, Tag, Space, Modal, Input } from 'antd';
+import { PlusOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
+import api from '../services/api';
+
+interface AgentToken {
+  id: string;
+  name: string;
+  token: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 export default function Settings() {
-  return <Typography.Title>Settings (F038)</Typography.Title>;
+  const [settings, setSettings] = useState<Record<string, { value: string; description: string }>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [tokens, setTokens] = useState<AgentToken[]>([]);
+  const [tokensLoading, setTokensLoading] = useState(false);
+  const [tokenModalOpen, setTokenModalOpen] = useState(false);
+  const [newTokenName, setNewTokenName] = useState('');
+  const [form] = Form.useForm();
+  const [messageApi, contextHolder] = message.useMessage();
+
+  const fetchSettings = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get('/settings');
+      setSettings(data);
+      const formValues: Record<string, number> = {};
+      for (const [key, val] of Object.entries(data)) {
+        formValues[key] = parseInt((val as { value: string }).value, 10);
+      }
+      form.setFieldsValue(formValues);
+    } catch { /* ignore */ } finally { setLoading(false); }
+  };
+
+  const fetchTokens = async () => {
+    setTokensLoading(true);
+    try {
+      const { data } = await api.get('/agent-tokens');
+      setTokens(Array.isArray(data) ? data : data.items || []);
+    } catch { /* ignore */ } finally { setTokensLoading(false); }
+  };
+
+  useEffect(() => { fetchSettings(); }, []);
+
+  const handleSave = async (values: Record<string, number>) => {
+    setSaving(true);
+    try {
+      await api.put('/settings', values);
+      messageApi.success('设置已保存');
+    } catch { messageApi.error('保存失败'); } finally { setSaving(false); }
+  };
+
+  const handleCreateToken = async () => {
+    if (!newTokenName.trim()) return;
+    try {
+      await api.post('/agent-tokens', { name: newTokenName });
+      messageApi.success('Token 已创建');
+      setTokenModalOpen(false);
+      setNewTokenName('');
+      fetchTokens();
+    } catch { messageApi.error('创建失败'); }
+  };
+
+  const handleRevokeToken = (id: string) => {
+    Modal.confirm({
+      title: '确认吊销此 Token？',
+      icon: <ExclamationCircleOutlined />,
+      onOk: async () => {
+        try {
+          await api.delete(`/agent-tokens/${id}`);
+          messageApi.success('已吊销');
+          fetchTokens();
+        } catch { messageApi.error('操作失败'); }
+      },
+    });
+  };
+
+  const tokenColumns = [
+    { title: '名称', dataIndex: 'name' },
+    { title: 'Token', dataIndex: 'token', render: (t: string) => <Typography.Text copyable code>{t?.substring(0, 16)}...</Typography.Text> },
+    { title: '状态', dataIndex: 'is_active', render: (v: boolean) => <Tag color={v ? 'success' : 'default'}>{v ? '活跃' : '已吊销'}</Tag> },
+    { title: '创建时间', dataIndex: 'created_at', render: (t: string) => new Date(t).toLocaleString() },
+    {
+      title: '操作', key: 'action',
+      render: (_: unknown, record: AgentToken) => record.is_active ? (
+        <Button type="link" size="small" danger onClick={() => handleRevokeToken(record.id)}>吊销</Button>
+      ) : '-',
+    },
+  ];
+
+  if (loading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
+
+  return (
+    <div>
+      {contextHolder}
+      <Typography.Title level={4}>系统设置</Typography.Title>
+      <Tabs defaultActiveKey="general" onChange={k => { if (k === 'tokens') fetchTokens(); }} items={[
+        {
+          key: 'general', label: '常规设置',
+          children: (
+            <Card>
+              <Form form={form} layout="vertical" onFinish={handleSave} style={{ maxWidth: 500 }}>
+                {Object.entries(settings).map(([key, meta]) => (
+                  <Form.Item key={key} name={key} label={meta.description || key} rules={[{ required: true }]}>
+                    <InputNumber style={{ width: '100%' }} />
+                  </Form.Item>
+                ))}
+                <Form.Item>
+                  <Button type="primary" htmlType="submit" loading={saving}>保存设置</Button>
+                </Form.Item>
+              </Form>
+            </Card>
+          ),
+        },
+        {
+          key: 'tokens', label: 'Agent Token 管理',
+          children: (
+            <>
+              <Space style={{ marginBottom: 16 }}>
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => setTokenModalOpen(true)}>创建 Token</Button>
+              </Space>
+              <Card>
+                <Table dataSource={tokens} columns={tokenColumns} rowKey="id" loading={tokensLoading} pagination={false} />
+              </Card>
+              <Modal title="创建 Agent Token" open={tokenModalOpen} onCancel={() => setTokenModalOpen(false)} onOk={handleCreateToken}>
+                <Input placeholder="Token 名称" value={newTokenName} onChange={e => setNewTokenName(e.target.value)} />
+              </Modal>
+            </>
+          ),
+        },
+      ]} />
+    </div>
+  );
 }

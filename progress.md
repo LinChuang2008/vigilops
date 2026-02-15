@@ -2,7 +2,7 @@
 
 ## Phase 1 — MVP
 
-### Status: 🔧 In Progress
+### Status: ✅ MVP Complete
 
 | Category | Status | Notes |
 |----------|--------|-------|
@@ -13,10 +13,10 @@
 | Service Monitoring (F019-F021) | ✅ Done | Service model + Checks + API |
 | Alert (F022-F026) | ✅ Done | Models + CRUD + Engine + Alerts API + Webhook |
 | Agent Client (F027-F030) | ✅ Done | CLI + Collector + Reporter + Service Checker |
-| Frontend (F031-F037) | ⬜ Not Started | Layout + Pages |
-| Settings (F038) | ⬜ Not Started | System settings |
+| Frontend (F031-F037) | ✅ Done | Layout + Login/Register + Dashboard + HostList/Detail + ServiceList/Detail + AlertList + Settings |
+| Settings (F038) | ✅ Done | KV store + Agent Token management + Data retention config |
 
-**Total Features:** 38 | **Completed:** 30 | **Progress:** 79%
+**Total Features:** 38 | **Completed:** 38 | **Progress:** 100% 🎉
 
 ---
 
@@ -25,9 +25,9 @@
 - [x] Project skeleton created (2026-02-15)
 - [x] Backend boots with DB connection (2026-02-15)
 - [x] Auth flow works (register → login → access API) (2026-02-15)
-- [ ] Agent can report metrics → visible in UI
-- [ ] Alerts fire and notify via Webhook
-- [ ] MVP feature complete
+- [x] Agent can report metrics → visible in UI
+- [x] Alerts fire and notify via Webhook
+- [x] MVP feature complete (2026-02-15)
 
 ---
 
@@ -68,3 +68,20 @@
 - F021: Service list/detail/checks endpoints with uptime calculation
 
 **Next steps:** F022-F026 (Alert system)
+
+#### 2026-02-15 Session 5
+**Completed:** F031-F038 (Frontend + Settings) — MVP COMPLETE! 🎉
+- F031: Frontend project config + React Router + Ant Design layout + axios JWT interceptor
+- F032: Login + Register pages with JWT token storage and route guard
+- F033: Dashboard with stats cards, ECharts trend chart, alert table
+- F034: Server list page (card/table dual view, status filter, CPU/mem/disk metrics)
+- F035: Server detail page (info card, CPU/mem/disk/network ECharts, time range selector, auto-refresh)
+- F036: Service list + detail pages (status/uptime, response time chart, check history table)
+- F037: Alert center (alert list with filters, detail drawer, acknowledge, rule CRUD management)
+- F038: System settings (KV store GET/PUT /api/v1/settings, Agent Token management, data retention)
+
+**Issues encountered:**
+- TypeScript verbatimModuleSyntax requires type-only imports → fixed all pages
+- Docker container name conflict → removed stale container
+
+**Result:** All 38/38 features complete. MVP is done!

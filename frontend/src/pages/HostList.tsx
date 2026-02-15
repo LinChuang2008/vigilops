@@ -1,4 +1,130 @@
-import { Typography } from 'antd';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Table, Card, Tag, Input, Select, Row, Col, Progress, Typography, Space, Button, Segmented } from 'antd';
+import { CloudServerOutlined, AppstoreOutlined, UnorderedListOutlined } from '@ant-design/icons';
+import { hostService } from '../services/hosts';
+import type { Host } from '../services/hosts';
+
+const { Search } = Input;
+
 export default function HostList() {
-  return <Typography.Title>Host List (F034)</Typography.Title>;
+  const [hosts, setHosts] = useState<Host[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [search, setSearch] = useState('');
+  const [viewMode, setViewMode] = useState<string>('table');
+  const navigate = useNavigate();
+
+  const fetchHosts = async () => {
+    setLoading(true);
+    try {
+      const params: Record<string, unknown> = { page, page_size: pageSize };
+      if (statusFilter) params.status = statusFilter;
+      if (search) params.search = search;
+      const { data } = await hostService.list(params);
+      setHosts(data.items || []);
+      setTotal(data.total || 0);
+    } catch { /* ignore */ } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchHosts(); }, [page, pageSize, statusFilter]);
+
+  const columns = [
+    {
+      title: '主机名', dataIndex: 'hostname', key: 'hostname',
+      render: (text: string, record: Host) => (
+        <Button type="link" onClick={() => navigate(`/hosts/${record.id}`)}>{text}</Button>
+      ),
+    },
+    { title: 'IP 地址', dataIndex: 'ip_address', key: 'ip_address' },
+    { title: '操作系统', dataIndex: 'os', key: 'os' },
+    {
+      title: '状态', dataIndex: 'status', key: 'status',
+      render: (s: string) => <Tag color={s === 'online' ? 'success' : 'error'}>{s === 'online' ? '在线' : '离线'}</Tag>,
+    },
+    {
+      title: 'CPU', key: 'cpu',
+      render: (_: unknown, record: Host) => record.latest_metrics ? (
+        <Progress percent={Math.round(record.latest_metrics.cpu_percent)} size="small" status={record.latest_metrics.cpu_percent > 90 ? 'exception' : 'normal'} />
+      ) : '-',
+    },
+    {
+      title: '内存', key: 'mem',
+      render: (_: unknown, record: Host) => record.latest_metrics ? (
+        <Progress percent={Math.round(record.latest_metrics.memory_percent)} size="small" status={record.latest_metrics.memory_percent > 90 ? 'exception' : 'normal'} />
+      ) : '-',
+    },
+    {
+      title: '磁盘', key: 'disk',
+      render: (_: unknown, record: Host) => record.latest_metrics ? (
+        <Progress percent={Math.round(record.latest_metrics.disk_percent)} size="small" status={record.latest_metrics.disk_percent > 90 ? 'exception' : 'normal'} />
+      ) : '-',
+    },
+    {
+      title: '标签', dataIndex: 'tags', key: 'tags',
+      render: (tags: string[]) => tags?.map(t => <Tag key={t}>{t}</Tag>),
+    },
+  ];
+
+  const cardView = (
+    <Row gutter={[16, 16]}>
+      {hosts.map(host => (
+        <Col key={host.id} xs={24} sm={12} md={8} lg={6}>
+          <Card
+            hoverable
+            onClick={() => navigate(`/hosts/${host.id}`)}
+            size="small"
+          >
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Space>
+                <CloudServerOutlined style={{ fontSize: 20 }} />
+                <Typography.Text strong>{host.hostname}</Typography.Text>
+                <Tag color={host.status === 'online' ? 'success' : 'error'}>{host.status === 'online' ? '在线' : '离线'}</Tag>
+              </Space>
+              <Typography.Text type="secondary">{host.ip_address}</Typography.Text>
+              {host.latest_metrics && (
+                <>
+                  <div>CPU: <Progress percent={Math.round(host.latest_metrics.cpu_percent)} size="small" /></div>
+                  <div>内存: <Progress percent={Math.round(host.latest_metrics.memory_percent)} size="small" /></div>
+                </>
+              )}
+            </Space>
+          </Card>
+        </Col>
+      ))}
+    </Row>
+  );
+
+  return (
+    <div>
+      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
+        <Col><Typography.Title level={4} style={{ margin: 0 }}>服务器列表</Typography.Title></Col>
+        <Col>
+          <Space>
+            <Search placeholder="搜索主机名" onSearch={v => { setSearch(v); setPage(1); fetchHosts(); }} style={{ width: 200 }} allowClear />
+            <Select placeholder="状态" allowClear style={{ width: 120 }} onChange={v => { setStatusFilter(v || ''); setPage(1); }}
+              options={[{ label: '在线', value: 'online' }, { label: '离线', value: 'offline' }]} />
+            <Segmented options={[
+              { value: 'table', icon: <UnorderedListOutlined /> },
+              { value: 'card', icon: <AppstoreOutlined /> },
+            ]} value={viewMode} onChange={v => setViewMode(v as string)} />
+          </Space>
+        </Col>
+      </Row>
+      {viewMode === 'table' ? (
+        <Table
+          dataSource={hosts}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+          pagination={{ current: page, pageSize, total, onChange: (p, ps) => { setPage(p); setPageSize(ps); } }}
+        />
+      ) : cardView}
+    </div>
+  );
 }

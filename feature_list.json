@@ -419,7 +419,8 @@
       "侧边栏布局组件",
       "API client (axios) 配置"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T15:13:41+08:00"
   },
   {
     "id": "F032",
@@ -432,7 +433,8 @@
       "JWT token 存储",
       "路由守卫 (未登录跳转)"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T15:13:41+08:00"
   },
   {
     "id": "F033",
@@ -445,7 +447,8 @@
       "告警统计",
       "关键指标趋势图 (ECharts)"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T15:13:41+08:00"
   },
   {
     "id": "F034",
@@ -458,7 +461,8 @@
       "关键指标展示 (CPU/内存/磁盘)",
       "在线/离线状态标识"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T15:13:41+08:00"
   },
   {
     "id": "F035",
@@ -471,7 +475,8 @@
       "时间范围选择器",
       "实时数据自动刷新"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T15:13:41+08:00"
   },
   {
     "id": "F036",
@@ -483,7 +488,8 @@
       "服务详情 (可用率趋势/响应时间图表)",
       "检查历史记录表格"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T15:13:41+08:00"
   },
   {
     "id": "F037",
@@ -496,7 +502,8 @@
       "确认告警操作",
       "告警规则管理页"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T15:13:41+08:00"
   },
   {
     "id": "F038",
@@ -508,6 +515,7 @@
       "Agent Token 管理页",
       "数据保留配置"
     ],
-    "passes": false
+    "passes": true,
+    "completed_at": "2026-02-15T15:13:41+08:00"
   }
 ]
