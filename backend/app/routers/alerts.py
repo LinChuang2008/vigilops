@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func, and_
@@ -15,9 +16,9 @@ router = APIRouter(prefix="/api/v1/alerts", tags=["alerts"])
 
 @router.get("", response_model=dict)
 async def list_alerts(
-    status: str | None = None,
-    severity: str | None = None,
-    host_id: int | None = None,
+    status: Optional[str] = None,
+    severity: Optional[str] = None,
+    host_id: Optional[int] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),

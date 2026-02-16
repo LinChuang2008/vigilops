@@ -1,3 +1,5 @@
+from typing import Optional, List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,9 +13,9 @@ from app.schemas.alert import AlertRuleCreate, AlertRuleUpdate, AlertRuleRespons
 router = APIRouter(prefix="/api/v1/alert-rules", tags=["alert-rules"])
 
 
-@router.get("", response_model=list[AlertRuleResponse])
+@router.get("", response_model=List[AlertRuleResponse])
 async def list_alert_rules(
-    is_enabled: bool | None = None,
+    is_enabled: Optional[bool] = None,
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import String, Integer, DateTime, Boolean, Text, JSON, func
 from sqlalchemy.orm import Mapped, mapped_column
@@ -29,8 +30,8 @@ class NotificationLog(Base):
     alert_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
     channel_id: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False)  # sent / failed
-    response_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    response_code: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     retries: Mapped[int] = mapped_column(Integer, default=0)
     sent_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

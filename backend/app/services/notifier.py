@@ -6,7 +6,8 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.alert import Alert
+from app.core.redis import get_redis
+from app.models.alert import Alert, AlertRule
 from app.models.notification import NotificationChannel, NotificationLog
 
 logger = logging.getLogger(__name__)
@@ -16,6 +17,32 @@ MAX_RETRIES = 3
 
 async def send_alert_notification(db: AsyncSession, alert: Alert):
     """Send notification for an alert to all enabled channels."""
+    # 1. Query rule for cooldown and silence config
+    rule_result = await db.execute(select(AlertRule).where(AlertRule.id == alert.rule_id))
+    rule = rule_result.scalar_one_or_none()
+
+    # 2. Check silence window
+    if rule and rule.silence_start and rule.silence_end:
+        now_time = datetime.now().time()
+        if rule.silence_start <= rule.silence_end:
+            if rule.silence_start <= now_time <= rule.silence_end:
+                logger.info(f"Alert {alert.id} silenced (current time in silence window)")
+                return
+        else:  # crosses midnight, e.g. 23:00 - 06:00
+            if now_time >= rule.silence_start or now_time <= rule.silence_end:
+                logger.info(f"Alert {alert.id} silenced (current time in silence window)")
+                return
+
+    # 3. Check cooldown
+    redis = await get_redis()
+    cooldown = rule.cooldown_seconds if rule else 300
+    cooldown_key = f"alert:cooldown:{alert.rule_id}"
+    if await redis.get(cooldown_key):
+        await redis.incr(f"alert:cooldown:count:{alert.rule_id}")
+        logger.info(f"Alert {alert.id} suppressed by cooldown")
+        return
+
+    # 4. Send notifications to all enabled channels
     result = await db.execute(
         select(NotificationChannel).where(NotificationChannel.is_enabled == True)  # noqa: E712
     )
@@ -23,6 +50,11 @@ async def send_alert_notification(db: AsyncSession, alert: Alert):
 
     for channel in channels:
         await _send_to_channel(db, alert, channel)
+
+    # 5. Set cooldown after sending
+    if cooldown > 0:
+        await redis.setex(cooldown_key, cooldown, "1")
+        await redis.delete(f"alert:cooldown:count:{alert.rule_id}")
 
 
 async def _send_to_channel(db: AsyncSession, alert: Alert, channel: NotificationChannel):

@@ -1,4 +1,6 @@
 from datetime import datetime
+from typing import Optional
+
 from pydantic import BaseModel
 
 
@@ -10,9 +12,9 @@ class NotificationChannelCreate(BaseModel):
 
 
 class NotificationChannelUpdate(BaseModel):
-    name: str | None = None
-    config: dict | None = None
-    is_enabled: bool | None = None
+    name: Optional[str] = None
+    config: Optional[dict] = None
+    is_enabled: Optional[bool] = None
 
 
 class NotificationChannelResponse(BaseModel):
@@ -32,8 +34,8 @@ class NotificationLogResponse(BaseModel):
     alert_id: int
     channel_id: int
     status: str
-    response_code: int | None
-    error: str | None
+    response_code: Optional[int]
+    error: Optional[str]
     retries: int
     sent_at: datetime
 

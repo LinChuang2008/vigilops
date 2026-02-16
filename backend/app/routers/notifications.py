@@ -1,21 +1,39 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Optional, List
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.models.notification import NotificationChannel
+from app.models.notification import NotificationChannel, NotificationLog
 from app.models.user import User
 from app.schemas.notification import (
     NotificationChannelCreate,
     NotificationChannelUpdate,
     NotificationChannelResponse,
+    NotificationLogResponse,
 )
 
 router = APIRouter(prefix="/api/v1/notification-channels", tags=["notifications"])
 
 
-@router.get("", response_model=list[NotificationChannelResponse])
+@router.get("/logs", response_model=List[NotificationLogResponse])
+async def list_notification_logs(
+    alert_id: Optional[int] = None,
+    limit: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    q = select(NotificationLog).order_by(NotificationLog.sent_at.desc())
+    if alert_id:
+        q = q.where(NotificationLog.alert_id == alert_id)
+    q = q.limit(limit)
+    result = await db.execute(q)
+    return result.scalars().all()
+
+
+@router.get("", response_model=List[NotificationChannelResponse])
 async def list_channels(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
