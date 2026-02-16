@@ -12,6 +12,8 @@ import ServiceList from './pages/ServiceList';
 import ServiceDetail from './pages/ServiceDetail';
 import AlertList from './pages/AlertList';
 import Settings from './pages/Settings';
+import NotificationChannels from './pages/NotificationChannels';
+import NotificationLogs from './pages/NotificationLogs';
 import Logs from './pages/Logs';
 import Databases from './pages/Databases';
 import DatabaseDetail from './pages/DatabaseDetail';
@@ -47,6 +49,8 @@ export default function App() {
               <Route path="/databases" element={<Databases />} />
               <Route path="/databases/:id" element={<DatabaseDetail />} />
               <Route path="/alerts" element={<AlertList />} />
+              <Route path="/notification-channels" element={<NotificationChannels />} />
+              <Route path="/notification-logs" element={<NotificationLogs />} />
               <Route path="/settings" element={<Settings />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

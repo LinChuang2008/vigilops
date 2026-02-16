@@ -13,6 +13,8 @@ import {
   UserOutlined,
   LogoutOutlined,
   DatabaseOutlined,
+  NotificationOutlined,
+  UnorderedListOutlined,
 } from '@ant-design/icons';
 
 const { Header, Sider, Content } = Layout;
@@ -24,6 +26,8 @@ const menuItems = [
   { key: '/logs', icon: <FileTextOutlined />, label: '日志管理' },
   { key: '/databases', icon: <DatabaseOutlined />, label: '数据库监控' },
   { key: '/alerts', icon: <AlertOutlined />, label: '告警中心' },
+  { key: '/notification-channels', icon: <NotificationOutlined />, label: '通知渠道' },
+  { key: '/notification-logs', icon: <UnorderedListOutlined />, label: '通知日志' },
   { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
 ];
 

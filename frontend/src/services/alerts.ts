@@ -33,6 +33,29 @@ export interface AlertRule {
   log_service?: string;
   db_metric_name?: string;
   db_id?: number;
+  cooldown_seconds?: number;
+  silence_start?: string | null;
+  silence_end?: string | null;
+}
+
+export interface NotificationChannel {
+  id: number;
+  name: string;
+  type: string;
+  config: Record<string, unknown>;
+  enabled: boolean;
+  created_at: string;
+}
+
+export interface NotificationLog {
+  id: number;
+  alert_rule_id: number | null;
+  channel_id: number | null;
+  status: string;
+  message: string;
+  sent_at: string;
+  rule_name?: string;
+  channel_name?: string;
 }
 
 export interface AlertListResponse {
@@ -50,4 +73,14 @@ export const alertService = {
   createRule: (data: Partial<AlertRule>) => api.post('/alert-rules', data),
   updateRule: (id: string, data: Partial<AlertRule>) => api.put(`/alert-rules/${id}`, data),
   deleteRule: (id: string) => api.delete(`/alert-rules/${id}`),
+};
+
+export const notificationService = {
+  listChannels: () => api.get<NotificationChannel[]>('/notification-channels'),
+  createChannel: (data: { name: string; type: string; config: Record<string, unknown>; enabled?: boolean }) =>
+    api.post<NotificationChannel>('/notification-channels', data),
+  updateChannel: (id: number, data: Partial<{ name: string; type: string; config: Record<string, unknown>; enabled: boolean }>) =>
+    api.put<NotificationChannel>(`/notification-channels/${id}`, data),
+  deleteChannel: (id: number) => api.delete(`/notification-channels/${id}`),
+  listLogs: (params?: Record<string, unknown>) => api.get<NotificationLog[]>('/notification-channels/logs', { params }),
 };

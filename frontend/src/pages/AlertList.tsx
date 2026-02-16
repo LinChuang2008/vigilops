@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Table, Card, Tag, Typography, Select, Space, Button, Drawer, Descriptions, Tabs, Modal, Form, Input, InputNumber, Switch, Row, Col, message } from 'antd';
+import { Table, Card, Tag, Typography, Select, Space, Button, Drawer, Descriptions, Tabs, Modal, Form, Input, InputNumber, Switch, Row, Col, message, TimePicker } from 'antd';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { alertService } from '../services/alerts';
 import { databaseService } from '../services/databases';
 import type { DatabaseItem } from '../services/databases';
@@ -64,12 +65,16 @@ export default function AlertList() {
     } catch { messageApi.error('操作失败'); }
   };
 
-  const handleRuleSave = async (values: Partial<AlertRule>) => {
+  const handleRuleSave = async (values: Record<string, unknown>) => {
+    const payload = { ...values } as Record<string, unknown>;
+    // Convert dayjs TimePicker values to HH:mm strings
+    payload.silence_start = values.silence_start ? (values.silence_start as dayjs.Dayjs).format('HH:mm:ss') : null;
+    payload.silence_end = values.silence_end ? (values.silence_end as dayjs.Dayjs).format('HH:mm:ss') : null;
     try {
       if (editingRule) {
-        await alertService.updateRule(editingRule.id, values);
+        await alertService.updateRule(editingRule.id, payload as Partial<AlertRule>);
       } else {
-        await alertService.createRule(values);
+        await alertService.createRule(payload as Partial<AlertRule>);
       }
       messageApi.success('保存成功');
       setRuleModalOpen(false);
@@ -131,7 +136,16 @@ export default function AlertList() {
       title: '操作', key: 'action',
       render: (_: unknown, r: AlertRule) => (
         <Space>
-          <Button type="link" size="small" onClick={() => { setEditingRule(r); setRuleType(r.rule_type || 'metric'); form.setFieldsValue(r); loadDbList(); setRuleModalOpen(true); }}>编辑</Button>
+          <Button type="link" size="small" onClick={() => {
+            setEditingRule(r);
+            setRuleType(r.rule_type || 'metric');
+            const vals = { ...r } as Record<string, unknown>;
+            if (r.silence_start) vals.silence_start = dayjs(r.silence_start, 'HH:mm:ss');
+            if (r.silence_end) vals.silence_end = dayjs(r.silence_end, 'HH:mm:ss');
+            form.setFieldsValue(vals);
+            loadDbList();
+            setRuleModalOpen(true);
+          }}>编辑</Button>
           {!r.is_builtin && <Button type="link" size="small" danger onClick={() => handleRuleDelete(r.id)}>删除</Button>}
         </Space>
       ),
@@ -266,6 +280,15 @@ export default function AlertList() {
             <Select options={[{ label: 'Critical', value: 'critical' }, { label: 'Warning', value: 'warning' }, { label: 'Info', value: 'info' }]} />
           </Form.Item>
           <Form.Item name="is_enabled" label="启用" valuePropName="checked"><Switch /></Form.Item>
+          <Form.Item name="cooldown_seconds" label="冷却期（秒）" initialValue={300}>
+            <InputNumber style={{ width: '100%' }} min={0} placeholder="默认 300 秒" />
+          </Form.Item>
+          <Form.Item name="silence_start" label="静默开始">
+            <TimePicker format="HH:mm" style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="silence_end" label="静默结束">
+            <TimePicker format="HH:mm" style={{ width: '100%' }} />
+          </Form.Item>
         </Form>
       </Modal>
     </div>
