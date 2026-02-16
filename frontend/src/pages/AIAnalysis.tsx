@@ -15,6 +15,13 @@ import api from '../services/api';
 
 const { Title, Text, Paragraph } = Typography;
 
+interface SystemSummaryRaw {
+  hosts: { total: number; online: number; offline: number };
+  services: { total: number; up: number; down: number };
+  recent_1h: { alert_count: number; error_log_count: number };
+  avg_usage: { cpu_percent: number; memory_percent: number };
+}
+
 interface SystemSummary {
   total_hosts: number;
   online_hosts: number;
@@ -76,8 +83,19 @@ export default function AIAnalysis() {
   const fetchSummary = async () => {
     setSummaryLoading(true);
     try {
-      const { data } = await api.get('/ai/system-summary');
-      setSummary(data);
+      const { data } = await api.get<SystemSummaryRaw>('/ai/system-summary');
+      setSummary({
+        total_hosts: data.hosts?.total ?? 0,
+        online_hosts: data.hosts?.online ?? 0,
+        offline_hosts: data.hosts?.offline ?? 0,
+        total_services: data.services?.total ?? 0,
+        healthy_services: data.services?.up ?? 0,
+        unhealthy_services: data.services?.down ?? 0,
+        alerts_1h: data.recent_1h?.alert_count ?? 0,
+        error_logs_1h: data.recent_1h?.error_log_count ?? 0,
+        avg_cpu: data.avg_usage?.cpu_percent ?? 0,
+        avg_memory: data.avg_usage?.memory_percent ?? 0,
+      });
     } catch { /* ignore */ } finally { setSummaryLoading(false); }
   };
 
