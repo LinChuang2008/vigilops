@@ -40,7 +40,7 @@ interface InsightItem {
   severity: string;
   title: string;
   summary: string;
-  details: unknown;
+  details: any;
   related_host_id: number | null;
   status: string;
   created_at: string;
@@ -232,12 +232,12 @@ export default function AIAnalysis() {
                   {msg.content}
                 </Paragraph>
                 {msg.sources && msg.sources.length > 0 && (
-                  <Collapse ghost size="small" style={{ marginTop: 8 }} items={[{
+                  <Collapse ghost style={{ marginTop: 8 }} items={[{
                     key: '1',
                     label: <Text type="secondary" style={{ fontSize: 12 }}>参考来源 ({msg.sources.length})</Text>,
                     children: msg.sources.map((s, j) => (
                       <div key={j} style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>
-                        <Tag size="small">{s.type}</Tag> {s.summary}
+                        <Tag>{s.type}</Tag> {s.summary}
                       </div>
                     )),
                   }]} />
