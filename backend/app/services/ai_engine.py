@@ -32,6 +32,38 @@ SYSTEM_PROMPT = """你是一位资深运维专家和日志分析师。你的任�
   "overall_assessment": "总体评估"
 }"""
 
+CHAT_SYSTEM_PROMPT = """你是 VigilOps AI 运维助手，基于以下系统数据回答运维问题。用中文回答，简洁明了。
+
+回答要求：
+1. 基于提供的系统数据进行分析和回答
+2. 如果数据不足以回答，明确说明
+3. 给出具体的建议和操作步骤
+4. 保持简洁，重点突出
+
+请以 JSON 格式返回：
+{
+  "answer": "你的回答内容",
+  "sources": [
+    {"type": "log/metric/alert/service", "summary": "数据来源摘要"}
+  ]
+}"""
+
+ROOT_CAUSE_SYSTEM_PROMPT = """你是 VigilOps AI 运维专家，擅长告警根因分析。基于提供的告警信息、系统指标和日志，分析告警的可能根因。
+
+分析要求：
+1. 关联指标异常和日志错误，找出根本原因
+2. 评估置信度
+3. 列出支持证据
+4. 给出排查和修复建议
+
+请以 JSON 格式返回：
+{
+  "root_cause": "根因描述",
+  "confidence": "high/medium/low",
+  "evidence": ["证据1", "证据2"],
+  "recommendations": ["建议1", "建议2"]
+}"""
+
 
 class AIEngine:
     def __init__(self) -> None:
@@ -73,6 +105,17 @@ class AIEngine:
 
         raise last_error  # type: ignore[misc]
 
+    def _parse_json_response(self, text: str) -> Dict[str, Any]:
+        """Parse JSON from AI response, stripping markdown fences if present."""
+        cleaned = text.strip()
+        if cleaned.startswith("```"):
+            lines = cleaned.split("\n")
+            lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            cleaned = "\n".join(lines)
+        return json.loads(cleaned)
+
     async def analyze_logs(self, logs: List[dict], context: str = "") -> dict:
         """Analyze logs and return anomaly insights."""
         if not logs:
@@ -84,9 +127,8 @@ class AIEngine:
                 "overall_assessment": "无数据可分析",
             }
 
-        # Format logs for the prompt
         log_text_parts = []
-        for log in logs[:200]:  # Limit to 200 logs to avoid token overflow
+        for log in logs[:200]:
             log_text_parts.append(
                 f"[{log.get('timestamp', '')}] [{log.get('level', '')}] "
                 f"host={log.get('host_id', '')} service={log.get('service', '')} "
@@ -105,16 +147,7 @@ class AIEngine:
 
         try:
             result_text = await self._call_api(messages)
-            # Try to parse JSON from the response
-            # Strip markdown code fences if present
-            cleaned = result_text.strip()
-            if cleaned.startswith("```"):
-                lines = cleaned.split("\n")
-                lines = lines[1:]  # remove opening fence
-                if lines and lines[-1].strip() == "```":
-                    lines = lines[:-1]
-                cleaned = "\n".join(lines)
-            return json.loads(cleaned)
+            return self._parse_json_response(result_text)
         except json.JSONDecodeError:
             return {
                 "severity": "info",
@@ -134,23 +167,139 @@ class AIEngine:
                 "error": True,
             }
 
-    async def chat(self, question: str, context: Optional[Dict[str, Any]] = None) -> str:
-        """Natural language query interface (placeholder for next round)."""
-        # TODO: Implement full chat with context retrieval in next round
-        return "AI 对话功能即将上线，敬请期待。"
+    async def chat(self, question: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Natural language query interface with system context."""
+        context_parts: List[str] = []
+
+        if context:
+            # Recent error/warn logs
+            if context.get("logs"):
+                log_lines = []
+                for log in context["logs"][:50]:
+                    log_lines.append(
+                        f"  [{log.get('timestamp', '')}] [{log.get('level', '')}] "
+                        f"host={log.get('host_id', '')} service={log.get('service', '')} "
+                        f"{log.get('message', '')}"
+                    )
+                context_parts.append(f"【最近日志（ERROR/WARN）】\n" + "\n".join(log_lines))
+
+            # Host metrics summary
+            if context.get("metrics"):
+                metric_lines = []
+                for m in context["metrics"]:
+                    metric_lines.append(
+                        f"  主机{m.get('host_id', '?')}({m.get('hostname', '?')}): "
+                        f"CPU={m.get('cpu_percent', 'N/A')}%, "
+                        f"内存={m.get('memory_percent', 'N/A')}%, "
+                        f"磁盘={m.get('disk_percent', 'N/A')}%"
+                    )
+                context_parts.append(f"【主机指标摘要】\n" + "\n".join(metric_lines))
+
+            # Active alerts
+            if context.get("alerts"):
+                alert_lines = []
+                for a in context["alerts"]:
+                    alert_lines.append(
+                        f"  [{a.get('severity', '')}] {a.get('title', '')} "
+                        f"(状态: {a.get('status', '')}, 触发: {a.get('fired_at', '')})"
+                    )
+                context_parts.append(f"【活跃告警】\n" + "\n".join(alert_lines))
+
+            # Service health
+            if context.get("services"):
+                svc_lines = []
+                for s in context["services"]:
+                    svc_lines.append(
+                        f"  {s.get('name', '?')}: {s.get('status', 'unknown')} "
+                        f"(类型: {s.get('type', '?')}, 目标: {s.get('target', '?')})"
+                    )
+                context_parts.append(f"【服务健康状态】\n" + "\n".join(svc_lines))
+
+        context_text = "\n\n".join(context_parts) if context_parts else "当前没有可用的系统数据。"
+
+        user_msg = f"系统上下文数据：\n{context_text}\n\n用户问题：{question}"
+
+        messages = [
+            {"role": "system", "content": CHAT_SYSTEM_PROMPT},
+            {"role": "user", "content": user_msg},
+        ]
+
+        try:
+            result_text = await self._call_api(messages)
+            try:
+                return self._parse_json_response(result_text)
+            except json.JSONDecodeError:
+                return {"answer": result_text, "sources": []}
+        except Exception as e:
+            logger.error("AI chat failed: %s", str(e))
+            return {"answer": f"AI 对话出错：{str(e)}", "sources": [], "error": True}
 
     async def analyze_root_cause(
         self, alert: dict, metrics: List[dict], logs: List[dict]
-    ) -> dict:
-        """Root cause analysis (placeholder for next round)."""
-        # TODO: Implement root cause analysis in next round
-        return {
-            "severity": "info",
-            "title": "根因分析功能即将上线",
-            "summary": "该功能将在下一轮迭代中实现。",
-            "root_cause": None,
-            "suggestions": [],
-        }
+    ) -> Dict[str, Any]:
+        """Root cause analysis for an alert."""
+        # Build alert info
+        alert_text = (
+            f"告警标题: {alert.get('title', '')}\n"
+            f"严重级别: {alert.get('severity', '')}\n"
+            f"状态: {alert.get('status', '')}\n"
+            f"告警消息: {alert.get('message', '')}\n"
+            f"指标值: {alert.get('metric_value', 'N/A')}\n"
+            f"阈值: {alert.get('threshold', 'N/A')}\n"
+            f"触发时间: {alert.get('fired_at', '')}"
+        )
+
+        # Build metrics context
+        metric_lines = []
+        for m in metrics[:30]:
+            metric_lines.append(
+                f"  [{m.get('recorded_at', '')}] host={m.get('host_id', '')} "
+                f"CPU={m.get('cpu_percent', 'N/A')}% 内存={m.get('memory_percent', 'N/A')}% "
+                f"磁盘={m.get('disk_percent', 'N/A')}%"
+            )
+        metrics_text = "\n".join(metric_lines) if metric_lines else "无相关指标数据"
+
+        # Build logs context
+        log_lines = []
+        for log in logs[:50]:
+            log_lines.append(
+                f"  [{log.get('timestamp', '')}] [{log.get('level', '')}] "
+                f"service={log.get('service', '')} {log.get('message', '')}"
+            )
+        logs_text = "\n".join(log_lines) if log_lines else "无相关日志数据"
+
+        user_msg = (
+            f"请分析以下告警的根因：\n\n"
+            f"【告警信息】\n{alert_text}\n\n"
+            f"【相关时段指标】\n{metrics_text}\n\n"
+            f"【相关时段日志】\n{logs_text}"
+        )
+
+        messages = [
+            {"role": "system", "content": ROOT_CAUSE_SYSTEM_PROMPT},
+            {"role": "user", "content": user_msg},
+        ]
+
+        try:
+            result_text = await self._call_api(messages)
+            try:
+                return self._parse_json_response(result_text)
+            except json.JSONDecodeError:
+                return {
+                    "root_cause": result_text,
+                    "confidence": "low",
+                    "evidence": [],
+                    "recommendations": [],
+                }
+        except Exception as e:
+            logger.error("AI root cause analysis failed: %s", str(e))
+            return {
+                "root_cause": f"根因分析出错：{str(e)}",
+                "confidence": "low",
+                "evidence": [],
+                "recommendations": [],
+                "error": True,
+            }
 
 
 ai_engine = AIEngine()
