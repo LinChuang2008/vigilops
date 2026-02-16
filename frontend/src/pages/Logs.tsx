@@ -61,7 +61,7 @@ export default function Logs() {
 
   // load host/service options
   useEffect(() => {
-    api.get('/hosts', { params: { page_size: 200 } }).then(res => {
+    api.get('/hosts', { params: { page_size: 100 } }).then(res => {
       const items = res.data.items || [];
       const opts = items.map((h: { id: number; hostname: string }) => ({ label: h.hostname, value: String(h.id) }));
       setHostOptions(opts);
@@ -69,7 +69,7 @@ export default function Logs() {
       items.forEach((h: { id: number; hostname: string }) => { map[String(h.id)] = h.hostname; });
       hostMapRef.current = map;
     }).catch(() => {});
-    api.get('/services', { params: { page_size: 200 } }).then(res => {
+    api.get('/services', { params: { page_size: 100 } }).then(res => {
       const items = res.data.items || [];
       const names = [...new Set(items.map((s: { name: string }) => s.name))] as string[];
       setServiceOptions(names.map(n => ({ label: n, value: n })));
