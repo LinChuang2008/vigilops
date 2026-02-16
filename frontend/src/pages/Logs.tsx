@@ -62,7 +62,7 @@ export default function Logs() {
   useEffect(() => {
     api.get('/hosts', { params: { page_size: 200 } }).then(res => {
       const items = res.data.items || [];
-      setHostOptions(items.map((h: { id: string; hostname: string }) => ({ label: h.hostname, value: h.id })));
+      setHostOptions(items.map((h: { id: number; hostname: string }) => ({ label: h.hostname, value: String(h.id) })));
     }).catch(() => {});
     api.get('/services', { params: { page_size: 200 } }).then(res => {
       const items = res.data.items || [];
