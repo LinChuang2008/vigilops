@@ -23,6 +23,7 @@ class LogBatchResponse(BaseModel):
 class LogEntryResponse(BaseModel):
     id: int
     host_id: int
+    hostname: str | None = None
     service: str | None = None
     source: str | None = None
     level: str | None = None

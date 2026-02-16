@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
+from app.models.host import Host
 from app.models.log_entry import LogEntry
 from app.models.user import User
 from app.schemas.log_entry import (
@@ -86,9 +87,19 @@ async def search_logs(
     total = total_result.scalar() or 0
 
     offset = (page - 1) * page_size
-    stmt = base.order_by(LogEntry.timestamp.desc()).offset(offset).limit(page_size)
+    stmt = (
+        select(LogEntry, Host.hostname)
+        .outerjoin(Host, LogEntry.host_id == Host.id)
+    )
+    for cond in conditions:
+        stmt = stmt.where(cond)
+    stmt = stmt.order_by(LogEntry.timestamp.desc()).offset(offset).limit(page_size)
     rows = await db.execute(stmt)
-    items = [LogEntryResponse.model_validate(r) for r in rows.scalars().all()]
+    items = []
+    for log_entry, hostname in rows.all():
+        item = LogEntryResponse.model_validate(log_entry)
+        item.hostname = hostname
+        items.append(item)
 
     return LogSearchResponse(items=items, total=total, page=page, page_size=page_size)
 
