@@ -41,6 +41,7 @@ export default function Logs() {
   // --- hosts / services options ---
   const [hostOptions, setHostOptions] = useState<{ label: string; value: string }[]>([]);
   const [serviceOptions, setServiceOptions] = useState<{ label: string; value: string }[]>([]);
+  const hostMapRef = useRef<Record<string, string>>({});
 
   // --- mode ---
   const [mode, setMode] = useState<string>('search');
@@ -62,7 +63,11 @@ export default function Logs() {
   useEffect(() => {
     api.get('/hosts', { params: { page_size: 200 } }).then(res => {
       const items = res.data.items || [];
-      setHostOptions(items.map((h: { id: number; hostname: string }) => ({ label: h.hostname, value: String(h.id) })));
+      const opts = items.map((h: { id: number; hostname: string }) => ({ label: h.hostname, value: String(h.id) }));
+      setHostOptions(opts);
+      const map: Record<string, string> = {};
+      items.forEach((h: { id: number; hostname: string }) => { map[String(h.id)] = h.hostname; });
+      hostMapRef.current = map;
     }).catch(() => {});
     api.get('/services', { params: { page_size: 200 } }).then(res => {
       const items = res.data.items || [];
@@ -158,7 +163,7 @@ export default function Logs() {
   // --- columns ---
   const columns = [
     { title: '时间', dataIndex: 'timestamp', key: 'timestamp', width: 180, render: (t: string) => dayjs(t).format('YYYY-MM-DD HH:mm:ss') },
-    { title: '服务器', dataIndex: 'host_id', key: 'host_id', width: 140, render: (id: number) => hostOptions.find(h => String(h.value) === String(id))?.label || `Host #${id}` },
+    { title: '服务器', dataIndex: 'host_id', key: 'host_id', width: 140, render: (id: number) => hostMapRef.current[String(id)] || `Host #${id}` },
     { title: '服务', dataIndex: 'service', key: 'service', width: 120 },
     { title: '级别', dataIndex: 'level', key: 'level', width: 90, render: (l: string) => <Tag color={LEVEL_COLOR[l] || 'default'}>{l}</Tag> },
     { title: '消息', dataIndex: 'message', key: 'message', ellipsis: true },
@@ -229,7 +234,7 @@ export default function Logs() {
                   [{log.level}]
                 </span>
                 {' '}
-                <span style={{ color: '#9cdcfe' }}>{hostOptions.find(h => String(h.value) === String(log.host_id))?.label || `Host#${log.host_id}`}/{log.service}</span>
+                <span style={{ color: '#9cdcfe' }}>{hostMapRef.current[String(log.host_id)] || `Host#${log.host_id}`}/{log.service}</span>
                 {' '}
                 <span>{log.message}</span>
               </div>
