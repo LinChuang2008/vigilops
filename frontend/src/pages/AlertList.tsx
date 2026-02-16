@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Table, Card, Tag, Typography, Select, Space, Button, Drawer, Descriptions, Tabs, Modal, Form, Input, InputNumber, Switch, Row, Col, message, TimePicker } from 'antd';
-import { ExclamationCircleOutlined } from '@ant-design/icons';
+import { ExclamationCircleOutlined, RobotOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import api from '../services/api';
 import { alertService } from '../services/alerts';
 import { databaseService } from '../services/databases';
 import type { DatabaseItem } from '../services/databases';
@@ -26,6 +27,24 @@ export default function AlertList() {
   const [dbList, setDbList] = useState<DatabaseItem[]>([]);
   const [form] = Form.useForm();
   const [messageApi, contextHolder] = message.useMessage();
+
+  // AI Root Cause
+  const [rcModalOpen, setRcModalOpen] = useState(false);
+  const [rcLoading, setRcLoading] = useState(false);
+  const [rcData, setRcData] = useState<{ root_cause: string; confidence: string; evidence: string[]; recommendations: string[] } | null>(null);
+
+  const handleRootCause = async (alertId: string) => {
+    setRcData(null);
+    setRcModalOpen(true);
+    setRcLoading(true);
+    try {
+      const { data } = await api.post(`/ai/root-cause?alert_id=${alertId}`);
+      setRcData(data);
+    } catch {
+      messageApi.error('AI 分析失败');
+      setRcModalOpen(false);
+    } finally { setRcLoading(false); }
+  };
 
   const fetchAlerts = async () => {
     setLoading(true);
@@ -107,6 +126,7 @@ export default function AlertList() {
         <Space>
           <Button type="link" size="small" onClick={() => setSelectedAlert(record)}>详情</Button>
           {record.status === 'firing' && <Button type="link" size="small" onClick={() => handleAck(record.id)}>确认</Button>}
+          <Button type="link" size="small" icon={<RobotOutlined />} onClick={() => handleRootCause(record.id)}>AI 分析</Button>
         </Space>
       ),
     },
@@ -290,6 +310,35 @@ export default function AlertList() {
             <TimePicker format="HH:mm" style={{ width: '100%' }} />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal title={<><RobotOutlined /> AI 根因分析</>} open={rcModalOpen} onCancel={() => setRcModalOpen(false)} footer={null} width={560}>
+        {rcLoading ? (
+          <div style={{ textAlign: 'center', padding: 40 }}><Spin tip="AI 正在分析..." /></div>
+        ) : rcData ? (
+          <div>
+            <Descriptions column={1} bordered size="small">
+              <Descriptions.Item label="根因">{rcData.root_cause}</Descriptions.Item>
+              <Descriptions.Item label="置信度">
+                <Tag color={rcData.confidence === 'high' ? 'green' : rcData.confidence === 'medium' ? 'orange' : 'default'}>
+                  {rcData.confidence}
+                </Tag>
+              </Descriptions.Item>
+            </Descriptions>
+            {rcData.evidence && rcData.evidence.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <Typography.Text strong>证据：</Typography.Text>
+                <ul style={{ marginTop: 8 }}>{rcData.evidence.map((e, i) => <li key={i}>{e}</li>)}</ul>
+              </div>
+            )}
+            {rcData.recommendations && rcData.recommendations.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <Typography.Text strong>建议操作：</Typography.Text>
+                <ul style={{ marginTop: 8 }}>{rcData.recommendations.map((r, i) => <li key={i}>{r}</li>)}</ul>
+              </div>
+            )}
+          </div>
+        ) : null}
       </Modal>
     </div>
   );

@@ -17,6 +17,7 @@ import NotificationLogs from './pages/NotificationLogs';
 import Logs from './pages/Logs';
 import Databases from './pages/Databases';
 import DatabaseDetail from './pages/DatabaseDetail';
+import AIAnalysis from './pages/AIAnalysis';
 
 export default function App() {
   return (
@@ -49,6 +50,7 @@ export default function App() {
               <Route path="/databases" element={<Databases />} />
               <Route path="/databases/:id" element={<DatabaseDetail />} />
               <Route path="/alerts" element={<AlertList />} />
+              <Route path="/ai-analysis" element={<AIAnalysis />} />
               <Route path="/notification-channels" element={<NotificationChannels />} />
               <Route path="/notification-logs" element={<NotificationLogs />} />
               <Route path="/settings" element={<Settings />} />
