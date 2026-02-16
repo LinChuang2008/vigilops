@@ -13,6 +13,14 @@ class Settings(BaseSettings):
     redis_host: str = "localhost"
     redis_port: int = 6379
 
+    # AI
+    ai_provider: str = "deepseek"
+    ai_api_key: str = ""
+    ai_api_base: str = "https://api.deepseek.com/v1"
+    ai_model: str = "deepseek-chat"
+    ai_max_tokens: int = 2000
+    ai_auto_scan: bool = False
+
     # JWT
     jwt_secret_key: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
