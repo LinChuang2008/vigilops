@@ -43,16 +43,24 @@ type LayoutMode = 'grouped' | 'force';
 
 /* ==================== 配置 ==================== */
 
-const GROUP_CONFIG: Record<string, { label: string; color: string; bgColor: string; order: number }> = {
-  web:      { label: '🌐 前端服务', color: '#FFB800', bgColor: 'rgba(255,184,0,0.08)',   order: 0 },
-  api:      { label: '⚙️ 后端服务', color: '#FF7F50', bgColor: 'rgba(255,127,80,0.08)',  order: 1 },
-  app:      { label: '📦 业务应用', color: '#4FC3F7', bgColor: 'rgba(79,195,247,0.08)',  order: 2 },
-  registry: { label: '🔍 注册中心', color: '#AB47BC', bgColor: 'rgba(171,71,188,0.08)',  order: 3 },
-  mq:       { label: '📨 消息队列', color: '#00CED1', bgColor: 'rgba(0,206,209,0.08)',   order: 4 },
-  olap:     { label: '📊 分析引擎', color: '#FF8A65', bgColor: 'rgba(255,138,101,0.08)', order: 5 },
-  database: { label: '🗄️ 数据库',  color: '#7B68EE', bgColor: 'rgba(123,104,238,0.08)', order: 6 },
-  cache:    { label: '⚡ 缓存',    color: '#9ACD32', bgColor: 'rgba(154,205,50,0.08)',   order: 7 },
+const GROUP_CONFIG: Record<string, { label: string; color: string; bgColor: string; order: number; stage: number }> = {
+  web:      { label: '🌐 前端',    color: '#FFB800', bgColor: 'rgba(255,184,0,0.08)',   order: 0, stage: 0 },
+  api:      { label: '⚙️ 后端',    color: '#FF7F50', bgColor: 'rgba(255,127,80,0.08)',  order: 1, stage: 1 },
+  app:      { label: '📦 业务',    color: '#4FC3F7', bgColor: 'rgba(79,195,247,0.08)',  order: 2, stage: 1 },
+  registry: { label: '🔍 注册中心', color: '#AB47BC', bgColor: 'rgba(171,71,188,0.08)',  order: 3, stage: 2 },
+  mq:       { label: '📨 消息队列', color: '#00CED1', bgColor: 'rgba(0,206,209,0.08)',   order: 4, stage: 2 },
+  olap:     { label: '📊 分析引擎', color: '#FF8A65', bgColor: 'rgba(255,138,101,0.08)', order: 5, stage: 2 },
+  database: { label: '🗄️ 数据库',  color: '#7B68EE', bgColor: 'rgba(123,104,238,0.08)', order: 6, stage: 3 },
+  cache:    { label: '⚡ 缓存',    color: '#9ACD32', bgColor: 'rgba(154,205,50,0.08)',   order: 7, stage: 3 },
 };
+
+/** 管道阶段定义（从左到右） */
+const PIPELINE_STAGES = [
+  { key: 0, label: '接入层', color: '#FFB800' },
+  { key: 1, label: '应用层', color: '#FF7F50' },
+  { key: 2, label: '中间件', color: '#AB47BC' },
+  { key: 3, label: '数据层', color: '#7B68EE' },
+];
 
 const STATUS_COLORS: Record<string, string> = {
   up: '#52c41a', running: '#52c41a', healthy: '#52c41a',
@@ -71,43 +79,60 @@ const EDGE_STYLES: Record<string, { color: string; type: 'solid' | 'dashed'; wid
 
 /* ==================== 分组布局 ==================== */
 
-interface GroupBox { key: string; label: string; x: number; y: number; width: number; height: number; bgColor: string; }
+interface StageBox { stageIdx: number; label: string; x: number; y: number; width: number; height: number; color: string; }
 
-const computeGroupedPositions = (nodes: TopoNode[], w: number, h: number) => {
-  const groups = new Map<string, TopoNode[]>();
+/**
+ * 管道布局：从左到右 4 个阶段，每个阶段内节点纵向排列。
+ * 阶段之间用箭头连接管道和连线。
+ */
+const computePipelinePositions = (nodes: TopoNode[], w: number, h: number) => {
+  // 按 stage 分组
+  const stageBuckets: TopoNode[][] = [[], [], [], []];
   for (const n of nodes) {
-    const g = n.group || 'app';
-    if (!groups.has(g)) groups.set(g, []);
-    groups.get(g)!.push(n);
+    const cfg = GROUP_CONFIG[n.group];
+    const stage = cfg?.stage ?? 1;
+    stageBuckets[stage].push(n);
   }
-  const sorted = Array.from(groups.entries()).sort((a, b) =>
-    (GROUP_CONFIG[a[0]]?.order ?? 99) - (GROUP_CONFIG[b[0]]?.order ?? 99));
 
-  const cols = 3, rows = Math.ceil(sorted.length / cols);
-  const cellW = (w - 80) / cols, cellH = Math.max(200, (h - 100) / rows);
+  const stageCount = PIPELINE_STAGES.length;
+  const stageWidth = (w - 60) / stageCount;
+  const padTop = 70;     // 留给阶段标题
+  const padBottom = 30;
+  const availH = h - padTop - padBottom;
   const positions = new Map<number, { x: number; y: number }>();
-  const boxes: GroupBox[] = [];
+  const stageBoxes: StageBox[] = [];
 
-  sorted.forEach(([key, items], idx) => {
-    const col = idx % cols, row = Math.floor(idx / cols);
-    const bx = 50 + col * cellW, by = 50 + row * cellH;
-    const cfg = GROUP_CONFIG[key] || { label: key, color: '#999', bgColor: 'rgba(0,0,0,0.03)', order: 99 };
-    boxes.push({ key, label: cfg.label, x: bx, y: by, width: cellW - 20, height: cellH - 20, bgColor: cfg.bgColor });
+  stageBuckets.forEach((bucket, si) => {
+    const stageCfg = PIPELINE_STAGES[si];
+    const stageX = 30 + si * stageWidth;
 
-    const pad = 30, availW = cellW - 20 - pad * 2, availH = cellH - 20 - pad - 50;
-    const ic = Math.min(items.length, Math.max(1, Math.floor(availW / 100)));
-    const ir = Math.ceil(items.length / ic);
-    const sx = ic > 1 ? availW / (ic - 1 || 1) : 0;
-    const sy = ir > 1 ? availH / (ir - 1 || 1) : 0;
+    stageBoxes.push({
+      stageIdx: si,
+      label: stageCfg.label,
+      x: stageX,
+      y: 10,
+      width: stageWidth - 10,
+      height: h - 20,
+      color: stageCfg.color,
+    });
 
-    items.forEach((n, ni) => {
-      positions.set(n.id, {
-        x: bx + pad + (ic === 1 ? availW / 2 : (ni % ic) * sx),
-        y: by + 50 + (ir === 1 ? availH / 2 : Math.floor(ni / ic) * sy),
+    if (bucket.length === 0) return;
+
+    // 节点在阶段内纵向居中排列
+    const spacing = Math.min(80, availH / (bucket.length + 1));
+    const totalH = spacing * (bucket.length - 1);
+    const startY = padTop + (availH - totalH) / 2;
+    const centerX = stageX + (stageWidth - 10) / 2;
+
+    bucket.forEach((node, ni) => {
+      positions.set(node.id, {
+        x: centerX,
+        y: startY + ni * spacing,
       });
     });
   });
-  return { positions, groupBoxes: boxes };
+
+  return { positions, stageBoxes };
 };
 
 /* ==================== 组件 ==================== */
@@ -301,8 +326,8 @@ export default function Topology() {
     const idMap = new Map<number, string>();
     data.nodes.forEach(n => idMap.set(n.id, n.name));
 
-    const isGrouped = mode === 'grouped';
-    const autoLayout = isGrouped ? computeGroupedPositions(data.nodes, cw, ch) : null;
+    const isPipeline = mode === 'grouped';
+    const autoLayout = isPipeline ? computePipelinePositions(data.nodes, cw, ch) : null;
     const savedPos = data.saved_positions;
 
     const categoryNames = Array.from(new Set(data.nodes.map(n => n.group)));
@@ -317,7 +342,7 @@ export default function Topology() {
       const pos = sp || ap;
       return {
         id: String(n.id), name: shortName(n.name), symbolSize: 40, symbol: 'circle',
-        ...(pos ? { x: pos.x, y: pos.y, fixed: isGrouped } : {}),
+        ...(pos ? { x: pos.x, y: pos.y, fixed: isPipeline } : {}),
         itemStyle: { color: cfg.color, borderColor: getStatusColor(n.status), borderWidth: 3, shadowColor: 'rgba(0,0,0,0.1)', shadowBlur: 8 },
         label: { show: true, position: 'bottom' as const, fontSize: 11, color: '#555' },
         tooltip: {
@@ -343,11 +368,39 @@ export default function Topology() {
     });
 
     const graphics: any[] = [];
-    if (isGrouped && !savedPos && autoLayout?.groupBoxes) {
-      for (const box of autoLayout.groupBoxes) {
-        graphics.push({ type: 'rect', left: box.x, top: box.y, z: -1, silent: true, shape: { width: box.width, height: box.height, r: 8 }, style: { fill: box.bgColor, stroke: 'rgba(0,0,0,0.06)', lineWidth: 1 } });
-        graphics.push({ type: 'text', left: box.x + 10, top: box.y + 10, silent: true, style: { text: box.label, fontSize: 13, fontWeight: 'bold' as const, fill: '#666' } });
-      }
+    if (isPipeline && autoLayout?.stageBoxes) {
+      const stageBoxes = autoLayout.stageBoxes;
+      stageBoxes.forEach((box, i) => {
+        // 阶段背景（交替色）
+        graphics.push({
+          type: 'rect', left: box.x, top: box.y, z: -2, silent: true,
+          shape: { width: box.width, height: box.height, r: 6 },
+          style: { fill: i % 2 === 0 ? 'rgba(0,0,0,0.02)' : 'rgba(0,0,0,0.04)', stroke: 'none' },
+        });
+        // 阶段标题
+        graphics.push({
+          type: 'text', left: box.x + box.width / 2, top: 18, z: 0, silent: true,
+          style: {
+            text: box.label, fontSize: 15, fontWeight: 'bold' as const,
+            fill: box.color, textAlign: 'center' as const,
+          },
+        });
+        // 阶段顶部色条
+        graphics.push({
+          type: 'rect', left: box.x + 10, top: 42, z: 0, silent: true,
+          shape: { width: box.width - 20, height: 3, r: 2 },
+          style: { fill: box.color },
+        });
+        // 阶段之间的箭头（除最后一个）
+        if (i < stageBoxes.length - 1) {
+          const arrowX = box.x + box.width;
+          const arrowY = box.height / 2;
+          graphics.push({
+            type: 'text', left: arrowX - 5, top: arrowY - 8, z: 1, silent: true,
+            style: { text: '▸', fontSize: 20, fill: '#ccc' },
+          });
+        }
+      });
     }
 
     chart.setOption({
@@ -356,7 +409,7 @@ export default function Topology() {
       graphic: graphics,
       animationDuration: 500,
       series: [{
-        type: 'graph', layout: isGrouped ? 'none' : 'force', roam: true, draggable: true, zoom: 1,
+        type: 'graph', layout: isPipeline ? 'none' : 'force', roam: true, draggable: true, zoom: 1,
         categories, data: nodes, links: edges as any,
         ...(mode === 'force' ? { force: { repulsion: 400, edgeLength: [150, 300], gravity: 0.08, layoutAnimation: true } } : {}),
         emphasis: { focus: 'adjacency', lineStyle: { width: 3 }, itemStyle: { shadowBlur: 12, shadowColor: 'rgba(0,0,0,0.3)' } },
@@ -399,7 +452,7 @@ export default function Topology() {
         <Space>
           <Radio.Group value={layout} onChange={e => handleLayoutChange(e.target.value)}
             optionType="button" buttonStyle="solid" size="small">
-            <Radio.Button value="grouped"><ApartmentOutlined /> 分组</Radio.Button>
+            <Radio.Button value="grouped"><ApartmentOutlined /> 管道</Radio.Button>
             <Radio.Button value="force"><NodeIndexOutlined /> 力导向</Radio.Button>
           </Radio.Group>
           <Tooltip title="保存节点位置"><Button icon={<SaveOutlined />} onClick={saveLayout}>保存布局</Button></Tooltip>
