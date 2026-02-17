@@ -27,6 +27,8 @@ export interface Service {
   is_active?: boolean;
   /** 关联主机 ID */
   host_id?: number;
+  /** 服务分类: middleware(中间件) / business(业务系统) / infrastructure(基础设施) */
+  category?: string;
   created_at: string;
 }
 

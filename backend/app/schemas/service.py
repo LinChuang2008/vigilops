@@ -19,6 +19,7 @@ class ServiceResponse(BaseModel):
     is_active: bool
     status: str
     host_id: int | None = None
+    category: str | None = None  # 分类: middleware / business / infrastructure
     tags: dict | None = None
     created_at: datetime
     updated_at: datetime

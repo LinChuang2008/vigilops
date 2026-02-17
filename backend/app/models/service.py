@@ -25,6 +25,7 @@ class Service(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     status: Mapped[str] = mapped_column(String(20), default="unknown")  # up / down / unknown
     host_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 关联主机（可选）
+    category: Mapped[str | None] = mapped_column(String(30), nullable=True)  # 分类: middleware / business / infrastructure
     tags: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

@@ -39,16 +39,20 @@ async def list_services(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     status: str | None = None,
+    category: str | None = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """分页查询服务列表，附带 24h 可用率。"""
+    """分页查询服务列表，支持按状态和分类筛选，附带 24h 可用率。"""
     query = select(Service)
     count_query = select(func.count()).select_from(Service)
 
     if status:
         query = query.where(Service.status == status)
         count_query = count_query.where(Service.status == status)
+    if category:
+        query = query.where(Service.category == category)
+        count_query = count_query.where(Service.category == category)
 
     total = (await db.execute(count_query)).scalar()
     query = query.order_by(Service.id.desc()).offset((page - 1) * page_size).limit(page_size)
