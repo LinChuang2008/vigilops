@@ -295,7 +295,7 @@ export default function ServiceList() {
       ) : (
         /* 多台服务器：折叠分组 */
         <Collapse
-          defaultActiveKey={hostGroups.map(g => String(g.host_id))}
+          defaultActiveKey={[]}
           items={hostGroups.map(group => ({
             key: String(group.host_id),
             label: renderHostHeader(group),
