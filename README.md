@@ -156,14 +156,26 @@ python agent/main.py
 
 ## 📸 界面截图
 
-> 截图即将添加
+### 仪表盘
+![Dashboard](docs/screenshots/dashboard.jpg)
 
-<!-- 
-![Dashboard](docs/screenshots/dashboard.png)
-![Host Detail](docs/screenshots/host-detail.png)
-![AI Analysis](docs/screenshots/ai-analysis.png)
-![Alert Center](docs/screenshots/alerts.png)
--->
+### 服务器详情
+![Host Detail](docs/screenshots/host-detail.jpg)
+
+### 服务监控
+![Services](docs/screenshots/services.jpg)
+
+### 日志管理
+![Logs](docs/screenshots/logs.jpg)
+
+### 数据库监控
+![Databases](docs/screenshots/databases.jpg)
+
+### AI 智能分析
+![AI Analysis](docs/screenshots/ai-analysis.jpg)
+
+### 告警中心
+![Alerts](docs/screenshots/alerts.jpg)
 
 ---
 
