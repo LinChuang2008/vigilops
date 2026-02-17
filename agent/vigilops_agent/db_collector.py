@@ -1,4 +1,10 @@
-"""F059/F060: Database metrics collection for PostgreSQL, MySQL, and Oracle."""
+"""
+数据库指标采集模块。
+
+支持 PostgreSQL、MySQL 和 Oracle 三种数据库的指标采集，
+包括连接数、数据库大小、慢查询、事务统计等。
+Oracle 通过 docker exec + sqlplus 方式采集。
+"""
 import json
 import logging
 import re
@@ -12,7 +18,13 @@ logger = logging.getLogger(__name__)
 
 
 def collect_postgres_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
-    """Collect PostgreSQL metrics using psycopg2."""
+    """采集 PostgreSQL 指标。
+
+    通过 psycopg2 连接数据库，查询连接数、库大小、慢查询、表数量、事务统计等。
+
+    Returns:
+        指标字典，采集失败返回 None。
+    """
     try:
         import psycopg2  # type: ignore
     except ImportError:
@@ -31,20 +43,20 @@ def collect_postgres_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
         conn.autocommit = True
         cur = conn.cursor()
 
-        # Total connections
+        # 总连接数
         cur.execute("SELECT count(*) FROM pg_stat_activity;")
         connections_total = cur.fetchone()[0]
 
-        # Active connections
+        # 活跃连接数
         cur.execute("SELECT count(*) FROM pg_stat_activity WHERE state = 'active';")
         connections_active = cur.fetchone()[0]
 
-        # Database size
+        # 数据库大小
         cur.execute("SELECT pg_database_size(current_database());")
         database_size_bytes = cur.fetchone()[0]
         database_size_mb = round(database_size_bytes / (1024 * 1024), 2)
 
-        # Slow queries (pg_stat_statements if available)
+        # 慢查询数（依赖 pg_stat_statements 扩展）
         slow_queries = 0
         try:
             cur.execute("SELECT count(*) FROM pg_stat_statements WHERE mean_exec_time > 1000;")
@@ -52,11 +64,11 @@ def collect_postgres_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
         except Exception:
             pass
 
-        # Table count
+        # 公共 schema 中的表数量
         cur.execute("SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';")
         tables_count = cur.fetchone()[0]
 
-        # Transaction stats
+        # 事务提交/回滚统计
         cur.execute("SELECT xact_commit, xact_rollback FROM pg_stat_database WHERE datname = current_database();")
         row = cur.fetchone()
         xact_commit = row[0] if row else 0
@@ -83,7 +95,13 @@ def collect_postgres_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
 
 
 def collect_mysql_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
-    """Collect MySQL metrics using pymysql."""
+    """采集 MySQL 指标。
+
+    通过 pymysql 连接数据库，查询连接数、慢查询、库大小、表数量等。
+
+    Returns:
+        指标字典，采集失败返回 None。
+    """
     try:
         import pymysql  # type: ignore
     except ImportError:
@@ -102,6 +120,7 @@ def collect_mysql_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
         cur = conn.cursor()
 
         def _status_val(variable_name: str) -> int:
+            """查询 SHOW STATUS 中指定变量的值。"""
             cur.execute("SHOW STATUS LIKE %s;", (variable_name,))
             row = cur.fetchone()
             return int(row[1]) if row else 0
@@ -111,7 +130,7 @@ def collect_mysql_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
         slow_queries = _status_val("Slow_queries")
         queries = _status_val("Queries")
 
-        # Database size
+        # 数据库大小
         cur.execute(
             "SELECT SUM(data_length + index_length) FROM information_schema.tables WHERE table_schema = DATABASE();"
         )
@@ -119,7 +138,7 @@ def collect_mysql_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
         size_bytes = row[0] if row and row[0] else 0
         database_size_mb = round(size_bytes / (1024 * 1024), 2)
 
-        # Table count
+        # 表数量
         cur.execute("SELECT count(*) FROM information_schema.tables WHERE table_schema = DATABASE();")
         tables_count = cur.fetchone()[0]
 
@@ -145,12 +164,20 @@ def collect_mysql_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
 
 
 def collect_oracle_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
-    """Collect Oracle metrics via docker exec + sqlplus."""
+    """采集 Oracle 指标。
+
+    通过 docker exec 在容器内执行 sqlplus 命令，查询会话数、库大小、
+    表空间使用率、慢查询等指标。
+
+    Returns:
+        指标字典，采集失败返回 None。
+    """
     container = cfg.container_name
     if not container:
         logger.warning("Oracle monitoring requires container_name for %s", cfg.name)
         return None
 
+    # 构造 Oracle 环境变量设置命令
     if cfg.oracle_home:
         oracle_env = (
             f"export ORACLE_HOME={cfg.oracle_home}; "
@@ -160,7 +187,7 @@ def collect_oracle_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
     else:
         oracle_env = "source /home/oracle/.bash_profile 2>/dev/null; "
 
-    # Basic metrics SQL
+    # 基础指标查询 SQL
     sql_script = (
         "SET PAGESIZE 0 FEEDBACK OFF VERIFY OFF HEADING OFF ECHO OFF\n"
         "SELECT 'TOTAL_SESSIONS=' || count(*) FROM v$session;\n"
@@ -171,7 +198,7 @@ def collect_oracle_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
         "EXIT;\n"
     )
 
-    # Use printf with %s to avoid shell variable expansion of $session/$sql
+    # 用 printf %s 避免 shell 对 $session/$sql 等变量的展开
     bash_cmd = oracle_env + "printf '%s' '" + sql_script.replace("'", "'\\''") + "' | sqlplus -s / as sysdba"
     cmd = ["docker", "exec", container, "bash", "-c", bash_cmd]
 
@@ -185,7 +212,7 @@ def collect_oracle_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
         logger.error("Oracle collection failed for %s: %s", cfg.name, e)
         return None
 
-    # Parse KEY=VALUE pairs
+    # 解析 KEY=VALUE 格式的输出
     values = {}  # type: Dict[str, str]
     for line in output.splitlines():
         line = line.strip()
@@ -201,18 +228,20 @@ def collect_oracle_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
         return None
 
     def _int(k: str, default: int = 0) -> int:
+        """安全转换为整数。"""
         try:
             return int(values.get(k, str(default)))
         except (ValueError, TypeError):
             return default
 
     def _float(k: str, default: float = 0.0) -> float:
+        """安全转换为浮点数。"""
         try:
             return float(values.get(k, str(default)))
         except (ValueError, TypeError):
             return default
 
-    # Collect slow queries detail
+    # 采集 Top 10 慢查询详情
     slow_queries_detail = _collect_oracle_slow_queries(container, oracle_env)
 
     metrics = {
@@ -235,7 +264,7 @@ def collect_oracle_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
 
 
 def _collect_oracle_slow_queries(container: str, oracle_env: str) -> Optional[List[Dict]]:
-    """Collect top 10 slow queries from Oracle v$sql."""
+    """采集 Oracle v$sql 中平均执行时间最长的 Top 10 慢查询。"""
     sql = (
         "SET PAGESIZE 0 FEEDBACK OFF VERIFY OFF HEADING OFF ECHO OFF LINESIZE 500\n"
         "SELECT sql_id || '|||' || ROUND(elapsed_time/executions/1000000, 2) || '|||' || executions || '|||' || SUBSTR(sql_text, 1, 200)\n"
@@ -252,6 +281,7 @@ def _collect_oracle_slow_queries(container: str, oracle_env: str) -> Optional[Li
     except Exception:
         return None
 
+    # 解析 "|||" 分隔的输出行
     queries = []  # type: List[Dict]
     for line in output.splitlines():
         line = line.strip()
@@ -273,7 +303,7 @@ def _collect_oracle_slow_queries(container: str, oracle_env: str) -> Optional[Li
 
 
 def collect_db_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
-    """Collect metrics based on database type."""
+    """根据数据库类型分派执行对应的指标采集。"""
     if cfg.type == "postgres":
         return collect_postgres_metrics(cfg)
     elif cfg.type == "mysql":

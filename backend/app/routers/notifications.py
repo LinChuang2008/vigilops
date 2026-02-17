@@ -1,3 +1,9 @@
+"""通知渠道管理路由模块。
+
+提供通知渠道（邮件、Webhook 等）的增删改查接口，
+以及通知发送日志的查询功能。
+"""
+
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -25,6 +31,7 @@ async def list_notification_logs(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
+    """查询通知发送日志，可按告警 ID 筛选。"""
     q = select(NotificationLog).order_by(NotificationLog.sent_at.desc())
     if alert_id:
         q = q.where(NotificationLog.alert_id == alert_id)
@@ -38,6 +45,7 @@ async def list_channels(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
+    """获取所有通知渠道列表。"""
     result = await db.execute(select(NotificationChannel).order_by(NotificationChannel.id))
     return result.scalars().all()
 
@@ -48,6 +56,7 @@ async def create_channel(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
+    """创建新的通知渠道。"""
     channel = NotificationChannel(**data.model_dump())
     db.add(channel)
     await db.commit()
@@ -62,6 +71,7 @@ async def update_channel(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
+    """更新指定通知渠道配置。"""
     result = await db.execute(select(NotificationChannel).where(NotificationChannel.id == channel_id))
     channel = result.scalar_one_or_none()
     if not channel:
@@ -81,6 +91,7 @@ async def delete_channel(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
+    """删除指定通知渠道。"""
     result = await db.execute(select(NotificationChannel).where(NotificationChannel.id == channel_id))
     channel = result.scalar_one_or_none()
     if not channel:

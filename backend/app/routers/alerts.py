@@ -1,3 +1,8 @@
+"""告警管理路由模块。
+
+提供告警的查询（分页、筛选）和确认操作接口。
+"""
+
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -24,6 +29,7 @@ async def list_alerts(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
+    """获取告警列表，支持按状态、严重级别和主机筛选，分页返回。"""
     q = select(Alert)
     count_q = select(func.count(Alert.id))
 
@@ -58,6 +64,7 @@ async def get_alert(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
+    """根据 ID 获取单条告警详情。"""
     result = await db.execute(select(Alert).where(Alert.id == alert_id))
     alert = result.scalar_one_or_none()
     if not alert:
@@ -71,6 +78,7 @@ async def acknowledge_alert(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """确认告警，将状态标记为已确认并记录确认时间和操作人。"""
     result = await db.execute(select(Alert).where(Alert.id == alert_id))
     alert = result.scalar_one_or_none()
     if not alert:

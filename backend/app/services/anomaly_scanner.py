@@ -1,3 +1,9 @@
+"""
+AI 异常扫描服务模块。
+
+定期扫描最近的 WARN/ERROR 级别日志，调用 AI 引擎进行异常分析，
+并将分析结果保存为 AIInsight 记录，供前端展示和运维人员参考。
+"""
 import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
@@ -15,11 +21,16 @@ logger = logging.getLogger(__name__)
 
 
 async def scan_recent_logs(hours: int = 1) -> None:
-    """Scan recent WARN/ERROR logs and run AI analysis."""
+    """扫描最近指定小时内的 WARN/ERROR 日志并执行 AI 分析。
+
+    Args:
+        hours: 向前扫描的时间范围（小时）
+    """
     try:
         since = datetime.now(timezone.utc) - timedelta(hours=hours)
 
         async with async_session() as db:
+            # 查询指定时间范围内的异常级别日志，最多 500 条
             q = (
                 select(LogEntry)
                 .where(
@@ -38,6 +49,7 @@ async def scan_recent_logs(hours: int = 1) -> None:
                 logger.info("Anomaly scan: no WARN/ERROR logs in last %d hour(s)", hours)
                 return
 
+            # 将 ORM 对象转为字典列表供 AI 引擎使用
             logs_data: List[dict] = [
                 {
                     "timestamp": str(e.timestamp),
@@ -52,6 +64,7 @@ async def scan_recent_logs(hours: int = 1) -> None:
             logger.info("Anomaly scan: analyzing %d log entries", len(logs_data))
             analysis = await ai_engine.analyze_logs(logs_data)
 
+            # 分析成功则保存为 AI 洞察记录
             if not analysis.get("error"):
                 insight = AIInsight(
                     insight_type="anomaly",
@@ -72,7 +85,11 @@ async def scan_recent_logs(hours: int = 1) -> None:
 
 
 async def anomaly_scanner_loop(interval_minutes: int = 30) -> None:
-    """Background loop that periodically scans for log anomalies."""
+    """异常扫描后台循环，按配置间隔定期执行日志异常检测。
+
+    Args:
+        interval_minutes: 扫描间隔（分钟）
+    """
     logger.info("Anomaly scanner started (interval=%dm, enabled=%s)", interval_minutes, settings.ai_auto_scan)
     while True:
         await asyncio.sleep(interval_minutes * 60)

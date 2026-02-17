@@ -1,4 +1,9 @@
-"""Auto-discover services from Docker containers and listening ports."""
+"""
+服务自动发现模块。
+
+通过 Docker API 自动发现运行中的容器及其暴露端口，
+生成对应的服务检查配置和日志源配置。
+"""
 import json
 import logging
 import shutil
@@ -9,13 +14,22 @@ from vigilops_agent.config import LogSourceConfig, ServiceCheckConfig
 
 logger = logging.getLogger(__name__)
 
-# Common HTTP ports for auto-detecting check type
+# 常见 HTTP 端口集合，用于自动判断检查类型
 HTTP_PORTS = {80, 443, 8080, 8000, 8001, 8443, 3000, 3001, 5000, 9090,
               8093, 8123, 8848, 13000, 15672, 18000, 18123, 48080, 48848}
 
 
 def discover_docker_services(interval: int = 30) -> List[ServiceCheckConfig]:
-    """Discover services from running Docker containers with published ports."""
+    """从运行中的 Docker 容器发现服务。
+
+    解析容器的端口映射，根据端口号自动判断使用 HTTP 或 TCP 检查。
+
+    Args:
+        interval: 发现的服务默认检查间隔（秒）。
+
+    Returns:
+        服务检查配置列表。
+    """
     if not shutil.which("docker"):
         logger.debug("Docker not found, skipping container discovery")
         return []
@@ -48,25 +62,24 @@ def discover_docker_services(interval: int = 30) -> List[ServiceCheckConfig]:
         if not name or not ports_str:
             continue
 
-        # Parse published ports: "0.0.0.0:8001->8000/tcp, ..."
+        # 解析端口映射，格式如 "0.0.0.0:8001->8000/tcp, ..."
         for mapping in ports_str.split(","):
             mapping = mapping.strip()
             if "->" not in mapping:
                 continue
             try:
                 host_part, container_part = mapping.split("->")
-                # host_part like "0.0.0.0:8001" or "[::]:8001"
                 if ":" in host_part:
                     host_port = int(host_part.rsplit(":", 1)[1])
                 else:
                     continue
-                # Skip IPv6 duplicates
+                # 跳过 IPv6 重复映射
                 if host_part.startswith("[::]:"):
                     continue
             except (ValueError, IndexError):
                 continue
 
-            # Determine check type
+            # 根据端口号判断检查类型
             if host_port in HTTP_PORTS:
                 svc = ServiceCheckConfig(
                     name=f"{name} (:{host_port})",
@@ -89,11 +102,18 @@ def discover_docker_services(interval: int = 30) -> List[ServiceCheckConfig]:
 
 
 def _count_containers(stdout: str) -> int:
+    """统计 docker ps 输出中的容器数量。"""
     return len([l for l in stdout.strip().splitlines() if l.strip()])
 
 
 def discover_docker_log_sources() -> List[LogSourceConfig]:
-    """Discover log file paths from running Docker containers."""
+    """从运行中的 Docker 容器发现日志文件路径。
+
+    通过 docker inspect 获取每个容器的 LogPath。
+
+    Returns:
+        日志源配置列表。
+    """
     if not shutil.which("docker"):
         return []
 
@@ -133,8 +153,10 @@ def discover_docker_log_sources() -> List[LogSourceConfig]:
 
 
 def discover_listening_ports(interval: int = 30) -> List[ServiceCheckConfig]:
-    """Discover non-Docker services listening on TCP ports via ss/netstat."""
-    # This is a lighter-weight fallback for non-Docker hosts
+    """通过 ss 命令发现监听中的 TCP 端口服务（备用方案）。
+
+    当前为预留接口，Docker 发现为主要方式。
+    """
     if not shutil.which("ss"):
         return []
 
@@ -148,5 +170,4 @@ def discover_listening_ports(interval: int = 30) -> List[ServiceCheckConfig]:
     except Exception:
         return []
 
-    # For now, Docker discovery is primary. Port discovery can be added later.
     return []

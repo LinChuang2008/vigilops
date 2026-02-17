@@ -1,3 +1,8 @@
+"""日志管理路由模块。
+
+提供日志搜索/筛选、统计分析和 WebSocket 实时日志流功能。
+"""
+
 import asyncio
 import json
 from datetime import datetime
@@ -22,32 +27,37 @@ from app.schemas.log_entry import (
 router = APIRouter(prefix="/api/v1/logs", tags=["logs"])
 
 
-# ── In-memory broadcast for WebSocket (F052) ──────────────────────────
+# ── 内存级广播器，用于 WebSocket 实时日志推送 (F052) ──────────────────
 class LogBroadcaster:
+    """日志广播器，基于内存队列实现发布-订阅模式。"""
+
     def __init__(self):
         self._subscribers: list[asyncio.Queue] = []
 
     def subscribe(self) -> asyncio.Queue:
+        """创建并注册一个新的订阅队列。"""
         q: asyncio.Queue = asyncio.Queue(maxsize=256)
         self._subscribers.append(q)
         return q
 
     def unsubscribe(self, q: asyncio.Queue):
+        """移除订阅队列。"""
         self._subscribers.remove(q)
 
     async def publish(self, entries: list[dict]):
+        """向所有订阅者广播日志条目，消费者过慢时丢弃消息。"""
         for q in list(self._subscribers):
             for entry in entries:
                 try:
                     q.put_nowait(entry)
                 except asyncio.QueueFull:
-                    pass  # drop if consumer is slow
+                    pass  # 消费者处理过慢，丢弃该条目
 
 
 log_broadcaster = LogBroadcaster()
 
 
-# ── F049 + F050: Log search / filter ──────────────────────────────────
+# ── 日志搜索与筛选 (F049 + F050) ─────────────────────────────────────
 @router.get("", response_model=LogSearchResponse)
 async def search_logs(
     q: str | None = Query(None, description="Full-text search keyword"),
@@ -61,9 +71,11 @@ async def search_logs(
     _user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """搜索日志条目，支持全文检索、主机/服务/级别/时间范围筛选，分页返回。"""
     base = select(LogEntry)
     count_base = select(func.count(LogEntry.id))
 
+    # 构建动态过滤条件
     conditions = []
     if q:
         conditions.append(LogEntry.message.ilike(f"%{q}%"))
@@ -86,6 +98,7 @@ async def search_logs(
     total_result = await db.execute(count_base)
     total = total_result.scalar() or 0
 
+    # 关联 Host 表以获取主机名
     offset = (page - 1) * page_size
     stmt = (
         select(LogEntry, Host.hostname)
@@ -104,7 +117,7 @@ async def search_logs(
     return LogSearchResponse(items=items, total=total, page=page, page_size=page_size)
 
 
-# ── F053: Log stats ──────────────────────────────────────────────────
+# ── 日志统计 (F053) ──────────────────────────────────────────────────
 @router.get("/stats", response_model=LogStatsResponse)
 async def log_stats(
     host_id: int | None = Query(None),
@@ -115,6 +128,7 @@ async def log_stats(
     _user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """获取日志统计数据，按级别和时间分桶聚合。"""
     conditions = []
     if host_id is not None:
         conditions.append(LogEntry.host_id == host_id)
@@ -125,14 +139,14 @@ async def log_stats(
     if end_time:
         conditions.append(LogEntry.timestamp <= end_time)
 
-    # By level
+    # 按日志级别统计数量
     level_stmt = select(LogEntry.level, func.count(LogEntry.id).label("count")).group_by(LogEntry.level)
     for cond in conditions:
         level_stmt = level_stmt.where(cond)
     level_rows = await db.execute(level_stmt)
     by_level = [LevelCount(level=row.level or "UNKNOWN", count=row.count) for row in level_rows.all()]
 
-    # By time bucket
+    # 按时间分桶统计数量（小时或天）
     trunc = "hour" if period == "1h" else "day"
     bucket = func.date_trunc(trunc, LogEntry.timestamp).label("time_bucket")
     time_stmt = select(bucket, func.count(LogEntry.id).label("count")).group_by(bucket).order_by(bucket)
@@ -144,8 +158,7 @@ async def log_stats(
     return LogStatsResponse(by_level=by_level, by_time=by_time)
 
 
-# ── F052: WebSocket real-time log stream ──────────────────────────────
-# Mounted separately on the app as /ws/logs (see ws_router below)
+# ── WebSocket 实时日志流 (F052) ───────────────────────────────────────
 ws_router = APIRouter()
 
 
@@ -156,12 +169,13 @@ async def ws_logs(
     service: str | None = Query(None),
     level: str | None = Query(None),
 ):
+    """WebSocket 实时日志流，支持按主机、服务和级别过滤推送。"""
     await websocket.accept()
     queue = log_broadcaster.subscribe()
     try:
         while True:
             entry = await queue.get()
-            # Apply filters
+            # 按客户端指定的条件过滤
             if host_id is not None and entry.get("host_id") != host_id:
                 continue
             if service and entry.get("service") != service:

@@ -1,3 +1,8 @@
+/**
+ * 主机详情页面
+ * 展示单台主机的基本信息和性能监控图表，包括 CPU、内存、磁盘使用率，
+ * 网络流量、网络带宽和丢包率等指标，支持时间范围切换，每 30 秒自动刷新。
+ */
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, Row, Col, Descriptions, Tag, Spin, Typography, Select, Space } from 'antd';
@@ -5,13 +10,19 @@ import ReactECharts from 'echarts-for-react';
 import { hostService } from '../services/hosts';
 import type { Host, HostMetrics } from '../services/hosts';
 
+/**
+ * 主机详情组件
+ * 通过路由参数 id 获取主机信息和历史指标数据，渲染多维度监控图表
+ */
 export default function HostDetail() {
   const { id } = useParams<{ id: string }>();
   const [host, setHost] = useState<Host | null>(null);
   const [metrics, setMetrics] = useState<HostMetrics[]>([]);
   const [loading, setLoading] = useState(true);
+  /** 时间范围选择：1h / 6h / 24h / 7d */
   const [timeRange, setTimeRange] = useState('1h');
 
+  /** 并行获取主机基本信息和指标数据 */
   const fetchData = async () => {
     if (!id) return;
     setLoading(true);
@@ -29,7 +40,7 @@ export default function HostDetail() {
 
   useEffect(() => { fetchData(); }, [id, timeRange]);
 
-  // Auto-refresh every 30s
+  // 每 30 秒自动刷新数据
   useEffect(() => {
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
@@ -38,11 +49,17 @@ export default function HostDetail() {
   if (loading && !host) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
   if (!host) return <Typography.Text>主机不存在</Typography.Text>;
 
+  // 提取时间轴标签，兼容 recorded_at 和 timestamp 两种字段
   const timestamps = metrics.map(m => {
     const ts = (m as Record<string, unknown>).recorded_at || m.timestamp;
     return ts ? new Date(ts as string).toLocaleTimeString() : '';
   });
 
+  /**
+   * 生成折线图配置
+   * @param title 图表标题
+   * @param series 数据系列（名称、数据、颜色）
+   */
   const lineOption = (title: string, series: { name: string; data: number[]; color: string }[]) => ({
     title: { text: title, left: 'center', textStyle: { fontSize: 14 } },
     tooltip: { trigger: 'axis' as const },
@@ -53,6 +70,7 @@ export default function HostDetail() {
     grid: { top: 40, bottom: 60, left: 50, right: 20 },
   });
 
+  /** 网络累计流量图表配置 */
   const netOption = {
     title: { text: '网络流量（累计）', left: 'center', textStyle: { fontSize: 14 } },
     tooltip: { trigger: 'axis' as const },
@@ -66,6 +84,7 @@ export default function HostDetail() {
     grid: { top: 40, bottom: 60, left: 70, right: 20 },
   };
 
+  /** 网络带宽速率图表配置（KB/s） */
   const netRateOption = {
     title: { text: '网络带宽 (KB/s)', left: 'center', textStyle: { fontSize: 14 } },
     tooltip: { trigger: 'axis' as const },
@@ -79,6 +98,7 @@ export default function HostDetail() {
     grid: { top: 40, bottom: 60, left: 60, right: 20 },
   };
 
+  /** 丢包率图表配置 */
   const packetLossOption = {
     title: { text: '丢包率', left: 'center', textStyle: { fontSize: 14 } },
     tooltip: { trigger: 'axis' as const },
@@ -108,6 +128,7 @@ export default function HostDetail() {
         </Col>
       </Row>
 
+      {/* 主机基本信息卡片 */}
       <Card style={{ marginBottom: 16 }}>
         <Descriptions column={{ xs: 1, sm: 2, md: 3 }}>
           <Descriptions.Item label="主机名">{host.hostname}</Descriptions.Item>
@@ -122,6 +143,7 @@ export default function HostDetail() {
         </Descriptions>
       </Card>
 
+      {/* 监控图表网格 */}
       <Row gutter={[16, 16]}>
         <Col xs={24} md={12}>
           <Card>

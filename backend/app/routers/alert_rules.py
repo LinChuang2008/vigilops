@@ -1,3 +1,9 @@
+"""告警规则管理路由模块。
+
+提供告警规则的增删改查 CRUD 接口，支持按启用状态筛选。
+内置规则不允许删除。
+"""
+
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -19,6 +25,7 @@ async def list_alert_rules(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
+    """获取告警规则列表，可按启用状态筛选。"""
     q = select(AlertRule).order_by(AlertRule.id)
     if is_enabled is not None:
         q = q.where(AlertRule.is_enabled == is_enabled)
@@ -32,6 +39,7 @@ async def create_alert_rule(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
+    """创建自定义告警规则。"""
     rule = AlertRule(**data.model_dump(), is_builtin=False)
     db.add(rule)
     await db.commit()
@@ -45,6 +53,7 @@ async def get_alert_rule(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
+    """根据 ID 获取单条告警规则。"""
     result = await db.execute(select(AlertRule).where(AlertRule.id == rule_id))
     rule = result.scalar_one_or_none()
     if not rule:
@@ -59,6 +68,7 @@ async def update_alert_rule(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
+    """更新指定告警规则，仅更新请求中包含的字段。"""
     result = await db.execute(select(AlertRule).where(AlertRule.id == rule_id))
     rule = result.scalar_one_or_none()
     if not rule:
@@ -78,6 +88,7 @@ async def delete_alert_rule(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
+    """删除指定告警规则，内置规则禁止删除。"""
     result = await db.execute(select(AlertRule).where(AlertRule.id == rule_id))
     rule = result.scalar_one_or_none()
     if not rule:

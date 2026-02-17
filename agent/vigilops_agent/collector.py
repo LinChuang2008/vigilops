@@ -1,4 +1,9 @@
-"""System metrics collector using psutil."""
+"""
+系统指标采集模块。
+
+使用 psutil 采集 CPU、内存、磁盘、网络等系统指标，
+支持网络速率计算和丢包率统计。
+"""
 import logging
 import platform
 import time
@@ -8,13 +13,13 @@ import psutil
 
 logger = logging.getLogger(__name__)
 
-# Module-level state for rate calculation
+# 模块级状态，用于网络速率的差值计算
 _prev_net: Optional[dict] = None
 _prev_time: Optional[float] = None
 
 
 def collect_system_info() -> dict:
-    """Collect static system information."""
+    """采集静态系统信息（主机名、OS、CPU 核数、总内存等）。"""
     uname = platform.uname()
     mem = psutil.virtual_memory()
     return {
@@ -28,7 +33,11 @@ def collect_system_info() -> dict:
 
 
 def collect_metrics() -> dict:
-    """Collect current system metrics."""
+    """采集当前系统运行指标。
+
+    包括 CPU 使用率、负载、内存、磁盘、网络流量及丢包率。
+    网络速率通过与上次采集的差值计算得出。
+    """
     cpu_percent = psutil.cpu_percent(interval=1)
 
     try:
@@ -38,7 +47,7 @@ def collect_metrics() -> dict:
 
     mem = psutil.virtual_memory()
 
-    # Disk — use root partition
+    # 磁盘 — 使用根分区
     try:
         disk = psutil.disk_usage("/")
         disk_used_mb = int(disk.used / (1024 * 1024))
@@ -48,7 +57,7 @@ def collect_metrics() -> dict:
         disk_used_mb = disk_total_mb = 0
         disk_percent = 0.0
 
-    # Network — cumulative counters + rate calculation
+    # 网络 — 累计计数器 + 速率计算
     global _prev_net, _prev_time
     net = psutil.net_io_counters()
     now = time.monotonic()
@@ -57,19 +66,21 @@ def collect_metrics() -> dict:
     net_recv_rate_kb = 0.0
     net_packet_loss_rate = 0.0
 
+    # 与上次采集对比，计算每秒发送/接收速率（KB/s）
     if _prev_net is not None and _prev_time is not None:
         dt = now - _prev_time
         if dt > 0:
             net_send_rate_kb = round((net.bytes_sent - _prev_net["bytes_sent"]) / 1024 / dt, 2)
             net_recv_rate_kb = round((net.bytes_recv - _prev_net["bytes_recv"]) / 1024 / dt, 2)
 
-    # Packet loss rate: dropped / (received + dropped) as percentage
+    # 丢包率：丢弃包数 / 总包数（百分比）
     total_in = net.packets_recv + net.dropin
     total_out = net.packets_sent + net.dropout
     total_packets = total_in + total_out
     if total_packets > 0:
         net_packet_loss_rate = round((net.dropin + net.dropout) / total_packets * 100, 4)
 
+    # 保存本次采集数据，供下次计算差值
     _prev_net = {
         "bytes_sent": net.bytes_sent,
         "bytes_recv": net.bytes_recv,

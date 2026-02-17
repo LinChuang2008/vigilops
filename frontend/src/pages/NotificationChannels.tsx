@@ -1,16 +1,26 @@
+/**
+ * 通知渠道管理页面
+ * 提供通知渠道的增删改查功能，支持创建 Webhook 类型渠道、启用/禁用切换和删除操作。
+ */
 import { useEffect, useState } from 'react';
 import { Table, Card, Typography, Button, Modal, Form, Input, Switch, Space, message } from 'antd';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 import { notificationService } from '../services/alerts';
 import type { NotificationChannel } from '../services/alerts';
 
+/**
+ * 通知渠道管理组件
+ * 以表格展示已配置的通知渠道，支持新增 Webhook 渠道、启用/禁用和删除
+ */
 export default function NotificationChannels() {
   const [channels, setChannels] = useState<NotificationChannel[]>([]);
   const [loading, setLoading] = useState(false);
+  /** 新增渠道弹窗是否打开 */
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm();
   const [messageApi, contextHolder] = message.useMessage();
 
+  /** 获取通知渠道列表 */
   const fetch = async () => {
     setLoading(true);
     try {
@@ -21,6 +31,7 @@ export default function NotificationChannels() {
 
   useEffect(() => { fetch(); }, []);
 
+  /** 创建新的 Webhook 渠道 */
   const handleCreate = async (values: { name: string; webhook_url: string }) => {
     try {
       await notificationService.createChannel({
@@ -36,6 +47,7 @@ export default function NotificationChannels() {
     } catch { messageApi.error('创建失败'); }
   };
 
+  /** 切换渠道的启用/禁用状态 */
   const handleToggle = async (record: NotificationChannel) => {
     try {
       await notificationService.updateChannel(record.id, { enabled: !record.enabled });
@@ -44,6 +56,7 @@ export default function NotificationChannels() {
     } catch { messageApi.error('操作失败'); }
   };
 
+  /** 删除渠道（带确认弹窗） */
   const handleDelete = (id: number) => {
     Modal.confirm({
       title: '确认删除此通知渠道？',
@@ -58,6 +71,7 @@ export default function NotificationChannels() {
     });
   };
 
+  /** 表格列定义 */
   const columns = [
     { title: 'ID', dataIndex: 'id', width: 60 },
     { title: '名称', dataIndex: 'name' },
@@ -94,6 +108,8 @@ export default function NotificationChannels() {
       <Card>
         <Table dataSource={channels} columns={columns} rowKey="id" loading={loading} pagination={false} />
       </Card>
+
+      {/* 新增 Webhook 渠道弹窗 */}
       <Modal title="新增 Webhook 渠道" open={modalOpen} onCancel={() => setModalOpen(false)} onOk={() => form.submit()} destroyOnClose>
         <Form form={form} layout="vertical" onFinish={handleCreate}>
           <Form.Item name="name" label="渠道名称" rules={[{ required: true, message: '请输入名称' }]}>

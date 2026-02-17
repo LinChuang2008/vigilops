@@ -1,3 +1,12 @@
+/**
+ * 日志管理页面
+ *
+ * 提供两种模式：
+ * 1. 搜索模式 - 按关键字、服务器、服务、日志级别、时间范围筛选日志，支持分页
+ * 2. 实时模式 - 通过 WebSocket 实时接收并展示日志流，支持暂停/继续和清空
+ *
+ * 点击日志条目可打开详情抽屉，查看完整消息和前后 5 分钟的上下文日志。
+ */
 import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   Input, Select, DatePicker, Table, Tag, Row, Col, Button, Space, Drawer, Descriptions, Typography, Segmented, Tooltip,
@@ -13,6 +22,7 @@ import api from '../services/api';
 const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
 
+/** 日志级别对应的 Tag 颜色映射 */
 const LEVEL_COLOR: Record<string, string> = {
   DEBUG: 'default',
   INFO: 'blue',
@@ -23,48 +33,56 @@ const LEVEL_COLOR: Record<string, string> = {
 
 const LEVELS = ['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'];
 
+/**
+ * 日志管理页面组件
+ */
 export default function Logs() {
-  // --- filter state ---
+  // ========== 筛选条件状态 ==========
   const [keyword, setKeyword] = useState('');
   const [hostId, setHostId] = useState<string | undefined>();
   const [service, setService] = useState<string | undefined>();
   const [levels, setLevels] = useState<string[]>([]);
   const [timeRange, setTimeRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
 
-  // --- table state ---
+  // ========== 表格数据状态 ==========
   const [data, setData] = useState<LogEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [loading, setLoading] = useState(false);
 
-  // --- hosts / services options ---
+  // ========== 服务器/服务下拉选项 ==========
   const [hostOptions, setHostOptions] = useState<{ label: string; value: string }[]>([]);
   const [serviceOptions, setServiceOptions] = useState<{ label: string; value: string }[]>([]);
+  /** 主机 ID 到主机名的映射，用于在表格和实时日志中显示主机名 */
   const hostMapRef = useRef<Record<string, string>>({});
 
-  // --- mode ---
+  // ========== 模式切换 ==========
+  /** 当前模式：search（搜索）或 realtime（实时） */
   const [mode, setMode] = useState<string>('search');
 
-  // --- drawer ---
+  // ========== 详情抽屉 ==========
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
+  /** 选中日志前后 5 分钟的上下文日志 */
   const [contextLogs, setContextLogs] = useState<LogEntry[]>([]);
   const [contextLoading, setContextLoading] = useState(false);
 
-  // --- realtime ---
+  // ========== 实时日志 ==========
   const [realtimeLogs, setRealtimeLogs] = useState<LogEntry[]>([]);
   const [paused, setPaused] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const realtimeEndRef = useRef<HTMLDivElement>(null);
+  /** 用 ref 跟踪暂停状态，避免 WebSocket 回调中的闭包问题 */
   const pausedRef = useRef(false);
 
-  // load host/service options
+  // 加载服务器和服务的下拉选项
   useEffect(() => {
     api.get('/hosts', { params: { page_size: 100 } }).then(res => {
       const items = res.data.items || [];
       const opts = items.map((h: { id: number; hostname: string }) => ({ label: h.hostname, value: String(h.id) }));
       setHostOptions(opts);
+      // 构建 ID → 主机名 映射表
       const map: Record<string, string> = {};
       items.forEach((h: { id: number; hostname: string }) => { map[String(h.id)] = h.hostname; });
       hostMapRef.current = map;
@@ -76,7 +94,7 @@ export default function Logs() {
     }).catch(() => {});
   }, []);
 
-  // --- fetch logs ---
+  /** 搜索模式下获取日志数据 */
   const doFetch = useCallback(async () => {
     setLoading(true);
     try {
@@ -91,17 +109,19 @@ export default function Logs() {
     }
   }, [keyword, hostId, service, levels, timeRange, page, pageSize]);
 
+  // 搜索模式下，筛选条件变化时自动刷新
   useEffect(() => {
     if (mode === 'search') doFetch();
   }, [mode, doFetch]);
 
-  // --- websocket realtime ---
+  // 实时模式下建立 WebSocket 连接
   useEffect(() => {
     if (mode !== 'realtime') {
       wsRef.current?.close();
       wsRef.current = null;
       return;
     }
+    // 根据页面协议选择 ws 或 wss
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
     const params = new URLSearchParams();
     if (hostId) params.set('host_id', hostId);
@@ -114,11 +134,13 @@ export default function Logs() {
     setRealtimeLogs([]);
 
     ws.onmessage = (evt) => {
+      // 暂停时不处理新消息
       if (pausedRef.current) return;
       try {
         const entry: LogEntry = JSON.parse(evt.data);
         setRealtimeLogs(prev => {
           const next = [...prev, entry];
+          // 最多保留 500 条，防止内存溢出
           return next.length > 500 ? next.slice(next.length - 500) : next;
         });
       } catch { /* ignore */ }
@@ -130,18 +152,19 @@ export default function Logs() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, hostId, service, levels, keyword]);
 
-  // auto scroll
+  // 实时模式下自动滚动到最新日志
   useEffect(() => {
     if (mode === 'realtime' && !paused) {
       realtimeEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [realtimeLogs, mode, paused]);
 
+  /** 切换暂停/继续实时日志接收 */
   const togglePause = () => {
     setPaused(p => { pausedRef.current = !p; return !p; });
   };
 
-  // --- drawer context ---
+  /** 打开日志详情抽屉，同时加载前后 5 分钟的上下文日志 */
   const openDrawer = async (log: LogEntry) => {
     setSelectedLog(log);
     setDrawerVisible(true);
@@ -160,7 +183,7 @@ export default function Logs() {
     } catch { setContextLogs([]); } finally { setContextLoading(false); }
   };
 
-  // --- columns ---
+  /** 日志表格列定义 */
   const columns = [
     { title: '时间', dataIndex: 'timestamp', key: 'timestamp', width: 180, render: (t: string) => dayjs(t).format('YYYY-MM-DD HH:mm:ss') },
     { title: '服务器', dataIndex: 'hostname', key: 'hostname', width: 140, render: (name: string, record: LogEntry) => name || hostMapRef.current[String(record.host_id)] || `Host #${record.host_id}` },
@@ -173,10 +196,11 @@ export default function Logs() {
     <div>
       <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>日志管理</Title>
+        {/* 搜索/实时模式切换 */}
         <Segmented options={[{ label: '搜索', value: 'search' }, { label: '实时日志', value: 'realtime' }]} value={mode} onChange={v => setMode(v as string)} />
       </Row>
 
-      {/* Filters */}
+      {/* 筛选条件栏 */}
       <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} md={6}>
           <Input.Search placeholder="关键字搜索" allowClear prefix={<SearchOutlined />} value={keyword} onChange={e => setKeyword(e.target.value)} onSearch={() => { if (mode === 'search') { setPage(1); doFetch(); } }} />
@@ -197,7 +221,7 @@ export default function Logs() {
         )}
       </Row>
 
-      {/* Search mode */}
+      {/* 搜索模式：分页表格 */}
       {mode === 'search' && (
         <Table
           dataSource={data}
@@ -210,7 +234,7 @@ export default function Logs() {
         />
       )}
 
-      {/* Realtime mode */}
+      {/* 实时模式：终端风格日志流 */}
       {mode === 'realtime' && (
         <div>
           <Space style={{ marginBottom: 8 }}>
@@ -222,6 +246,7 @@ export default function Logs() {
             <Button icon={<ClearOutlined />} onClick={() => setRealtimeLogs([])}>清空</Button>
             <Text type="secondary">{realtimeLogs.length} 条</Text>
           </Space>
+          {/* 终端样式日志展示区 */}
           <div style={{
             background: '#1e1e1e', color: '#d4d4d4', fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
             fontSize: 13, lineHeight: 1.6, padding: 16, borderRadius: 8, height: 500, overflowY: 'auto',
@@ -244,7 +269,7 @@ export default function Logs() {
         </div>
       )}
 
-      {/* Drawer - F056 */}
+      {/* 日志详情抽屉 */}
       <Drawer
         title="日志详情"
         open={drawerVisible}
@@ -266,6 +291,7 @@ export default function Logs() {
               {selectedLog.message}
             </pre>
 
+            {/* 上下文日志：选中日志前后 5 分钟内的相关日志 */}
             <Title level={5} style={{ marginTop: 16 }}>上下文日志</Title>
             <Table
               dataSource={contextLogs}

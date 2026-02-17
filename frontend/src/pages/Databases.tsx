@@ -1,9 +1,15 @@
+/**
+ * 数据库监控列表页面
+ * 展示所有受监控数据库的概览信息，包括连接数、数据库大小、慢查询、QPS 等指标，
+ * 支持 PostgreSQL、MySQL、Oracle 等数据库类型，每 30 秒自动刷新。
+ */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Table, Tag, Typography, Spin } from 'antd';
 import { databaseService } from '../services/databases';
 import type { DatabaseItem } from '../services/databases';
 
+/** 状态对应的 Tag 颜色映射 */
 const statusColor: Record<string, string> = {
   healthy: 'success',
   warning: 'warning',
@@ -11,6 +17,7 @@ const statusColor: Record<string, string> = {
   unknown: 'default',
 };
 
+/** 数据库类型对应的图标 */
 const dbTypeIcon: Record<string, string> = {
   postgres: '🐘',
   postgresql: '🐘',
@@ -18,11 +25,16 @@ const dbTypeIcon: Record<string, string> = {
   oracle: '🔴',
 };
 
+/**
+ * 数据库列表组件
+ * 以表格形式展示数据库名称、类型、状态和关键性能指标，点击行跳转到详情
+ */
 export default function Databases() {
   const [databases, setDatabases] = useState<DatabaseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  // 初始加载并设置 30 秒自动刷新
   useEffect(() => {
     const fetch = async () => {
       try {
@@ -37,6 +49,7 @@ export default function Databases() {
 
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
 
+  /** 表格列定义 */
   const columns = [
     {
       title: '数据库名', dataIndex: 'name', key: 'name',

@@ -1,9 +1,15 @@
-"""Seed built-in alert rules on startup."""
+"""
+内置告警规则初始化模块。
+
+在应用启动时向数据库插入预定义的告警规则（CPU、内存、磁盘、主机离线、服务不可用），
+仅在规则不存在时插入，避免重复。
+"""
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert import AlertRule
 
+# 内置告警规则定义列表
 BUILTIN_RULES = [
     {
         "name": "CPU 使用率过高",
@@ -64,7 +70,7 @@ BUILTIN_RULES = [
 
 
 async def seed_builtin_rules(session: AsyncSession):
-    """Insert built-in rules if they don't exist."""
+    """将内置告警规则写入数据库，跳过已存在的规则。"""
     result = await session.execute(
         select(AlertRule).where(AlertRule.is_builtin == True)  # noqa: E712
     )

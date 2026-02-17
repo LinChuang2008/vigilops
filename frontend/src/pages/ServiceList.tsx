@@ -1,17 +1,27 @@
+/**
+ * 服务监控列表页面
+ * 展示所有受监控服务的状态、可用率和最近检查时间，支持按状态筛选和分页浏览。
+ */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Table, Card, Tag, Typography, Progress, Button, Row, Col, Select, Space } from 'antd';
 import { serviceService } from '../services/services';
 import type { Service } from '../services/services';
 
+/**
+ * 服务列表组件
+ * 以表格形式展示服务名称、URL、检查类型、状态、可用率等信息
+ */
 export default function ServiceList() {
   const [services, setServices] = useState<Service[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  /** 状态筛选值：'healthy' | 'unhealthy' | '' */
   const [statusFilter, setStatusFilter] = useState<string>('');
   const navigate = useNavigate();
 
+  // 页码或状态筛选变化时重新获取服务列表
   useEffect(() => {
     const fetch = async () => {
       setLoading(true);
@@ -26,6 +36,7 @@ export default function ServiceList() {
     fetch();
   }, [page, statusFilter]);
 
+  /** 表格列定义 */
   const columns = [
     {
       title: '服务名', dataIndex: 'name', key: 'name',

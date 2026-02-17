@@ -1,3 +1,11 @@
+/**
+ * AI 智能分析页面
+ *
+ * 包含三大功能区域：
+ * 1. 系统概况卡片 - 展示主机、服务、告警、错误日志数量及平均 CPU/内存使用率
+ * 2. AI 对话 - 用户可通过自然语言向 AI 提问系统运行状况
+ * 3. AI 洞察列表 - 展示 AI 自动分析产生的异常检测、根因分析等结果
+ */
 import { useEffect, useState, useRef } from 'react';
 import { Row, Col, Card, Statistic, Typography, Tag, Table, Button, Input, Space, Select, Progress, Collapse, Spin, message } from 'antd';
 import {
@@ -15,13 +23,17 @@ import api from '../services/api';
 
 const { Title, Text, Paragraph } = Typography;
 
+/** 后端返回的系统概况原始数据结构 */
 interface SystemSummaryRaw {
   hosts: { total: number; online: number; offline: number };
   services: { total: number; up: number; down: number };
+  /** 最近 1 小时的告警和错误日志数 */
   recent_1h: { alert_count: number; error_log_count: number };
+  /** 平均资源使用率 */
   avg_usage: { cpu_percent: number; memory_percent: number };
 }
 
+/** 前端使用的系统概况（扁平化结构） */
 interface SystemSummary {
   total_hosts: number;
   online_hosts: number;
@@ -29,57 +41,80 @@ interface SystemSummary {
   total_services: number;
   healthy_services: number;
   unhealthy_services: number;
+  /** 最近 1 小时告警数 */
   alerts_1h: number;
+  /** 最近 1 小时错误日志数 */
   error_logs_1h: number;
+  /** 平均 CPU 使用率 */
   avg_cpu: number;
+  /** 平均内存使用率 */
   avg_memory: number;
 }
 
+/** 聊天消息结构 */
 interface ChatMessage {
   role: 'user' | 'ai';
   content: string;
+  /** AI 回答的参考来源 */
   sources?: Array<{ type: string; summary: string }>;
 }
 
+/** AI 洞察条目 */
 interface InsightItem {
   id: number;
+  /** 洞察类型：anomaly/root_cause/chat/trend */
   insight_type: string;
+  /** 严重级别 */
   severity: string;
   title: string;
   summary: string;
+  /** 详情数据（结构不固定） */
   details: any;
+  /** 关联的主机 ID */
   related_host_id: number | null;
+  /** 状态：new/acknowledged/resolved */
   status: string;
   created_at: string;
 }
 
+/** 严重级别颜色映射 */
 const severityColor: Record<string, string> = { critical: 'red', high: 'orange', warning: 'gold', medium: 'orange', low: 'blue', info: 'blue' };
+/** 洞察类型中文标签映射 */
 const insightTypeLabel: Record<string, string> = { anomaly: '异常检测', root_cause: '根因分析', chat: '对话', trend: '趋势' };
 
+/** 快捷提问列表 */
 const quickQuestions = ['系统健康状况如何？', '最近有什么异常？', '性能趋势分析'];
 
+/**
+ * AI 智能分析页面组件
+ */
 export default function AIAnalysis() {
-  // System summary
+  // ========== 系统概况 ==========
   const [summary, setSummary] = useState<SystemSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
 
-  // Chat
+  // ========== AI 对话 ==========
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  /** 聊天区域底部锚点，用于自动滚动 */
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Insights
+  // ========== AI 洞察列表 ==========
   const [insights, setInsights] = useState<InsightItem[]>([]);
   const [insightsTotal, setInsightsTotal] = useState(0);
   const [insightsLoading, setInsightsLoading] = useState(true);
   const [insightsPage, setInsightsPage] = useState(1);
+  /** 洞察严重级别筛选 */
   const [insightSeverity, setInsightSeverity] = useState<string>('');
+  /** 洞察状态筛选 */
   const [insightStatus, setInsightStatus] = useState<string>('');
+  /** 手动触发分析的加载状态 */
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
 
   const [messageApi, contextHolder] = message.useMessage();
 
+  /** 获取系统概况数据，将后端原始结构转为扁平化格式 */
   const fetchSummary = async () => {
     setSummaryLoading(true);
     try {
@@ -99,6 +134,7 @@ export default function AIAnalysis() {
     } catch { /* ignore */ } finally { setSummaryLoading(false); }
   };
 
+  /** 获取 AI 洞察列表，支持按严重级别和状态筛选 */
   const fetchInsights = async () => {
     setInsightsLoading(true);
     try {
@@ -114,10 +150,12 @@ export default function AIAnalysis() {
   useEffect(() => { fetchSummary(); }, []);
   useEffect(() => { fetchInsights(); }, [insightsPage, insightSeverity, insightStatus]);
 
+  // 聊天消息更新时自动滚动到底部
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  /** 发送聊天消息：追加用户消息，调用 AI 接口，追加 AI 回复 */
   const sendChat = async (question: string) => {
     if (!question.trim()) return;
     const q = question.trim();
@@ -132,6 +170,7 @@ export default function AIAnalysis() {
     } finally { setChatLoading(false); }
   };
 
+  /** 手动触发日志分析，完成后刷新洞察列表 */
   const handleAnalyze = async () => {
     setAnalyzeLoading(true);
     try {
@@ -143,6 +182,7 @@ export default function AIAnalysis() {
     } finally { setAnalyzeLoading(false); }
   };
 
+  /** 洞察列表表格列定义 */
   const insightColumns = [
     {
       title: '时间', dataIndex: 'created_at', width: 170,
@@ -168,7 +208,7 @@ export default function AIAnalysis() {
       {contextHolder}
       <Title level={4}><RobotOutlined /> AI 智能分析</Title>
 
-      {/* System Summary Cards */}
+      {/* 系统概况统计卡片 */}
       <Spin spinning={summaryLoading}>
         <Row gutter={[16, 16]}>
           <Col xs={24} sm={12} md={6}>
@@ -196,6 +236,7 @@ export default function AIAnalysis() {
             </Card>
           </Col>
         </Row>
+        {/* 平均 CPU / 内存使用率环形进度条 */}
         {summary && (
           <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
             <Col xs={12} sm={6}>
@@ -216,8 +257,9 @@ export default function AIAnalysis() {
         )}
       </Spin>
 
-      {/* AI Chat Area */}
+      {/* AI 对话区域 */}
       <Card title={<><RobotOutlined /> AI 对话</>} style={{ marginTop: 16 }}>
+        {/* 消息展示区 */}
         <div style={{
           background: '#f5f7fa', borderRadius: 8, padding: 16, minHeight: 200, maxHeight: 400, overflowY: 'auto', marginBottom: 16,
         }}>
@@ -249,6 +291,7 @@ export default function AIAnalysis() {
                 <Paragraph style={{ margin: 0, color: msg.role === 'user' ? '#fff' : '#333', whiteSpace: 'pre-wrap' }}>
                   {msg.content}
                 </Paragraph>
+                {/* AI 回答的参考来源折叠面板 */}
                 {msg.sources && msg.sources.length > 0 && (
                   <Collapse ghost style={{ marginTop: 8 }} items={[{
                     key: '1',
@@ -263,6 +306,7 @@ export default function AIAnalysis() {
               </div>
             </div>
           ))}
+          {/* AI 思考中加载提示 */}
           {chatLoading && (
             <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 12 }}>
               <div style={{ padding: '10px 14px', borderRadius: 12, background: '#fff', border: '1px solid #e8e8e8' }}>
@@ -272,6 +316,7 @@ export default function AIAnalysis() {
           )}
           <div ref={chatEndRef} />
         </div>
+        {/* 快捷提问按钮 */}
         <Space wrap style={{ marginBottom: 12 }}>
           {quickQuestions.map(q => (
             <Button key={q} size="small" icon={<ThunderboltOutlined />} onClick={() => sendChat(q)} disabled={chatLoading}>
@@ -279,6 +324,7 @@ export default function AIAnalysis() {
             </Button>
           ))}
         </Space>
+        {/* 输入框 */}
         <Input.Search
           placeholder="输入问题，例如：最近有没有异常？"
           enterButton={<><SendOutlined /> 发送</>}
@@ -290,7 +336,7 @@ export default function AIAnalysis() {
         />
       </Card>
 
-      {/* AI Insights Table */}
+      {/* AI 洞察列表 */}
       <Card title="AI 洞察列表" style={{ marginTop: 16 }}
         extra={
           <Button type="primary" icon={<ThunderboltOutlined />} loading={analyzeLoading} onClick={handleAnalyze}>
@@ -298,6 +344,7 @@ export default function AIAnalysis() {
           </Button>
         }
       >
+        {/* 筛选条件 */}
         <Row style={{ marginBottom: 16 }}>
           <Space>
             <Select placeholder="严重性" allowClear style={{ width: 120 }}

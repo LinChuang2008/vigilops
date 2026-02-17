@@ -1,3 +1,10 @@
+/**
+ * 仪表盘页面
+ *
+ * 系统总览页，展示服务器、服务、数据库、告警等核心指标统计卡片，
+ * 以及 CPU/内存使用率、网络带宽、丢包率的柱状图，日志级别分布饼图，
+ * 和最新告警列表。数据每 30 秒自动刷新。
+ */
 import { useEffect, useState } from 'react';
 import { Row, Col, Card, Statistic, Typography, Tag, Table, Spin } from 'antd';
 import {
@@ -17,19 +24,52 @@ import { DatabaseOutlined } from '@ant-design/icons';
 
 const { Title } = Typography;
 
+/** 仪表盘聚合数据结构 */
 interface DashboardData {
-  hosts: { total: number; online: number; offline: number; items: Array<{ id: string; hostname: string; status: string; latest_metrics?: { cpu_percent: number; memory_percent: number; net_send_rate_kb?: number; net_recv_rate_kb?: number; net_packet_loss_rate?: number } }> };
+  /** 服务器概况 */
+  hosts: {
+    total: number;
+    online: number;
+    offline: number;
+    /** 服务器列表（含最新指标） */
+    items: Array<{
+      id: string;
+      hostname: string;
+      status: string;
+      latest_metrics?: {
+        cpu_percent: number;
+        memory_percent: number;
+        net_send_rate_kb?: number;
+        net_recv_rate_kb?: number;
+        net_packet_loss_rate?: number;
+      };
+    }>;
+  };
+  /** 服务概况 */
   services: { total: number; healthy: number; unhealthy: number };
-  alerts: { total: number; firing: number; items: Array<{ id: string; title: string; severity: string; status: string; fired_at: string }> };
+  /** 告警概况 */
+  alerts: {
+    total: number;
+    firing: number;
+    items: Array<{ id: string; title: string; severity: string; status: string; fired_at: string }>;
+  };
 }
 
+/**
+ * 仪表盘页面组件
+ *
+ * 页面加载时并行请求服务器、服务、告警数据，并定时轮询刷新。
+ */
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  /** 日志统计数据（按级别分布） */
   const [logStats, setLogStats] = useState<LogStats | null>(null);
+  /** 数据库列表 */
   const [dbItems, setDbItems] = useState<DatabaseItem[]>([]);
 
   useEffect(() => {
+    /** 并行获取各模块数据并聚合为仪表盘所需格式 */
     const fetchData = async () => {
       try {
         const [hostsRes, servicesRes, alertsRes] = await Promise.all([
@@ -58,38 +98,44 @@ export default function Dashboard() {
             items: alerts.items || [],
           },
         });
-        // Fetch log stats
+        // 获取最近 1 小时日志统计
         try {
           const stats = await fetchLogStats('1h');
           setLogStats(stats);
         } catch { /* ignore */ }
+        // 获取数据库列表
         try {
           const dbRes = await databaseService.list();
           setDbItems(dbRes.data.databases || []);
         } catch { /* ignore */ }
       } catch {
-        // API might not be accessible yet
+        // API 可能尚未就绪
       } finally {
         setLoading(false);
       }
     };
     fetchData();
+    // 每 30 秒自动刷新
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, []);
 
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
 
+  /** 数据兜底：确保即使接口未返回数据也不会报错 */
   const d = data || { hosts: { total: 0, online: 0, offline: 0, items: [] }, services: { total: 0, healthy: 0, unhealthy: 0 }, alerts: { total: 0, firing: 0, items: [] } };
 
+  /** 提取各服务器 CPU 使用率数据 */
   const cpuData = d.hosts.items
     .filter(h => h.latest_metrics)
     .map(h => ({ name: h.hostname, value: h.latest_metrics!.cpu_percent }));
 
+  /** 提取各服务器内存使用率数据 */
   const memData = d.hosts.items
     .filter(h => h.latest_metrics)
     .map(h => ({ name: h.hostname, value: h.latest_metrics!.memory_percent }));
 
+  /** 生成 ECharts 柱状图配置 */
   const barOption = (title: string, items: { name: string; value: number }[], color: string) => ({
     title: { text: title, left: 'center', textStyle: { fontSize: 14 } },
     tooltip: { trigger: 'axis' as const },
@@ -99,11 +145,14 @@ export default function Dashboard() {
     grid: { top: 40, bottom: 60, left: 50, right: 20 },
   });
 
+  /** 告警严重级别对应颜色映射 */
   const severityColor: Record<string, string> = { critical: 'red', warning: 'orange', info: 'blue' };
 
   return (
     <div>
       <Title level={4}>系统概览</Title>
+
+      {/* 核心指标统计卡片 */}
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} md={6}>
           <Card>
@@ -139,6 +188,7 @@ export default function Dashboard() {
         </Col>
       </Row>
 
+      {/* CPU / 内存使用率图表 */}
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} md={12}>
           <Card title="CPU 使用率">
@@ -160,6 +210,7 @@ export default function Dashboard() {
         </Col>
       </Row>
 
+      {/* 网络带宽与丢包率图表 */}
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} md={12}>
           <Card title="网络带宽 (KB/s)">
@@ -201,7 +252,7 @@ export default function Dashboard() {
         </Col>
       </Row>
 
-      {/* Log Stats - F057 */}
+      {/* 日志统计饼图 */}
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24}>
           <Card title="最近 1 小时日志统计">
@@ -239,6 +290,7 @@ export default function Dashboard() {
         </Col>
       </Row>
 
+      {/* 最新告警列表 */}
       <Card title="最新告警" style={{ marginTop: 16 }}>
         <Table
           dataSource={d.alerts.items}

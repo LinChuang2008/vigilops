@@ -1,3 +1,9 @@
+"""
+AI 引擎服务模块。
+
+封装与 AI API（兼容 OpenAI 接口）的交互逻辑，提供日志异常分析、
+自然语言运维问答、告警根因分析等核心 AI 能力。
+"""
 import json
 import logging
 from typing import List, Dict, Any, Optional
@@ -8,6 +14,7 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# 日志异常分析的系统提示词
 SYSTEM_PROMPT = """你是一位资深运维专家和日志分析师。你的任务是分析服务器日志，识别异常模式、潜在风险和安全威胁。
 
 分析要求：
@@ -32,6 +39,7 @@ SYSTEM_PROMPT = """你是一位资深运维专家和日志分析师。你的任�
   "overall_assessment": "总体评估"
 }"""
 
+# 运维问答的系统提示词
 CHAT_SYSTEM_PROMPT = """你是 VigilOps AI 运维助手，基于以下系统数据回答运维问题。用中文回答，简洁明了。
 
 回答要求：
@@ -48,6 +56,7 @@ CHAT_SYSTEM_PROMPT = """你是 VigilOps AI 运维助手，基于以下系统数�
   ]
 }"""
 
+# 告警根因分析的系统提示词
 ROOT_CAUSE_SYSTEM_PROMPT = """你是 VigilOps AI 运维专家，擅长告警根因分析。基于提供的告警信息、系统指标和日志，分析告警的可能根因。
 
 分析要求：
@@ -66,14 +75,29 @@ ROOT_CAUSE_SYSTEM_PROMPT = """你是 VigilOps AI 运维专家，擅长告警根�
 
 
 class AIEngine:
+    """AI 引擎类，封装所有 AI 分析能力的统一入口。"""
+
     def __init__(self) -> None:
+        """根据配置初始化 API 连接参数。"""
         self.api_base = settings.ai_api_base
         self.api_key = settings.ai_api_key
         self.model = settings.ai_model
         self.max_tokens = settings.ai_max_tokens
 
     async def _call_api(self, messages: List[Dict[str, str]], max_retries: int = 2) -> str:
-        """Call the AI API with retry logic."""
+        """调用 AI API，支持自动重试。
+
+        Args:
+            messages: OpenAI 格式的消息列表
+            max_retries: 最大重试次数
+
+        Returns:
+            AI 返回的文本内容
+
+        Raises:
+            ValueError: API Key 未配置时抛出
+            Exception: 所有重试失败后抛出最后一次异常
+        """
         if not self.api_key:
             raise ValueError("AI API key not configured. Set AI_API_KEY environment variable.")
 
@@ -106,18 +130,26 @@ class AIEngine:
         raise last_error  # type: ignore[misc]
 
     def _parse_json_response(self, text: str) -> Dict[str, Any]:
-        """Parse JSON from AI response, stripping markdown fences if present."""
+        """解析 AI 返回的 JSON 内容，自动去除 Markdown 代码块标记。"""
         cleaned = text.strip()
         if cleaned.startswith("```"):
             lines = cleaned.split("\n")
-            lines = lines[1:]
+            lines = lines[1:]  # 去掉开头的 ```json
             if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
+                lines = lines[:-1]  # 去掉结尾的 ```
             cleaned = "\n".join(lines)
         return json.loads(cleaned)
 
     async def analyze_logs(self, logs: List[dict], context: str = "") -> dict:
-        """Analyze logs and return anomaly insights."""
+        """分析日志数据，识别异常模式和潜在风险。
+
+        Args:
+            logs: 日志条目列表
+            context: 附加上下文信息
+
+        Returns:
+            包含 severity、title、anomalies 等字段的分析结果
+        """
         if not logs:
             return {
                 "severity": "info",
@@ -127,6 +159,7 @@ class AIEngine:
                 "overall_assessment": "无数据可分析",
             }
 
+        # 拼接日志文本，最多取 200 条避免超出 token 限制
         log_text_parts = []
         for log in logs[:200]:
             log_text_parts.append(
@@ -149,6 +182,7 @@ class AIEngine:
             result_text = await self._call_api(messages)
             return self._parse_json_response(result_text)
         except json.JSONDecodeError:
+            # AI 返回的不是有效 JSON，将原文作为摘要返回
             return {
                 "severity": "info",
                 "title": "AI 分析完成",
@@ -168,11 +202,19 @@ class AIEngine:
             }
 
     async def chat(self, question: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Natural language query interface with system context."""
+        """自然语言运维问答接口，结合系统上下文数据回答用户问题。
+
+        Args:
+            question: 用户的自然语言问题
+            context: 系统上下文数据（日志、指标、告警、服务状态等）
+
+        Returns:
+            包含 answer 和 sources 字段的回答结果
+        """
         context_parts: List[str] = []
 
         if context:
-            # Recent error/warn logs
+            # 组装最近错误/警告日志
             if context.get("logs"):
                 log_lines = []
                 for log in context["logs"][:50]:
@@ -183,7 +225,7 @@ class AIEngine:
                     )
                 context_parts.append(f"【最近日志（ERROR/WARN）】\n" + "\n".join(log_lines))
 
-            # Host metrics summary
+            # 组装主机指标摘要
             if context.get("metrics"):
                 metric_lines = []
                 for m in context["metrics"]:
@@ -195,7 +237,7 @@ class AIEngine:
                     )
                 context_parts.append(f"【主机指标摘要】\n" + "\n".join(metric_lines))
 
-            # Active alerts
+            # 组装活跃告警信息
             if context.get("alerts"):
                 alert_lines = []
                 for a in context["alerts"]:
@@ -205,7 +247,7 @@ class AIEngine:
                     )
                 context_parts.append(f"【活跃告警】\n" + "\n".join(alert_lines))
 
-            # Service health
+            # 组装服务健康状态
             if context.get("services"):
                 svc_lines = []
                 for s in context["services"]:
@@ -237,8 +279,17 @@ class AIEngine:
     async def analyze_root_cause(
         self, alert: dict, metrics: List[dict], logs: List[dict]
     ) -> Dict[str, Any]:
-        """Root cause analysis for an alert."""
-        # Build alert info
+        """告警根因分析，关联告警、指标和日志数据推断根本原因。
+
+        Args:
+            alert: 告警详情字典
+            metrics: 相关时段的主机指标列表
+            logs: 相关时段的日志列表
+
+        Returns:
+            包含 root_cause、confidence、evidence、recommendations 的分析结果
+        """
+        # 构建告警信息文本
         alert_text = (
             f"告警标题: {alert.get('title', '')}\n"
             f"严重级别: {alert.get('severity', '')}\n"
@@ -249,7 +300,7 @@ class AIEngine:
             f"触发时间: {alert.get('fired_at', '')}"
         )
 
-        # Build metrics context
+        # 构建指标上下文，最多取 30 条
         metric_lines = []
         for m in metrics[:30]:
             metric_lines.append(
@@ -259,7 +310,7 @@ class AIEngine:
             )
         metrics_text = "\n".join(metric_lines) if metric_lines else "无相关指标数据"
 
-        # Build logs context
+        # 构建日志上下文，最多取 50 条
         log_lines = []
         for log in logs[:50]:
             log_lines.append(
@@ -302,4 +353,5 @@ class AIEngine:
             }
 
 
+# 模块级单例，供其他模块直接导入使用
 ai_engine = AIEngine()

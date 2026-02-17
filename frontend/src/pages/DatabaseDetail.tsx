@@ -1,3 +1,9 @@
+/**
+ * 数据库详情页面
+ * 展示单个数据库的基本信息和性能监控图表，包括连接数趋势、数据库大小、
+ * 慢查询、事务统计等。Oracle 数据库额外展示表空间使用率和慢查询 Top 10。
+ * 支持时间范围切换，每 30 秒自动刷新。
+ */
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, Row, Col, Descriptions, Tag, Spin, Typography, Select, Space, Table } from 'antd';
@@ -5,16 +11,24 @@ import ReactECharts from 'echarts-for-react';
 import { databaseService } from '../services/databases';
 import type { DatabaseItem, DatabaseMetric, SlowQuery } from '../services/databases';
 
+/** 状态对应的 Tag 颜色映射 */
 const statusColor: Record<string, string> = { healthy: 'success', warning: 'warning', critical: 'error', unknown: 'default' };
 
+/**
+ * 数据库详情组件
+ * 通过路由参数 id 获取数据库信息、历史指标和慢查询数据
+ */
 export default function DatabaseDetail() {
   const { id } = useParams<{ id: string }>();
   const [db, setDb] = useState<DatabaseItem | null>(null);
   const [metrics, setMetrics] = useState<DatabaseMetric[]>([]);
+  /** Oracle 慢查询列表 */
   const [slowQueries, setSlowQueries] = useState<SlowQuery[]>([]);
   const [loading, setLoading] = useState(true);
+  /** 时间范围选择：1h / 6h / 24h / 7d */
   const [timeRange, setTimeRange] = useState('1h');
 
+  /** 获取数据库基本信息和指标数据，Oracle 额外获取慢查询 */
   const fetchData = async () => {
     if (!id) return;
     setLoading(true);
@@ -25,7 +39,7 @@ export default function DatabaseDetail() {
       ]);
       setDb(dbRes.data);
       setMetrics(metricsRes.data.metrics || []);
-      // Fetch slow queries for Oracle
+      // Oracle 数据库额外获取慢查询
       if (dbRes.data.db_type === 'oracle') {
         try {
           const sqRes = await databaseService.getSlowQueries(id);
@@ -36,12 +50,14 @@ export default function DatabaseDetail() {
   };
 
   useEffect(() => { fetchData(); }, [id, timeRange]);
+
+  // 每 30 秒自动刷新指标数据
   useEffect(() => {
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, [id, timeRange]);
 
-  // Refresh slow queries every 60s for Oracle
+  // Oracle 慢查询每 60 秒单独刷新
   useEffect(() => {
     if (!id || !db || db.db_type !== 'oracle') return;
     const interval = setInterval(async () => {
@@ -56,8 +72,15 @@ export default function DatabaseDetail() {
   if (loading && !db) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
   if (!db) return <Typography.Text>数据库不存在</Typography.Text>;
 
+  // 提取时间轴标签
   const timestamps = metrics.map(m => m.recorded_at ? new Date(m.recorded_at).toLocaleTimeString() : '');
 
+  /**
+   * 生成折线图通用配置
+   * @param title 图表标题
+   * @param series 数据系列
+   * @param yFormatter Y 轴格式化字符串
+   */
   const lineOption = (title: string, series: { name: string; data: (number | null)[]; color: string }[], yFormatter = '{value}') => ({
     title: { text: title, left: 'center', textStyle: { fontSize: 14 } },
     tooltip: { trigger: 'axis' as const },
@@ -68,9 +91,11 @@ export default function DatabaseDetail() {
     grid: { top: 40, bottom: 60, left: 60, right: 20 },
   });
 
+  // 数据库类型显示名称
   const dbTypeName = db.db_type === 'postgres' || db.db_type === 'postgresql' ? 'PostgreSQL' : db.db_type === 'mysql' ? 'MySQL' : db.db_type === 'oracle' ? 'Oracle' : db.db_type;
   const isOracle = db.db_type === 'oracle';
 
+  /** Oracle 慢查询表格列定义 */
   const slowQueryColumns = [
     { title: 'SQL ID', dataIndex: 'sql_id', key: 'sql_id', width: 140 },
     { title: '平均耗时(秒)', dataIndex: 'avg_seconds', key: 'avg_seconds', width: 120, render: (v: number) => v?.toFixed(2) },
@@ -96,6 +121,7 @@ export default function DatabaseDetail() {
         </Col>
       </Row>
 
+      {/* 数据库基本信息卡片 */}
       <Card style={{ marginBottom: 16 }}>
         <Descriptions column={{ xs: 1, sm: 2, md: 4 }}>
           <Descriptions.Item label="数据库名">{db.name}</Descriptions.Item>
@@ -105,6 +131,7 @@ export default function DatabaseDetail() {
         </Descriptions>
       </Card>
 
+      {/* 监控图表网格 */}
       <Row gutter={[16, 16]}>
         <Col xs={24} md={12}>
           <Card>
@@ -138,6 +165,7 @@ export default function DatabaseDetail() {
         </Col>
       </Row>
 
+      {/* Oracle 专属：表空间使用率和慢查询 Top 10 */}
       {isOracle && (
         <>
           <Row gutter={[16, 16]} style={{ marginTop: 16 }}>

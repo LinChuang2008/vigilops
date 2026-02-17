@@ -1,4 +1,8 @@
-// Phase 2: logs + databases + enhanced alerts
+/**
+ * 应用根组件
+ * 配置 Ant Design 主题与国际化，定义全局路由结构
+ * 所有需要认证的页面由 AuthGuard 守卫保护，嵌套在 AppLayout 布局内
+ */
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ConfigProvider, App as AntApp } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
@@ -33,7 +37,9 @@ export default function App() {
       <AntApp>
         <BrowserRouter>
           <Routes>
+            {/* 登录页（无需认证） */}
             <Route path="/login" element={<Login />} />
+            {/* 需要认证的路由，统一使用 AppLayout 布局 */}
             <Route
               element={
                 <AuthGuard>
@@ -55,6 +61,7 @@ export default function App() {
               <Route path="/notification-logs" element={<NotificationLogs />} />
               <Route path="/settings" element={<Settings />} />
             </Route>
+            {/* 未匹配路由重定向到首页 */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>

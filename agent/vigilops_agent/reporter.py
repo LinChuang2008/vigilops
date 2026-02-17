@@ -1,4 +1,11 @@
-"""Metrics reporter - sends data to VigilOps Server."""
+"""
+数据上报模块。
+
+AgentReporter 是 Agent 的核心调度器，负责：
+- 向服务端注册主机和服务
+- 周期性上报系统指标、服务检查结果、日志和数据库指标
+- 管理心跳、自动发现和所有异步任务的生命周期
+"""
 import asyncio
 import logging
 from datetime import datetime, timezone
@@ -15,16 +22,20 @@ logger = logging.getLogger(__name__)
 
 
 class AgentReporter:
+    """Agent 核心上报器，管理注册、心跳、指标采集和上报的全生命周期。"""
+
     def __init__(self, config: AgentConfig):
         self.config = config
         self.host_id: Optional[int] = None
         self._client: Optional[httpx.AsyncClient] = None
-        self._service_ids: Dict[str, int] = {}  # svc name -> service_id
+        self._service_ids: Dict[str, int] = {}  # 服务名 -> 服务端分配的 service_id
 
     def _headers(self) -> dict:
+        """构造 API 请求认证头。"""
         return {"Authorization": f"Bearer {self.config.server.token}"}
 
     async def _get_client(self) -> httpx.AsyncClient:
+        """获取或创建 HTTP 客户端（惰性初始化）。"""
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(
                 base_url=self.config.server.url,
@@ -34,10 +45,14 @@ class AgentReporter:
         return self._client
 
     def _get_local_ip(self) -> str:
-        """Get the host's primary IP address (public > private > loopback)."""
+        """获取本机主要 IP 地址。
+
+        优先尝试通过外部服务获取公网 IP（适用于云主机），
+        失败后回退到 UDP socket 方式获取内网 IP。
+        """
         import socket
 
-        # 1) Try public IP via external services (for cloud VMs)
+        # 1) 尝试通过公网服务获取外网 IP
         for url in [
             "https://api.ipify.org",
             "https://ifconfig.me/ip",
@@ -52,7 +67,7 @@ class AgentReporter:
             except Exception:
                 continue
 
-        # 2) Fallback: UDP socket trick to get LAN IP
+        # 2) 回退：通过 UDP socket 连接目标获取本机出口 IP
         try:
             from urllib.parse import urlparse
             parsed = urlparse(self.config.server.url)
@@ -70,7 +85,7 @@ class AgentReporter:
         return ""
 
     async def register(self):
-        """Register this agent with the server."""
+        """向服务端注册本 Agent，获取 host_id。"""
         info = collect_system_info()
         payload = {
             "hostname": self.config.host.name or info["hostname"],
@@ -91,7 +106,7 @@ class AgentReporter:
         logger.info(f"Registered as host_id={self.host_id} (created={data['created']})")
 
     async def heartbeat(self):
-        """Send heartbeat."""
+        """发送心跳保活。"""
         if not self.host_id:
             return
         client = await self._get_client()
@@ -99,7 +114,7 @@ class AgentReporter:
         resp.raise_for_status()
 
     async def report_metrics(self):
-        """Collect and report metrics."""
+        """采集并上报系统指标。"""
         if not self.host_id:
             return
         metrics = collect_metrics()
@@ -111,7 +126,7 @@ class AgentReporter:
         logger.debug(f"Metrics reported: cpu={metrics['cpu_percent']}% mem={metrics['memory_percent']}%")
 
     async def register_services(self):
-        """Register configured services with the server."""
+        """向服务端注册所有配置的服务，获取各服务的 service_id。"""
         client = await self._get_client()
         for svc in self.config.services:
             try:
@@ -132,7 +147,7 @@ class AgentReporter:
                 logger.warning(f"Failed to register service {svc.name}: {e}")
 
     async def report_service_check(self, svc: ServiceCheckConfig, result: dict):
-        """Report a service check result."""
+        """上报单个服务的健康检查结果。"""
         service_id = self._service_ids.get(svc.name)
         if not service_id:
             return
@@ -150,7 +165,11 @@ class AgentReporter:
         logger.debug(f"Service check reported: {svc.name} = {result['status']}")
 
     async def report_logs(self, logs: List[Dict]) -> bool:
-        """Report a batch of log entries. Returns True on success."""
+        """批量上报日志条目。
+
+        Returns:
+            上报成功返回 True，失败返回 False。
+        """
         if not self.host_id or not logs:
             return False
         try:
@@ -164,7 +183,7 @@ class AgentReporter:
             return False
 
     async def report_db_metrics(self, metrics: dict):
-        """Report database metrics to backend."""
+        """上报数据库指标。"""
         if not self.host_id:
             return
         metrics["host_id"] = self.host_id
@@ -174,7 +193,7 @@ class AgentReporter:
         logger.debug("DB metrics reported: %s", metrics.get("db_name"))
 
     async def _db_monitor_loop(self, db_config: DatabaseMonitorConfig):
-        """Periodic database metrics collection loop."""
+        """数据库指标周期性采集循环。"""
         from vigilops_agent.db_collector import collect_db_metrics
         while True:
             try:
@@ -186,7 +205,7 @@ class AgentReporter:
             await asyncio.sleep(db_config.interval)
 
     async def _service_check_loop(self, svc: ServiceCheckConfig):
-        """Run periodic checks for a single service."""
+        """单个服务的周期性健康检查循环。"""
         while True:
             try:
                 result = await run_check(svc)
@@ -196,7 +215,7 @@ class AgentReporter:
             await asyncio.sleep(svc.interval)
 
     async def _heartbeat_loop(self):
-        """Heartbeat every 60s."""
+        """心跳循环，每 60 秒发送一次。"""
         while True:
             try:
                 await self.heartbeat()
@@ -205,7 +224,7 @@ class AgentReporter:
             await asyncio.sleep(60)
 
     async def _metrics_loop(self):
-        """Metrics collection loop."""
+        """系统指标采集循环，按配置间隔周期执行。"""
         interval = self.config.metrics.interval
         while True:
             try:
@@ -215,8 +234,8 @@ class AgentReporter:
             await asyncio.sleep(interval)
 
     async def start(self):
-        """Start the agent: register, then run heartbeat + metrics loops."""
-        # Register with retry
+        """启动 Agent：注册 → 自动发现 → 启动所有周期性任务。"""
+        # 带重试的注册流程（指数退避，最多 10 次）
         for attempt in range(10):
             try:
                 await self.register()
@@ -228,11 +247,10 @@ class AgentReporter:
         else:
             raise RuntimeError("Failed to register after 10 attempts")
 
-        # Auto-discover services
+        # Docker 容器服务自动发现，与手动配置合并（去重）
         if self.config.discovery.docker:
             from vigilops_agent.discovery import discover_docker_services
             discovered = discover_docker_services(interval=self.config.discovery.interval)
-            # Merge: skip discovered services whose name already in manual config
             manual_names = {s.name for s in self.config.services}
             for svc in discovered:
                 if svc.name not in manual_names:
@@ -241,11 +259,11 @@ class AgentReporter:
                 logger.info(f"Auto-discovered {len(discovered)} services, "
                             f"total after merge: {len(self.config.services)}")
 
-        # Register services
+        # 注册所有服务到服务端
         if self.config.services:
             await self.register_services()
 
-        # Log collection
+        # 日志源：手动配置 + Docker 自动发现合并
         log_sources = list(self.config.log_sources)
         if self.config.discovery.docker:
             from vigilops_agent.discovery import discover_docker_log_sources
@@ -257,7 +275,7 @@ class AgentReporter:
             if docker_logs:
                 logger.info(f"Auto-discovered {len(docker_logs)} Docker log sources")
 
-        # Run loops concurrently
+        # 启动所有并发任务
         tasks = [
             asyncio.create_task(self._heartbeat_loop()),
             asyncio.create_task(self._metrics_loop()),
@@ -266,12 +284,13 @@ class AgentReporter:
             if svc.name in self._service_ids:
                 tasks.append(asyncio.create_task(self._service_check_loop(svc)))
 
-        # Database monitoring loops
+        # 数据库监控循环
         for db_config in self.config.databases:
             tasks.append(asyncio.create_task(self._db_monitor_loop(db_config)))
         if self.config.databases:
             logger.info("Database monitoring started for %d database(s)", len(self.config.databases))
 
+        # 日志采集
         if log_sources:
             from vigilops_agent.log_collector import LogCollector
             collector = LogCollector(self.host_id, log_sources, self.report_logs)

@@ -1,3 +1,9 @@
+"""AI 智能分析路由模块。
+
+提供日志分析、AI 对话、根因分析和系统概览等 AI 驱动的运维分析接口。
+所有分析结果会持久化到 ai_insights 表中供后续查阅。
+"""
+
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 
@@ -32,9 +38,14 @@ async def analyze_logs(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    """Manually trigger AI analysis on recent logs."""
+    """手动触发 AI 日志分析。
+
+    根据时间范围、主机和日志级别筛选日志，调用 AI 引擎进行分析，
+    并将分析结果保存为 AI 洞察记录。
+    """
     since = datetime.now(timezone.utc) - timedelta(hours=req.hours)
 
+    # 构建查询过滤条件
     filters = [LogEntry.timestamp >= since]
     if req.host_id is not None:
         filters.append(LogEntry.host_id == req.host_id)
@@ -50,6 +61,7 @@ async def analyze_logs(
     result = await db.execute(q)
     entries = result.scalars().all()
 
+    # 将日志条目转换为字典列表供 AI 引擎使用
     logs_data: List[dict] = [
         {
             "timestamp": str(e.timestamp),
@@ -63,7 +75,7 @@ async def analyze_logs(
 
     analysis = await ai_engine.analyze_logs(logs_data)
 
-    # Save insight to DB
+    # 分析成功时保存洞察记录到数据库
     if not analysis.get("error"):
         insight = AIInsight(
             insight_type="anomaly",
@@ -93,7 +105,7 @@ async def list_insights(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    """Get recent AI analysis insights."""
+    """获取 AI 分析洞察列表，支持按严重级别和状态筛选，分页返回。"""
     q = select(AIInsight)
     count_q = select(func.count(AIInsight.id))
 
@@ -121,11 +133,15 @@ async def list_insights(
 
 
 async def _build_chat_context(db: AsyncSession) -> Dict[str, Any]:
-    """Build system context for AI chat from database."""
+    """从数据库构建 AI 对话的系统上下文。
+
+    收集最近 1 小时内的错误日志、主机指标、活跃告警和服务状态，
+    作为 AI 对话的背景信息。
+    """
     since = datetime.now(timezone.utc) - timedelta(hours=1)
     context: Dict[str, Any] = {}
 
-    # Recent ERROR/WARN logs (max 50)
+    # 获取最近的 ERROR/WARN 级别日志（最多 50 条）
     log_q = (
         select(LogEntry)
         .where(and_(
@@ -143,12 +159,12 @@ async def _build_chat_context(db: AsyncSession) -> Dict[str, Any]:
             "level": e.level,
             "host_id": e.host_id,
             "service": e.service,
-            "message": e.message[:200],  # Truncate long messages
+            "message": e.message[:200],  # 截断过长消息
         }
         for e in log_entries
     ]
 
-    # Latest host metrics - get latest per host via subquery
+    # 获取每台主机的最新指标（通过子查询找到每主机最新记录时间）
     latest_metric_subq = (
         select(
             HostMetric.host_id,
@@ -179,7 +195,7 @@ async def _build_chat_context(db: AsyncSession) -> Dict[str, Any]:
         for m, hostname in rows
     ]
 
-    # Active alerts (firing)
+    # 获取触发中的告警（最多 20 条）
     alert_q = (
         select(Alert)
         .where(Alert.status == "firing")
@@ -200,7 +216,7 @@ async def _build_chat_context(db: AsyncSession) -> Dict[str, Any]:
         for a in alerts
     ]
 
-    # Service health summary
+    # 获取活跃服务的健康状态
     svc_q = select(Service).where(Service.is_active == True)
     svc_result = await db.execute(svc_q)
     services = svc_result.scalars().all()
@@ -223,17 +239,21 @@ async def ai_chat(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    """Natural language query with system context."""
-    # Build context from database
+    """AI 自然语言对话接口。
+
+    基于当前系统上下文（日志、指标、告警、服务状态）回答用户问题，
+    并将对话记录保存为洞察。
+    """
+    # 从数据库构建系统上下文
     context = await _build_chat_context(db)
 
-    # Call AI
+    # 调用 AI 引擎
     result = await ai_engine.chat(req.question, context)
 
     answer = result.get("answer", "")
     sources = result.get("sources", [])
 
-    # Save to ai_insights
+    # 保存对话记录到 ai_insights
     if not result.get("error"):
         insight = AIInsight(
             insight_type="chat",
@@ -255,8 +275,11 @@ async def root_cause_analysis(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    """Root cause analysis for a specific alert."""
-    # Get the alert
+    """针对指定告警进行根因分析。
+
+    收集告警前后 30 分钟的指标和日志数据，调用 AI 引擎进行根因推断。
+    """
+    # 查询目标告警
     alert_result = await db.execute(select(Alert).where(Alert.id == alert_id))
     alert = alert_result.scalar_one_or_none()
     if not alert:
@@ -274,11 +297,11 @@ async def root_cause_analysis(
         "host_id": alert.host_id,
     }
 
-    # Time window: 30 min before and after the alert
+    # 时间窗口：告警前后各 30 分钟
     window_start = alert.fired_at - timedelta(minutes=30)
     window_end = alert.fired_at + timedelta(minutes=30)
 
-    # Get related metrics
+    # 获取关联主机的指标数据
     metrics_data: List[dict] = []
     if alert.host_id:
         metric_q = (
@@ -307,7 +330,7 @@ async def root_cause_analysis(
             for m in metrics
         ]
 
-    # Get related logs
+    # 获取时间窗口内的关联日志
     log_filters = [
         LogEntry.timestamp >= window_start,
         LogEntry.timestamp <= window_end,
@@ -334,10 +357,10 @@ async def root_cause_analysis(
         for e in log_entries
     ]
 
-    # Call AI
+    # 调用 AI 引擎进行根因分析
     analysis = await ai_engine.analyze_root_cause(alert_data, metrics_data, logs_data)
 
-    # Save to ai_insights
+    # 保存根因分析结果
     if not analysis.get("error"):
         insight = AIInsight(
             insight_type="root_cause",
@@ -363,17 +386,20 @@ async def system_summary(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    """System overview snapshot for AI frontend."""
+    """获取系统概览快照，用于 AI 前端展示。
+
+    汇总主机、服务、告警、错误日志数量以及平均资源使用率。
+    """
     since = datetime.now(timezone.utc) - timedelta(hours=1)
 
-    # Host counts
+    # 主机统计
     host_total = (await db.execute(select(func.count(Host.id)))).scalar() or 0
     host_online = (await db.execute(
         select(func.count(Host.id)).where(Host.status == "online")
     )).scalar() or 0
     host_offline = host_total - host_online
 
-    # Service counts
+    # 服务统计
     svc_total = (await db.execute(
         select(func.count(Service.id)).where(Service.is_active == True)
     )).scalar() or 0
@@ -384,12 +410,12 @@ async def system_summary(
         select(func.count(Service.id)).where(and_(Service.is_active == True, Service.status == "down"))
     )).scalar() or 0
 
-    # Recent alerts count (1h)
+    # 最近 1 小时告警数
     alert_count = (await db.execute(
         select(func.count(Alert.id)).where(Alert.fired_at >= since)
     )).scalar() or 0
 
-    # Recent ERROR logs count (1h)
+    # 最近 1 小时错误日志数
     error_log_count = (await db.execute(
         select(func.count(LogEntry.id)).where(and_(
             LogEntry.timestamp >= since,
@@ -397,7 +423,7 @@ async def system_summary(
         ))
     )).scalar() or 0
 
-    # Average CPU/memory from latest metrics per host
+    # 计算各主机最新指标的平均 CPU 和内存使用率
     latest_metric_subq = (
         select(
             HostMetric.host_id,

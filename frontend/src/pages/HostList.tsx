@@ -1,3 +1,8 @@
+/**
+ * 主机列表页面
+ * 展示所有受监控主机的概览信息，支持表格和卡片两种视图模式，
+ * 提供按状态筛选和按主机名搜索功能。
+ */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Table, Card, Tag, Input, Select, Row, Col, Progress, Typography, Space, Button, Segmented } from 'antd';
@@ -7,17 +12,24 @@ import type { Host } from '../services/hosts';
 
 const { Search } = Input;
 
+/**
+ * 主机列表组件
+ * 支持分页查询、状态筛选、关键字搜索，以及表格/卡片视图切换
+ */
 export default function HostList() {
   const [hosts, setHosts] = useState<Host[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  /** 状态筛选值：'online' | 'offline' | '' */
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [search, setSearch] = useState('');
+  /** 视图模式：'table' 表格视图 | 'card' 卡片视图 */
   const [viewMode, setViewMode] = useState<string>('table');
   const navigate = useNavigate();
 
+  /** 根据当前筛选条件从后端获取主机列表 */
   const fetchHosts = async () => {
     setLoading(true);
     try {
@@ -32,8 +44,10 @@ export default function HostList() {
     }
   };
 
+  // 当分页或状态筛选变化时重新获取数据
   useEffect(() => { fetchHosts(); }, [page, pageSize, statusFilter]);
 
+  /** 表格列定义 */
   const columns = [
     {
       title: '主机名', dataIndex: 'hostname', key: 'hostname',
@@ -75,6 +89,7 @@ export default function HostList() {
     },
   ];
 
+  /** 卡片视图：以网格卡片形式展示主机基本信息和资源使用率 */
   const cardView = (
     <Row gutter={[16, 16]}>
       {hosts.map(host => (

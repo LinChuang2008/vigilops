@@ -1,3 +1,10 @@
+/**
+ * 告警中心页面
+ *
+ * 包含两个 Tab：
+ * 1. 告警列表 - 展示所有告警，支持按状态和严重级别筛选，可查看详情、确认告警、触发 AI 根因分析
+ * 2. 告警规则 - 管理告警规则（指标告警、日志关键字告警、数据库告警），支持增删改及静默时段设置
+ */
 import { useEffect, useState } from 'react';
 import { Table, Card, Tag, Typography, Select, Space, Button, Drawer, Descriptions, Tabs, Modal, Form, Input, InputNumber, Switch, Row, Col, message, TimePicker, Spin } from 'antd';
 import { ExclamationCircleOutlined, RobotOutlined } from '@ant-design/icons';
@@ -8,31 +15,45 @@ import { databaseService } from '../services/databases';
 import type { DatabaseItem } from '../services/databases';
 import type { Alert, AlertRule } from '../services/alerts';
 
+/** 告警严重级别颜色映射 */
 const severityColor: Record<string, string> = { critical: 'red', warning: 'orange', info: 'blue' };
+/** 告警状态颜色映射 */
 const statusColor: Record<string, string> = { firing: 'red', resolved: 'green', acknowledged: 'blue' };
 
+/**
+ * 告警中心页面组件
+ */
 export default function AlertList() {
+  // ========== 告警列表状态 ==========
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [severityFilter, setSeverityFilter] = useState<string>('');
+  /** 当前选中的告警（用于侧边详情抽屉） */
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
+
+  // ========== 告警规则状态 ==========
   const [rules, setRules] = useState<AlertRule[]>([]);
   const [rulesLoading, setRulesLoading] = useState(false);
   const [ruleModalOpen, setRuleModalOpen] = useState(false);
+  /** 当前编辑的规则（null 表示新建） */
   const [editingRule, setEditingRule] = useState<AlertRule | null>(null);
+  /** 当前选择的规则类型，控制表单字段显示 */
   const [ruleType, setRuleType] = useState<string>('metric');
+  /** 数据库列表，用于数据库告警规则的下拉选择 */
   const [dbList, setDbList] = useState<DatabaseItem[]>([]);
   const [form] = Form.useForm();
   const [messageApi, contextHolder] = message.useMessage();
 
-  // AI Root Cause
+  // ========== AI 根因分析弹窗 ==========
   const [rcModalOpen, setRcModalOpen] = useState(false);
   const [rcLoading, setRcLoading] = useState(false);
+  /** AI 根因分析结果 */
   const [rcData, setRcData] = useState<{ root_cause: string; confidence: string; evidence: string[]; recommendations: string[] } | null>(null);
 
+  /** 触发 AI 根因分析：打开弹窗并请求分析结果 */
   const handleRootCause = async (alertId: string) => {
     setRcData(null);
     setRcModalOpen(true);
@@ -46,6 +67,7 @@ export default function AlertList() {
     } finally { setRcLoading(false); }
   };
 
+  /** 获取告警列表，支持分页和筛选 */
   const fetchAlerts = async () => {
     setLoading(true);
     try {
@@ -58,6 +80,7 @@ export default function AlertList() {
     } catch { /* ignore */ } finally { setLoading(false); }
   };
 
+  /** 获取告警规则列表 */
   const fetchRules = async () => {
     setRulesLoading(true);
     try {
@@ -66,6 +89,7 @@ export default function AlertList() {
     } catch { /* ignore */ } finally { setRulesLoading(false); }
   };
 
+  /** 加载数据库列表，用于数据库告警规则的选择 */
   const loadDbList = async () => {
     try {
       const { data } = await databaseService.list();
@@ -73,8 +97,10 @@ export default function AlertList() {
     } catch { /* ignore */ }
   };
 
+  // 当分页或筛选条件变化时重新获取告警
   useEffect(() => { fetchAlerts(); }, [page, statusFilter, severityFilter]);
 
+  /** 确认告警 */
   const handleAck = async (id: string) => {
     try {
       await alertService.ack(id);
@@ -84,9 +110,10 @@ export default function AlertList() {
     } catch { messageApi.error('操作失败'); }
   };
 
+  /** 保存告警规则（新建或编辑），处理 TimePicker 值转换 */
   const handleRuleSave = async (values: Record<string, unknown>) => {
     const payload = { ...values } as Record<string, unknown>;
-    // Convert dayjs TimePicker values to HH:mm strings
+    // 将 dayjs TimePicker 值转为 HH:mm:ss 字符串
     payload.silence_start = values.silence_start ? (values.silence_start as dayjs.Dayjs).format('HH:mm:ss') : null;
     payload.silence_end = values.silence_end ? (values.silence_end as dayjs.Dayjs).format('HH:mm:ss') : null;
     try {
@@ -101,6 +128,7 @@ export default function AlertList() {
     } catch { messageApi.error('保存失败'); }
   };
 
+  /** 删除告警规则（带确认弹窗） */
   const handleRuleDelete = (id: string) => {
     Modal.confirm({
       title: '确认删除规则？',
@@ -115,6 +143,7 @@ export default function AlertList() {
     });
   };
 
+  /** 告警列表表格列定义 */
   const alertColumns = [
     { title: '标题', dataIndex: 'title', key: 'title', ellipsis: true },
     { title: '严重级别', dataIndex: 'severity', render: (s: string) => <Tag color={severityColor[s]}>{s}</Tag> },
@@ -132,9 +161,11 @@ export default function AlertList() {
     },
   ];
 
+  /** 规则类型中文标签 */
   const ruleTypeLabel: Record<string, string> = { metric: '指标', log_keyword: '日志关键字', db_metric: '数据库' };
   const ruleTypeColor: Record<string, string> = { metric: 'blue', log_keyword: 'purple', db_metric: 'cyan' };
 
+  /** 告警规则表格列定义 */
   const ruleColumns = [
     { title: '名称', dataIndex: 'name' },
     {
@@ -160,12 +191,14 @@ export default function AlertList() {
             setEditingRule(r);
             setRuleType(r.rule_type || 'metric');
             const vals = { ...r } as Record<string, unknown>;
+            // 将字符串时间转为 dayjs 对象以供 TimePicker 使用
             if (r.silence_start) vals.silence_start = dayjs(r.silence_start, 'HH:mm:ss');
             if (r.silence_end) vals.silence_end = dayjs(r.silence_end, 'HH:mm:ss');
             form.setFieldsValue(vals);
             loadDbList();
             setRuleModalOpen(true);
           }}>编辑</Button>
+          {/* 内置规则不可删除 */}
           {!r.is_builtin && <Button type="link" size="small" danger onClick={() => handleRuleDelete(r.id)}>删除</Button>}
         </Space>
       ),
@@ -181,6 +214,7 @@ export default function AlertList() {
           key: 'alerts', label: '告警列表',
           children: (
             <>
+              {/* 筛选条件 */}
               <Row style={{ marginBottom: 16 }}>
                 <Col>
                   <Space>
@@ -213,6 +247,7 @@ export default function AlertList() {
         },
       ]} />
 
+      {/* 告警详情抽屉 */}
       <Drawer open={!!selectedAlert} onClose={() => setSelectedAlert(null)} title="告警详情" width={480}>
         {selectedAlert && (
           <Descriptions column={1} bordered size="small">
@@ -230,6 +265,7 @@ export default function AlertList() {
         )}
       </Drawer>
 
+      {/* 告警规则编辑弹窗 */}
       <Modal title={editingRule ? '编辑规则' : '新建规则'} open={ruleModalOpen} onCancel={() => setRuleModalOpen(false)}
         onOk={() => form.submit()} destroyOnClose width={560}>
         <Form form={form} layout="vertical" onFinish={handleRuleSave} initialValues={{ rule_type: 'metric' }}>
@@ -242,7 +278,7 @@ export default function AlertList() {
             ]} />
           </Form.Item>
 
-          {/* Metric fields */}
+          {/* 指标告警字段 */}
           {ruleType === 'metric' && (
             <Form.Item name="metric" label="指标" rules={[{ required: true }]}>
               <Select options={[
@@ -253,7 +289,7 @@ export default function AlertList() {
             </Form.Item>
           )}
 
-          {/* Log keyword fields */}
+          {/* 日志关键字告警字段 */}
           {ruleType === 'log_keyword' && (
             <>
               <Form.Item name="log_keyword" label="匹配关键字" rules={[{ required: true }]}><Input placeholder="例如: ERROR, OutOfMemory" /></Form.Item>
@@ -267,7 +303,7 @@ export default function AlertList() {
             </>
           )}
 
-          {/* Database metric fields */}
+          {/* 数据库告警字段 */}
           {ruleType === 'db_metric' && (
             <>
               <Form.Item name="db_id" label="数据库（留空匹配全部）">
@@ -285,7 +321,7 @@ export default function AlertList() {
             </>
           )}
 
-          {/* Shared threshold fields for metric and db_metric */}
+          {/* 指标和数据库告警共用的阈值字段 */}
           {(ruleType === 'metric' || ruleType === 'db_metric') && (
             <>
               <Form.Item name="operator" label="运算符" rules={[{ required: true }]}>
@@ -303,6 +339,7 @@ export default function AlertList() {
           <Form.Item name="cooldown_seconds" label="冷却期（秒）" initialValue={300}>
             <InputNumber style={{ width: '100%' }} min={0} placeholder="默认 300 秒" />
           </Form.Item>
+          {/* 静默时段设置 */}
           <Form.Item name="silence_start" label="静默开始">
             <TimePicker format="HH:mm" style={{ width: '100%' }} />
           </Form.Item>
@@ -312,6 +349,7 @@ export default function AlertList() {
         </Form>
       </Modal>
 
+      {/* AI 根因分析弹窗 */}
       <Modal title={<><RobotOutlined /> AI 根因分析</>} open={rcModalOpen} onCancel={() => setRcModalOpen(false)} footer={null} width={560}>
         {rcLoading ? (
           <div style={{ textAlign: 'center', padding: 40 }}><Spin tip="AI 正在分析..." /></div>

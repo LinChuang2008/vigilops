@@ -1,4 +1,8 @@
-"""CLI entry point for VigilOps Agent."""
+"""
+VigilOps Agent 命令行入口模块。
+
+提供 CLI 命令：run（前台运行 Agent）和 check（验证配置文件）。
+"""
 import asyncio
 import logging
 import signal
@@ -17,7 +21,7 @@ from vigilops_agent.config import load_config
 @click.version_option(version=__version__)
 @click.pass_context
 def cli(ctx, config, verbose):
-    """VigilOps Agent - Lightweight monitoring agent."""
+    """VigilOps Agent - 轻量级监控代理。"""
     ctx.ensure_object(dict)
     ctx.obj["config_path"] = config
     ctx.obj["verbose"] = verbose
@@ -28,6 +32,7 @@ def cli(ctx, config, verbose):
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
 
+    # 未指定子命令时，显示基本信息
     if ctx.invoked_subcommand is None:
         click.echo(f"VigilOps Agent v{__version__}")
         click.echo(f"Config: {config}")
@@ -37,7 +42,7 @@ def cli(ctx, config, verbose):
 @cli.command()
 @click.pass_context
 def run(ctx):
-    """Run the agent in foreground."""
+    """以前台模式运行 Agent。"""
     logger = logging.getLogger("vigilops-agent")
     config_path = ctx.obj["config_path"]
 
@@ -47,10 +52,12 @@ def run(ctx):
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 
+    # 校验必要配置
     if not cfg.server.token:
         click.echo("Error: No agent token configured. Set server.token in config or VIGILOPS_TOKEN env.", err=True)
         sys.exit(1)
 
+    # 主机名未配置时自动获取
     if not cfg.host.name:
         cfg.host.name = socket.gethostname()
 
@@ -68,6 +75,7 @@ def run(ctx):
 
     loop = asyncio.new_event_loop()
 
+    # 注册信号处理，优雅关闭
     def _shutdown(sig, frame):
         logger.info(f"Received {signal.Signals(sig).name}, shutting down...")
         loop.stop()
@@ -85,7 +93,7 @@ def run(ctx):
 @cli.command()
 @click.pass_context
 def check(ctx):
-    """Validate config file."""
+    """验证配置文件是否正确。"""
     config_path = ctx.obj["config_path"]
     try:
         cfg = load_config(config_path)
@@ -101,6 +109,7 @@ def check(ctx):
 
 
 def main():
+    """CLI 入口函数。"""
     cli()
 
 

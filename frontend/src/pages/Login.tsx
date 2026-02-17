@@ -1,3 +1,9 @@
+/**
+ * 登录/注册页面
+ *
+ * 提供邮箱密码登录和注册功能，通过 Tabs 切换两种模式。
+ * 登录或注册成功后将 token 和用户信息存入 localStorage，并跳转到首页。
+ */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Form, Input, Button, Card, Typography, message, Tabs } from 'antd';
@@ -6,19 +12,27 @@ import { authService } from '../services/auth';
 
 const { Title } = Typography;
 
+/**
+ * 登录注册页面组件
+ *
+ * 包含登录和注册两个 Tab，共用加载状态。登录/注册成功后自动获取用户信息并跳转。
+ */
 export default function Login() {
+  /** 按钮加载状态（登录/注册共用） */
   const [loading, setLoading] = useState(false);
+  /** 当前激活的 Tab（login | register） */
   const [activeTab, setActiveTab] = useState('login');
   const navigate = useNavigate();
   const [messageApi, contextHolder] = message.useMessage();
 
+  /** 处理登录：调用登录接口，存储 token，获取用户信息后跳转首页 */
   const handleLogin = async (values: { email: string; password: string }) => {
     setLoading(true);
     try {
       const { data } = await authService.login(values);
       localStorage.setItem('access_token', data.access_token);
       localStorage.setItem('refresh_token', data.refresh_token);
-      // Fetch user info
+      // 获取用户信息并存储用户名
       const { data: user } = await authService.me();
       localStorage.setItem('user_name', user.name);
       messageApi.success('登录成功');
@@ -31,6 +45,7 @@ export default function Login() {
     }
   };
 
+  /** 处理注册：调用注册接口，流程与登录类似 */
   const handleRegister = async (values: { email: string; name: string; password: string }) => {
     setLoading(true);
     try {
