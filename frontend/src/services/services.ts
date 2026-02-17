@@ -57,12 +57,24 @@ export interface HostGroup {
   services: Service[];
 }
 
+/** 全局统计（不受筛选影响） */
+export interface ServiceStats {
+  total: number;
+  middleware: number;
+  business: number;
+  infrastructure: number;
+  healthy: number;
+  unhealthy: number;
+}
+
 /** 服务列表分页响应 */
 export interface ServiceListResponse {
   items: Service[];
   total: number;
   page: number;
   page_size: number;
+  /** 全局统计 */
+  stats?: ServiceStats;
   /** 按主机分组（group_by_host=true 时返回） */
   host_groups?: HostGroup[];
 }

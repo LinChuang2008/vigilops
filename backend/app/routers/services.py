@@ -88,7 +88,23 @@ async def list_services(
         d["host_info"] = host_map.get(s.host_id) if s.host_id else None
         items.append(d)
 
-    resp = {"items": items, "total": total, "page": page, "page_size": page_size}
+    # 全局统计（不受筛选影响）
+    all_stats_result = await db.execute(
+        select(Service.category, Service.status, func.count())
+        .where(Service.is_active == True)
+        .group_by(Service.category, Service.status)
+    )
+    stats_map: dict = {"total": 0, "middleware": 0, "business": 0, "infrastructure": 0, "healthy": 0, "unhealthy": 0}
+    for cat, st, cnt in all_stats_result.all():
+        stats_map["total"] += cnt
+        if cat in stats_map:
+            stats_map[cat] += cnt
+        if st in ("up", "healthy"):
+            stats_map["healthy"] += cnt
+        elif st in ("down", "unhealthy"):
+            stats_map["unhealthy"] += cnt
+
+    resp = {"items": items, "total": total, "page": page, "page_size": page_size, "stats": stats_map}
 
     # group_by_host 模式：额外返回按主机分组的结构
     if group_by_host:

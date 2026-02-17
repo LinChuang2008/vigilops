@@ -6,6 +6,7 @@
  * 单台服务器时平铺显示，多台时分组显示。
  */
 import { useEffect, useState, useMemo } from 'react';
+// useMemo still used for hostCount
 import { useNavigate } from 'react-router-dom';
 import {
   Table, Card, Tag, Typography, Progress, Button,
@@ -65,12 +66,13 @@ const statusText = (s: string) => {
 /* ==================== 组件 ==================== */
 
 export default function ServiceList() {
-  const [services, setServices] = useState<ServiceItem[]>([]);
+  const [, setServices] = useState<ServiceItem[]>([]);
   const [hostGroups, setHostGroups] = useState<HostGroup[]>([]);
-  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
   const [categoryFilter, setCategoryFilter] = useState<string | undefined>(undefined);
+  /** 全局统计（不受筛选影响） */
+  const [globalStats, setGlobalStats] = useState({ total: 0, middleware: 0, business: 0, infrastructure: 0, healthy: 0, unhealthy: 0 });
   const navigate = useNavigate();
 
   /** 拉取数据（group_by_host） */
@@ -82,21 +84,15 @@ export default function ServiceList() {
       if (categoryFilter) params.category = categoryFilter;
       const { data } = await serviceService.list(params);
       setServices(data.items || []);
-      setTotal(data.total || 0);
       setHostGroups(data.host_groups || []);
+      if (data.stats) setGlobalStats(data.stats);
     } catch { /* ignore */ } finally { setLoading(false); }
   };
 
   useEffect(() => { fetchData(); }, [statusFilter, categoryFilter]); // eslint-disable-line
 
-  /** 统计 */
-  const stats = useMemo(() => {
-    const healthy = services.filter(s => s.status === 'healthy' || s.status === 'up').length;
-    const unhealthy = services.filter(s => s.status === 'unhealthy' || s.status === 'down').length;
-    const mw = services.filter(s => s.category === 'middleware').length;
-    const biz = services.filter(s => s.category === 'business').length;
-    return { healthy, unhealthy, mw, biz, hosts: hostGroups.length };
-  }, [services, hostGroups]);
+  /** 主机数量从全局统计独立（hostGroups 可能因筛选变少） */
+  const hostCount = useMemo(() => hostGroups.length, [hostGroups]);
 
   /** 表格列定义 */
   const columns = [
@@ -210,33 +206,33 @@ export default function ServiceList() {
         <Col>
           <Space size={16}>
             <Title level={4} style={{ margin: 0 }}>服务监控</Title>
-            <Tag icon={<DesktopOutlined />} color="default">{stats.hosts} 台服务器</Tag>
+            <Tag icon={<DesktopOutlined />} color="default">{hostCount} 台服务器</Tag>
           </Space>
         </Col>
         <Col>
           <Space size={20}>
-            <Statistic title="总服务" value={total} valueStyle={{ fontSize: 18 }} />
+            <Statistic title="总服务" value={globalStats.total} valueStyle={{ fontSize: 18 }} />
             <Statistic
               title="中间件"
-              value={stats.mw}
+              value={globalStats.middleware}
               prefix={<DatabaseOutlined />}
               valueStyle={{ fontSize: 18, color: '#722ed1' }}
             />
             <Statistic
               title="业务系统"
-              value={stats.biz}
+              value={globalStats.business}
               prefix={<AppstoreOutlined />}
               valueStyle={{ fontSize: 18, color: '#1890ff' }}
             />
             <Statistic
               title="健康"
-              value={stats.healthy}
+              value={globalStats.healthy}
               valueStyle={{ fontSize: 18, color: '#52c41a' }}
             />
             <Statistic
               title="异常"
-              value={stats.unhealthy}
-              valueStyle={{ fontSize: 18, color: stats.unhealthy > 0 ? '#ff4d4f' : '#d9d9d9' }}
+              value={globalStats.unhealthy}
+              valueStyle={{ fontSize: 18, color: globalStats.unhealthy > 0 ? '#ff4d4f' : '#d9d9d9' }}
             />
           </Space>
         </Col>
