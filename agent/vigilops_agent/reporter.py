@@ -256,7 +256,19 @@ class AgentReporter:
                 if svc.name not in manual_names:
                     self.config.services.append(svc)
             if discovered:
-                logger.info(f"Auto-discovered {len(discovered)} services, "
+                logger.info(f"Auto-discovered {len(discovered)} Docker services, "
+                            f"total after merge: {len(self.config.services)}")
+
+        # 宿主机服务自动发现（非 Docker 的监听端口）
+        if self.config.discovery.host_services:
+            from vigilops_agent.discovery import discover_host_services
+            host_discovered = discover_host_services(interval=self.config.discovery.interval)
+            manual_names = {s.name for s in self.config.services}
+            for svc in host_discovered:
+                if svc.name not in manual_names:
+                    self.config.services.append(svc)
+            if host_discovered:
+                logger.info(f"Auto-discovered {len(host_discovered)} host services, "
                             f"total after merge: {len(self.config.services)}")
 
         # 注册所有服务到服务端

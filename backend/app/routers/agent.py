@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import re
 from app.core.agent_auth import verify_agent_token
 from app.core.database import get_db
 from app.core.redis import get_redis
@@ -29,6 +30,22 @@ from app.models.db_metric import MonitoredDatabase, DbMetric
 from app.schemas.log_entry import LogBatchRequest, LogBatchResponse
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
+
+
+def _auto_classify_service(name: str) -> str:
+    """根据服务名自动分类: middleware / business / infrastructure"""
+    lower = name.lower()
+    # 中间件：数据库、缓存、消息队列、注册中心、搜索引擎等
+    if re.search(r'postgres|mysql|redis|rabbitmq|oracle|clickhouse|nacos|kafka|mongo|memcache|elasticsearch|mq', lower):
+        return "middleware"
+    # 基础设施：Web 服务器、代理、系统服务等
+    if re.search(r'nginx|httpd|apache|caddy|traefik|haproxy|keepalived|crond|ntpd|envoy', lower):
+        return "infrastructure"
+    # 业务系统：后端、前端、应用服务等
+    if re.search(r'backend|frontend|api|service|app|admin|job', lower):
+        return "business"
+    # 默认归为业务系统
+    return "business"
 
 
 @router.post("/register", response_model=AgentRegisterResponse)
@@ -171,9 +188,13 @@ async def register_service(
     if existing:
         return {"service_id": existing.id, "created": False}
 
+    # 自动分类
+    category = _auto_classify_service(name)
+
     svc = Service(
         name=name, type=svc_type, target=target, host_id=host_id,
         check_interval=check_interval, timeout=timeout,
+        category=category,
     )
     db.add(svc)
     await db.commit()

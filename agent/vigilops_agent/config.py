@@ -57,8 +57,9 @@ class LogSourceConfig:
 @dataclass
 class DiscoveryConfig:
     """服务自动发现配置。"""
-    docker: bool = True  # 是否自动发现 Docker 容器
-    interval: int = 30   # 发现的服务默认检查间隔
+    docker: bool = True         # 是否自动发现 Docker 容器
+    host_services: bool = True  # 是否自动发现宿主机直接运行的服务（ss -tlnp）
+    interval: int = 30          # 发现的服务默认检查间隔
 
 
 @dataclass
@@ -173,6 +174,7 @@ def load_config(path: str) -> AgentConfig:
         cfg.discovery.docker = disc
     elif isinstance(disc, dict):
         cfg.discovery.docker = disc.get("docker", True)
+        cfg.discovery.host_services = disc.get("host_services", True)
         cfg.discovery.interval = _parse_interval(disc.get("interval", 30))
 
     # 解析日志源配置

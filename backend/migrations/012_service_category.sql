@@ -14,5 +14,11 @@ WHERE category IS NULL AND (
     name ~* 'backend|frontend|api|service|app|admin|job'
 );
 
+-- 宿主机基础设施服务（nginx、sshd 等直接运行的进程）
+UPDATE services SET category = 'infrastructure'
+WHERE category IS NULL AND (
+    name ~* 'nginx|httpd|apache|caddy|traefik|haproxy|keepalived|crond|ntpd'
+);
+
 UPDATE services SET category = 'infrastructure'
 WHERE category IS NULL;
