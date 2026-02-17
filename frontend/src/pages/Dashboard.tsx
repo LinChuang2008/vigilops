@@ -176,8 +176,7 @@ export default function Dashboard() {
   const connectWs = useCallback(() => {
     // 根据当前页面协议和地址构建 WebSocket URL
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsHost = window.location.hostname;
-    const wsUrl = `${wsProtocol}//${wsHost}:8001/api/v1/ws/dashboard`;
+    const wsUrl = `${wsProtocol}//${window.location.host}/api/v1/ws/dashboard`;
 
     try {
       const ws = new WebSocket(wsUrl);
