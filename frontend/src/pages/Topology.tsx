@@ -125,10 +125,13 @@ export default function Topology() {
   const [stats, setStats] = useState({ nodes: 0, edges: 0 });
   const topoData = useRef<TopologyData | null>(null);
 
-  // 编辑模式
+  // 编辑模式（用 ref 同步最新值给 ECharts 闭包）
   const [editMode, setEditMode] = useState(false);
-  const [connecting, setConnecting] = useState<number | null>(null); // 第一个选中的节点 ID
+  const [connecting, setConnecting] = useState<number | null>(null);
   const [depType, setDepType] = useState<string>('depends_on');
+  const editModeRef = useRef(false);
+  const connectingRef = useRef<number | null>(null);
+  const depTypeRef = useRef('depends_on');
 
   // AI 推荐
   const [aiLoading, setAiLoading] = useState(false);
@@ -138,6 +141,11 @@ export default function Topology() {
 
   // 节点名映射
   const nodeNameMap = useRef<Map<number, string>>(new Map());
+
+  // 同步 state → ref（确保 ECharts 闭包读到最新值）
+  useEffect(() => { editModeRef.current = editMode; }, [editMode]);
+  useEffect(() => { connectingRef.current = connecting; }, [connecting]);
+  useEffect(() => { depTypeRef.current = depType; }, [depType]);
 
   /** 获取 token */
   const getToken = () => localStorage.getItem('access_token') || '';
@@ -166,12 +174,15 @@ export default function Topology() {
     }
   }, [layout]); // eslint-disable-line
 
+  // 记录拖拽后的节点位置
+  const draggedPositions = useRef<Record<string, { x: number; y: number }>>({});
+
   /** 保存布局 */
   const saveLayout = async () => {
     const chart = chartInstance.current;
     if (!chart || !topoData.current) return;
 
-    // 从 ECharts 获取当前节点位置
+    // 合并：初始位置 + 拖拽修改的位置
     const option = chart.getOption() as any;
     const seriesData = option?.series?.[0]?.data;
     if (!seriesData) return;
@@ -182,6 +193,8 @@ export default function Topology() {
         positions[node.id] = { x: node.x, y: node.y };
       }
     }
+    // 覆盖拖拽过的位置
+    Object.assign(positions, draggedPositions.current);
 
     try {
       const res = await fetch('/api/v1/topology/layout', {
@@ -219,8 +232,8 @@ export default function Topology() {
         body: JSON.stringify({
           source_service_id: source,
           target_service_id: target,
-          dependency_type: depType,
-          description: depType === 'calls' ? 'API 调用（手动添加）' : '依赖关系（手动添加）',
+          dependency_type: depTypeRef.current,
+          description: depTypeRef.current === 'calls' ? 'API 调用（手动添加）' : '依赖关系（手动添加）',
         }),
       });
       if (!res.ok) {
@@ -457,21 +470,34 @@ export default function Topology() {
     chart.setOption(option, true);
     chart.resize();
 
-    // 注册点击事件
+    // 注册拖拽结束事件，记录新位置
+    chart.off('mouseup');
+    chart.on('mouseup', (params: any) => {
+      if (params.dataType === 'node' && params.event) {
+        // 通过 convertFromPixel 获取拖拽后的逻辑坐标
+        const point = chart.convertFromPixel({ seriesIndex: 0 }, [params.event.offsetX, params.event.offsetY]);
+        if (point) {
+          draggedPositions.current[params.data.id] = { x: point[0], y: point[1] };
+        }
+      }
+    });
+
+    // 注册点击事件（通过 ref 读取最新 state）
     chart.off('click');
     chart.on('click', (params: any) => {
-      if (!editMode) return;
+      if (!editModeRef.current) return;
 
       if (params.dataType === 'node') {
         const nodeId = parseInt(params.data.id);
-        if (connecting === null) {
+        const currentConnecting = connectingRef.current;
+        if (currentConnecting === null) {
           setConnecting(nodeId);
           message.info(`已选中 "${idMap.get(nodeId)}"，点击目标节点完成连线`);
-        } else if (connecting === nodeId) {
+        } else if (currentConnecting === nodeId) {
           setConnecting(null);
           message.info('已取消选择');
         } else {
-          addDependency(connecting, nodeId);
+          addDependency(currentConnecting, nodeId);
           setConnecting(null);
         }
       } else if (params.dataType === 'edge') {
