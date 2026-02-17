@@ -1,3 +1,8 @@
+"""
+Agent 数据上报路由
+
+提供 Agent 注册、心跳、指标上报、服务检查、日志写入、数据库指标等接口。
+"""
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
@@ -32,7 +37,8 @@ async def register_agent(
     agent_token: AgentToken = Depends(verify_agent_token),
     db: AsyncSession = Depends(get_db),
 ):
-    # Idempotent: check if host with same hostname + agent_token_id exists
+    """Agent 注册接口，幂等操作：已存在则更新信息，不存在则新建主机。"""
+    # 查找是否已有相同 hostname + token 的主机
     result = await db.execute(
         select(Host).where(
             Host.hostname == body.hostname,
@@ -42,7 +48,7 @@ async def register_agent(
     existing = result.scalar_one_or_none()
 
     if existing:
-        # Update host info
+        # 更新已有主机信息
         for field in ["ip_address", "os", "os_version", "arch", "cpu_cores", "memory_total_mb", "agent_version", "tags", "group_name"]:
             val = getattr(body, field)
             if val is not None:
@@ -53,7 +59,7 @@ async def register_agent(
         await db.refresh(existing)
         return AgentRegisterResponse(host_id=existing.id, hostname=existing.hostname, status="online", created=False)
 
-    # Create new host
+    # 创建新主机
     host = Host(
         hostname=body.hostname,
         ip_address=body.ip_address,
@@ -82,9 +88,10 @@ async def heartbeat(
     agent_token: AgentToken = Depends(verify_agent_token),
     db: AsyncSession = Depends(get_db),
 ):
+    """Agent 心跳接口，更新主机在线状态并写入 Redis 用于离线检测。"""
     now = datetime.now(timezone.utc)
 
-    # Update host heartbeat in DB
+    # 更新数据库中的心跳时间
     result = await db.execute(select(Host).where(Host.id == body.host_id))
     host = result.scalar_one_or_none()
     if host:
@@ -92,7 +99,7 @@ async def heartbeat(
         host.status = "online"
         await db.commit()
 
-    # Store in Redis for fast offline detection
+    # 写入 Redis，设置 300 秒过期用于离线检测
     redis = await get_redis()
     await redis.set(f"heartbeat:{body.host_id}", now.isoformat(), ex=300)
 
@@ -105,11 +112,13 @@ async def report_metrics(
     agent_token: AgentToken = Depends(verify_agent_token),
     db: AsyncSession = Depends(get_db),
 ):
+    """Agent 上报主机性能指标，同时缓存最新值到 Redis。"""
     import json as _json
 
     now = datetime.now(timezone.utc)
     recorded_at = body.timestamp or now
 
+    # 持久化到数据库
     metric = HostMetric(
         host_id=body.host_id,
         cpu_percent=body.cpu_percent,
@@ -131,7 +140,7 @@ async def report_metrics(
     db.add(metric)
     await db.commit()
 
-    # Cache latest metrics in Redis
+    # 缓存最新指标到 Redis，供仪表盘实时展示
     redis = await get_redis()
     latest = body.model_dump(exclude={"host_id", "timestamp"}, exclude_none=True)
     latest["recorded_at"] = recorded_at.isoformat()
@@ -146,7 +155,7 @@ async def register_service(
     agent_token: AgentToken = Depends(verify_agent_token),
     db: AsyncSession = Depends(get_db),
 ):
-    """Register/find a service by name + target. Returns service_id."""
+    """注册或查找服务，返回 service_id，幂等操作。"""
     name = body.get("name", "")
     target = body.get("target", body.get("url", ""))
     svc_type = body.get("type", "http")
@@ -154,7 +163,7 @@ async def register_service(
     check_interval = body.get("check_interval", 60)
     timeout = body.get("timeout", 10)
 
-    # Find existing
+    # 查找已有服务
     result = await db.execute(
         select(Service).where(Service.name == name, Service.target == target)
     )
@@ -178,6 +187,7 @@ async def report_service_check(
     agent_token: AgentToken = Depends(verify_agent_token),
     db: AsyncSession = Depends(get_db),
 ):
+    """Agent 上报服务健康检查结果。"""
     now = datetime.now(timezone.utc)
 
     check = ServiceCheck(
@@ -190,7 +200,7 @@ async def report_service_check(
     )
     db.add(check)
 
-    # Update service status
+    # 同步更新服务状态
     result = await db.execute(select(Service).where(Service.id == body.service_id))
     service = result.scalar_one_or_none()
     if service:
@@ -206,7 +216,7 @@ async def report_db_metrics(
     agent_token: AgentToken = Depends(verify_agent_token),
     db: AsyncSession = Depends(get_db),
 ):
-    """F063: Receive database metrics from agent."""
+    """Agent 上报数据库性能指标，自动创建或更新被监控数据库记录。"""
     now = datetime.now(timezone.utc)
     host_id = body.get("host_id")
     db_name = body.get("db_name", "")
@@ -216,7 +226,7 @@ async def report_db_metrics(
         from fastapi import HTTPException
         raise HTTPException(status_code=400, detail="host_id and db_name required")
 
-    # Upsert MonitoredDatabase
+    # 查找或创建被监控数据库记录
     result = await db.execute(
         select(MonitoredDatabase).where(
             MonitoredDatabase.host_id == host_id,
@@ -237,12 +247,12 @@ async def report_db_metrics(
         monitored_db.updated_at = now
         monitored_db.status = "healthy"
 
-    # Update slow queries detail if provided (Oracle)
+    # 更新 Oracle 慢查询详情
     slow_queries_detail = body.get("slow_queries_detail")
     if slow_queries_detail is not None:
         monitored_db.slow_queries_detail = slow_queries_detail
 
-    # Insert metric
+    # 写入指标记录
     metric = DbMetric(
         database_id=monitored_db.id,
         connections_total=body.get("connections_total"),
@@ -259,7 +269,7 @@ async def report_db_metrics(
     db.add(metric)
     await db.commit()
 
-    # F072: Check database metric alert rules
+    # 检查数据库指标告警规则
     try:
         await _check_db_metric_alerts(monitored_db.id, body, db)
     except Exception:
@@ -269,7 +279,7 @@ async def report_db_metrics(
 
 
 async def _check_db_metric_alerts(database_id: int, body: dict, db: AsyncSession):
-    """F072: Check database metric alert rules against incoming metrics."""
+    """检查数据库指标是否触发告警规则。"""
     from app.models.alert import AlertRule, Alert
     import operator as op_module
 
@@ -315,7 +325,7 @@ async def ingest_logs(
     agent_token: AgentToken = Depends(verify_agent_token),
     db: AsyncSession = Depends(get_db),
 ):
-    """F048: Batch ingest log entries from agent."""
+    """批量写入日志条目，同时广播到 WebSocket 订阅者并检查日志关键字告警。"""
     from sqlalchemy.dialects.postgresql import insert
     from app.routers.logs import log_broadcaster
 
@@ -326,7 +336,7 @@ async def ingest_logs(
     await db.execute(insert(LogEntry), rows)
     await db.commit()
 
-    # Broadcast to WebSocket subscribers
+    # 广播到 WebSocket 实时日志订阅者
     broadcast_entries = []
     for item in body.logs:
         entry = item.model_dump()
@@ -334,17 +344,17 @@ async def ingest_logs(
         broadcast_entries.append(entry)
     await log_broadcaster.publish(broadcast_entries)
 
-    # F070: Check log keyword alert rules
+    # 检查日志关键字告警规则
     try:
         await _check_log_keyword_alerts(body.logs, db)
     except Exception:
-        pass  # Don't fail log ingestion if alert check fails
+        pass  # 不影响日志写入
 
     return LogBatchResponse(received=len(rows))
 
 
 async def _check_log_keyword_alerts(logs: list, db: AsyncSession):
-    """F070: Match incoming logs against log_keyword alert rules."""
+    """匹配日志内容与日志关键字告警规则，触发告警。"""
     from app.models.alert import AlertRule, Alert
 
     result = await db.execute(

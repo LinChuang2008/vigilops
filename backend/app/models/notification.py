@@ -1,3 +1,8 @@
+"""
+通知模型
+
+定义通知渠道和通知发送日志的表结构。
+"""
 from datetime import datetime
 from typing import Optional
 
@@ -8,6 +13,7 @@ from app.core.database import Base
 
 
 class NotificationChannel(Base):
+    """通知渠道表，存储 Webhook 等通知方式的配置。"""
     __tablename__ = "notification_channels"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -24,6 +30,7 @@ class NotificationChannel(Base):
 
 
 class NotificationLog(Base):
+    """通知发送日志表，记录每次通知的发送结果。"""
     __tablename__ = "notification_logs"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -32,7 +39,7 @@ class NotificationLog(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False)  # sent / failed
     response_code: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    retries: Mapped[int] = mapped_column(Integer, default=0)
+    retries: Mapped[int] = mapped_column(Integer, default=0)  # 重试次数
     sent_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

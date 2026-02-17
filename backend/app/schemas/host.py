@@ -1,8 +1,14 @@
+"""
+主机相关请求/响应模型
+
+定义主机列表、详情、指标等 API 的数据结构。
+"""
 from datetime import datetime
 from pydantic import BaseModel
 
 
 class HostResponse(BaseModel):
+    """主机基本信息响应体。"""
     id: int
     hostname: str
     ip_address: str | None = None
@@ -23,11 +29,12 @@ class HostResponse(BaseModel):
 
 
 class HostWithMetrics(HostResponse):
-    """Host with latest metrics from Redis."""
+    """包含最新指标数据的主机响应体。"""
     latest_metrics: dict | None = None
 
 
 class HostMetricResponse(BaseModel):
+    """主机指标响应体。"""
     id: int
     host_id: int
     cpu_percent: float | None = None

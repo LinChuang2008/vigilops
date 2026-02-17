@@ -1,3 +1,8 @@
+"""
+数据模型包
+
+集中导出所有 ORM 模型，方便其他模块统一引用。
+"""
 from app.models.user import User
 from app.models.agent_token import AgentToken
 from app.models.host import Host

@@ -1,3 +1,8 @@
+"""
+主机模型
+
+定义被监控主机的表结构，记录主机基本信息和状态。
+"""
 from datetime import datetime
 
 from sqlalchemy import String, DateTime, Integer, JSON, func
@@ -7,6 +12,7 @@ from app.core.database import Base
 
 
 class Host(Base):
+    """主机表，存储被监控服务器的基本信息。"""
     __tablename__ = "hosts"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -18,7 +24,7 @@ class Host(Base):
     cpu_cores: Mapped[int | None] = mapped_column(Integer, nullable=True)
     memory_total_mb: Mapped[int | None] = mapped_column(Integer, nullable=True)
     agent_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="online")  # online/offline
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="online")  # online / offline
     tags: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=dict)
     group_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     agent_token_id: Mapped[int] = mapped_column(Integer, nullable=False)

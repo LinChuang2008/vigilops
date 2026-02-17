@@ -1,3 +1,8 @@
+"""
+Agent 令牌认证模块
+
+验证监控代理上报数据时携带的 Bearer Token，并更新最近使用时间。
+"""
 import hashlib
 from datetime import datetime, timezone
 
@@ -9,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models.agent_token import AgentToken
 
+# Agent 专用 Bearer Token 认证方案
 agent_security = HTTPBearer()
 
 
@@ -16,8 +22,9 @@ async def verify_agent_token(
     credentials: HTTPAuthorizationCredentials = Depends(agent_security),
     db: AsyncSession = Depends(get_db),
 ) -> AgentToken:
-    """Dependency that validates an agent bearer token."""
+    """验证 Agent Bearer Token，返回对应的 AgentToken 记录。"""
     raw_token = credentials.credentials
+    # 计算 SHA-256 哈希与数据库存储的哈希比对
     token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
 
     result = await db.execute(
@@ -30,7 +37,7 @@ async def verify_agent_token(
     if agent_token is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or revoked agent token")
 
-    # Update last_used_at
+    # 更新令牌最后使用时间
     await db.execute(
         update(AgentToken)
         .where(AgentToken.id == agent_token.id)

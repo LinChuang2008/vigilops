@@ -1,3 +1,8 @@
+"""
+主机管理路由
+
+提供主机列表、详情、历史指标等查询接口。
+"""
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -25,6 +30,7 @@ async def list_hosts(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """分页查询主机列表，支持按状态、分组、主机名搜索。"""
     query = select(Host)
     count_query = select(func.count()).select_from(Host)
 
@@ -44,7 +50,7 @@ async def list_hosts(
     result = await db.execute(query)
     hosts = result.scalars().all()
 
-    # Attach latest metrics from Redis
+    # 从 Redis 获取每台主机的最新指标
     redis = await get_redis()
     items = []
     for h in hosts:
@@ -63,6 +69,7 @@ async def get_host(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """获取单台主机详情，包含 Redis 缓存的最新指标。"""
     result = await db.execute(select(Host).where(Host.id == host_id))
     host = result.scalar_one_or_none()
     if not host:
@@ -84,11 +91,13 @@ async def get_host_metrics(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """查询主机历史指标，支持原始数据和聚合模式（5分钟/1小时/1天）。"""
     from datetime import datetime, timezone, timedelta
 
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
 
     if interval == "raw":
+        # 返回原始数据点
         query = (
             select(HostMetric)
             .where(HostMetric.host_id == host_id, HostMetric.recorded_at >= since)
@@ -98,7 +107,7 @@ async def get_host_metrics(
         result = await db.execute(query)
         return result.scalars().all()
 
-    # For aggregated intervals, use raw SQL with date_trunc
+    # 使用 date_trunc 聚合数据
     interval_map = {"5min": "5 minutes", "1h": "1 hour", "1d": "1 day"}
     trunc = interval_map[interval]
 

@@ -1,3 +1,8 @@
+"""
+Agent 令牌管理路由
+
+提供 Agent Token 的创建、列表查询和吊销接口（仅管理员可用）。
+"""
 import hashlib
 import secrets
 from datetime import datetime, timezone
@@ -16,6 +21,7 @@ router = APIRouter(prefix="/api/v1/agent-tokens", tags=["agent-tokens"])
 
 
 def _hash_token(token: str) -> str:
+    """计算令牌的 SHA-256 哈希值。"""
     return hashlib.sha256(token.encode()).hexdigest()
 
 
@@ -25,9 +31,11 @@ async def create_agent_token(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """创建新的 Agent Token（仅管理员）。"""
     if user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
 
+    # 生成随机令牌，前缀 vop_
     raw_token = f"vop_{secrets.token_hex(24)}"
     token_hash = _hash_token(raw_token)
 
@@ -59,6 +67,7 @@ async def list_agent_tokens(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """列出所有 Agent Token（仅管理员）。"""
     if user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
 
@@ -74,6 +83,7 @@ async def revoke_agent_token(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """吊销指定的 Agent Token（仅管理员）。"""
     if user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
 

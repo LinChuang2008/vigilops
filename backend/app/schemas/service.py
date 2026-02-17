@@ -1,8 +1,14 @@
+"""
+服务相关请求/响应模型
+
+定义服务列表、健康检查结果等 API 的数据结构。
+"""
 from datetime import datetime
 from pydantic import BaseModel
 
 
 class ServiceResponse(BaseModel):
+    """服务信息响应体。"""
     id: int
     name: str
     type: str
@@ -16,12 +22,13 @@ class ServiceResponse(BaseModel):
     tags: dict | None = None
     created_at: datetime
     updated_at: datetime
-    uptime_percent: float | None = None
+    uptime_percent: float | None = None  # 24h 可用率
 
     model_config = {"from_attributes": True}
 
 
 class ServiceCheckResponse(BaseModel):
+    """服务健康检查结果响应体。"""
     id: int
     service_id: int
     status: str
@@ -34,6 +41,7 @@ class ServiceCheckResponse(BaseModel):
 
 
 class ServiceCheckReport(BaseModel):
+    """Agent 上报服务检查结果的请求体。"""
     service_id: int
     status: str  # up / down
     response_time_ms: float | None = None

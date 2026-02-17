@@ -1,3 +1,8 @@
+"""
+认证路由模块
+
+提供用户注册、登录、令牌刷新、获取当前用户信息等接口。
+"""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,12 +18,13 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
-    # Check email uniqueness
+    """用户注册，第一个注册的用户自动成为管理员。"""
+    # 检查邮箱唯一性
     existing = await db.execute(select(User).where(User.email == data.email))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
-    # First user becomes admin
+    # 第一个用户设为 admin
     count_result = await db.execute(select(func.count()).select_from(User))
     user_count = count_result.scalar()
     role = "admin" if user_count == 0 else "user"
@@ -41,6 +47,7 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
+    """用户登录，验证邮箱和密码。"""
     result = await db.execute(select(User).where(User.email == data.email))
     user = result.scalar_one_or_none()
     if user is None or not verify_password(data.password, user.hashed_password):
@@ -56,6 +63,7 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh(data: TokenRefresh, db: AsyncSession = Depends(get_db)):
+    """使用刷新令牌获取新的访问令牌。"""
     payload = decode_token(data.refresh_token)
     if payload is None or payload.get("type") != "refresh":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
@@ -74,4 +82,5 @@ async def refresh(data: TokenRefresh, db: AsyncSession = Depends(get_db)):
 
 @router.get("/me", response_model=UserResponse)
 async def me(current_user: User = Depends(get_current_user)):
+    """获取当前登录用户信息。"""
     return current_user

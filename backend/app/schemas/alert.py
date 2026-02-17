@@ -1,12 +1,18 @@
+"""
+告警相关请求/响应模型
+
+定义告警规则 CRUD 和告警事件查询的数据结构。
+"""
 from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel
 
 
-# ── AlertRule ──
+# ── 告警规则 ──
 
 class AlertRuleCreate(BaseModel):
+    """创建告警规则请求体。"""
     name: str
     description: Optional[str] = None
     severity: str = "warning"
@@ -29,6 +35,7 @@ class AlertRuleCreate(BaseModel):
 
 
 class AlertRuleUpdate(BaseModel):
+    """更新告警规则请求体（所有字段可选）。"""
     name: Optional[str] = None
     description: Optional[str] = None
     severity: Optional[str] = None
@@ -50,6 +57,7 @@ class AlertRuleUpdate(BaseModel):
 
 
 class AlertRuleResponse(BaseModel):
+    """告警规则响应体。"""
     id: int
     name: str
     description: Optional[str]
@@ -77,9 +85,10 @@ class AlertRuleResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# ── Alert ──
+# ── 告警事件 ──
 
 class AlertResponse(BaseModel):
+    """告警事件响应体。"""
     id: int
     rule_id: int
     host_id: Optional[int]

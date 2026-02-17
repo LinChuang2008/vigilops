@@ -1,3 +1,8 @@
+"""
+用户模型
+
+定义系统用户表结构，包括邮箱、密码哈希、角色等字段。
+"""
 from datetime import datetime, timezone
 
 from sqlalchemy import String, Boolean, DateTime, func
@@ -7,13 +12,14 @@ from app.core.database import Base
 
 
 class User(Base):
+    """用户表，存储系统登录用户信息。"""
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[str] = mapped_column(String(20), nullable=False, default="user")
+    role: Mapped[str] = mapped_column(String(20), nullable=False, default="user")  # admin / user
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

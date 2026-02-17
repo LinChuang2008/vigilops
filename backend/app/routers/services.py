@@ -1,3 +1,8 @@
+"""
+服务监控路由
+
+提供服务列表、详情、健康检查历史等接口。
+"""
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -14,6 +19,7 @@ router = APIRouter(prefix="/api/v1/services", tags=["services"])
 
 
 async def _calc_uptime(db: AsyncSession, service_id: int, hours: int = 24) -> float | None:
+    """计算指定服务在最近 N 小时内的可用率（百分比）。"""
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
     total = (await db.execute(
         select(func.count()).select_from(ServiceCheck)
@@ -36,6 +42,7 @@ async def list_services(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """分页查询服务列表，附带 24h 可用率。"""
     query = select(Service)
     count_query = select(func.count()).select_from(Service)
 
@@ -63,6 +70,7 @@ async def get_service(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """获取单个服务详情。"""
     result = await db.execute(select(Service).where(Service.id == service_id))
     service = result.scalar_one_or_none()
     if not service:
@@ -80,6 +88,7 @@ async def get_service_checks(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """查询服务健康检查历史记录。"""
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
     result = await db.execute(
         select(ServiceCheck)

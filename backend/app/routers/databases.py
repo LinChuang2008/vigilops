@@ -1,4 +1,8 @@
-"""F064: Database list, detail, and historical metrics endpoints."""
+"""
+数据库监控路由
+
+提供数据库列表、详情、历史指标、慢查询等接口。
+"""
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -13,7 +17,7 @@ router = APIRouter(prefix="/api/v1/databases", tags=["databases"])
 
 
 def _parse_period(period: str) -> timedelta:
-    """Parse period string like '1h', '24h', '7d' to timedelta."""
+    """解析时间周期字符串（如 '1h', '24h', '7d'）为 timedelta。"""
     p = period.strip().lower()
     if p.endswith("h"):
         return timedelta(hours=int(p[:-1]))
@@ -30,7 +34,7 @@ async def list_databases(
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
-    """List monitored databases with latest metrics."""
+    """查询所有被监控数据库，附带最新指标。"""
     query = select(MonitoredDatabase).order_by(desc(MonitoredDatabase.updated_at))
     if host_id:
         query = query.where(MonitoredDatabase.host_id == host_id)
@@ -39,7 +43,7 @@ async def list_databases(
 
     items = []
     for mdb in databases:
-        # Get latest metric
+        # 获取最新一条指标数据
         latest = await db.execute(
             select(DbMetric)
             .where(DbMetric.database_id == mdb.id)
@@ -80,13 +84,12 @@ async def get_database(
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
-    """Get database detail."""
+    """获取单个数据库详情及最新指标。"""
     result = await db.execute(select(MonitoredDatabase).where(MonitoredDatabase.id == database_id))
     mdb = result.scalar_one_or_none()
     if not mdb:
         raise HTTPException(status_code=404, detail="Database not found")
 
-    # Latest metric
     latest = await db.execute(
         select(DbMetric).where(DbMetric.database_id == mdb.id).order_by(desc(DbMetric.recorded_at)).limit(1)
     )
@@ -111,7 +114,7 @@ async def get_database(
             "transactions_committed": metric.transactions_committed,
             "transactions_rolled_back": metric.transactions_rolled_back,
             "qps": metric.qps,
-                "tablespace_used_pct": metric.tablespace_used_pct,
+            "tablespace_used_pct": metric.tablespace_used_pct,
             "recorded_at": metric.recorded_at.isoformat() if metric.recorded_at else None,
         }
     return data
@@ -123,7 +126,7 @@ async def get_slow_queries(
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
-    """Get latest slow queries for a database (Oracle)."""
+    """获取数据库最新慢查询列表（Oracle）。"""
     result = await db.execute(select(MonitoredDatabase).where(MonitoredDatabase.id == database_id))
     mdb = result.scalar_one_or_none()
     if not mdb:
@@ -138,8 +141,7 @@ async def get_database_metrics(
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
-    """Get historical metrics for a database."""
-    # Verify database exists
+    """查询数据库历史指标数据。"""
     result = await db.execute(select(MonitoredDatabase).where(MonitoredDatabase.id == database_id))
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Database not found")
