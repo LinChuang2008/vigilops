@@ -1,0 +1,36 @@
+"""
+通知模板模型
+
+定义通知模板表结构，支持不同渠道类型的消息模板管理。
+"""
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import String, Integer, DateTime, Boolean, Text, func
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.core.database import Base
+
+
+class NotificationTemplate(Base):
+    """通知模板表，存储各渠道类型的消息模板。"""
+    __tablename__ = "notification_templates"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, comment="模板名称")
+    channel_type: Mapped[str] = mapped_column(
+        String(50), nullable=False, comment="渠道类型: webhook/email/dingtalk/feishu/wecom/all"
+    )
+    subject_template: Mapped[Optional[str]] = mapped_column(
+        String(500), nullable=True, comment="邮件标题模板（仅 email 使用）"
+    )
+    body_template: Mapped[str] = mapped_column(
+        Text, nullable=False, comment="消息体模板，支持变量 {title} {severity} {message} 等"
+    )
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, comment="是否为默认模板")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
