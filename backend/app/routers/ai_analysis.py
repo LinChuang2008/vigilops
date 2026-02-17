@@ -266,7 +266,9 @@ async def ai_chat(
         db.add(insight)
         await db.commit()
 
-    return ChatResponse(answer=answer, sources=sources)
+    # 附加记忆上下文（可选字段）
+    memory_context = result.get("memory_context", [])
+    return ChatResponse(answer=answer, sources=sources, memory_context=memory_context)
 
 
 @router.post("/root-cause", response_model=dict)
@@ -375,9 +377,12 @@ async def root_cause_analysis(
         db.add(insight)
         await db.commit()
 
+    # 附加记忆上下文
+    memory_context = analysis.pop("memory_context", [])
     return {
         "alert_id": alert_id,
         "analysis": analysis,
+        "memory_context": memory_context,
     }
 
 

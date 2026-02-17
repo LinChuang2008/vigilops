@@ -3,7 +3,9 @@ AI 引擎服务模块。
 
 封装与 AI API（兼容 OpenAI 接口）的交互逻辑，提供日志异常分析、
 自然语言运维问答、告警根因分析等核心 AI 能力。
+集成运维记忆系统，利用历史经验增强分析能力。
 """
+import asyncio
 import json
 import logging
 from typing import List, Dict, Any, Optional
@@ -11,6 +13,7 @@ from typing import List, Dict, Any, Optional
 import httpx
 
 from app.core.config import settings
+from app.services.memory_client import memory_client
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +183,16 @@ class AIEngine:
 
         try:
             result_text = await self._call_api(messages)
-            return self._parse_json_response(result_text)
+            result = self._parse_json_response(result_text)
+
+            # 如果发现异常（severity 不是 info），异步存储到记忆系统
+            if result.get("severity", "info") != "info":
+                title = result.get("title", "未知异常")
+                summary = result.get("summary", "")
+                store_content = f"日志异常发现: {title}\n摘要: {summary}"
+                asyncio.create_task(memory_client.store(store_content, source="vigilops-log-analysis"))
+
+            return result
         except json.JSONDecodeError:
             # AI 返回的不是有效 JSON，将原文作为摘要返回
             return {
@@ -259,22 +271,49 @@ class AIEngine:
 
         context_text = "\n\n".join(context_parts) if context_parts else "当前没有可用的系统数据。"
 
+        # 召回相关运维记忆
+        memories = await memory_client.recall(question)
+        memory_context: List[Dict[str, Any]] = []
+        memory_prompt = ""
+        if memories:
+            memory_context = memories
+            memory_lines = []
+            for i, mem in enumerate(memories[:5], 1):
+                content = mem.get("content", mem.get("text", str(mem)))
+                memory_lines.append(f"{i}. {content}")
+            memory_prompt = (
+                "\n\n【历史运维经验（来自记忆系统）】\n"
+                + "\n".join(memory_lines)
+                + "\n请参考以上历史经验回答问题。"
+            )
+
         user_msg = f"系统上下文数据：\n{context_text}\n\n用户问题：{question}"
 
+        system_prompt = CHAT_SYSTEM_PROMPT + memory_prompt
+
         messages = [
-            {"role": "system", "content": CHAT_SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_msg},
         ]
 
         try:
             result_text = await self._call_api(messages)
             try:
-                return self._parse_json_response(result_text)
+                result = self._parse_json_response(result_text)
             except json.JSONDecodeError:
-                return {"answer": result_text, "sources": []}
+                result = {"answer": result_text, "sources": []}
+
+            # 异步存储问答记录到记忆系统（不阻塞响应）
+            answer = result.get("answer", "")
+            store_content = f"用户问题: {question}\nAI 回答: {answer[:500]}"
+            asyncio.create_task(memory_client.store(store_content, source="vigilops-chat"))
+
+            # 附加记忆上下文信息
+            result["memory_context"] = memory_context
+            return result
         except Exception as e:
             logger.error("AI chat failed: %s", str(e))
-            return {"answer": f"AI 对话出错：{str(e)}", "sources": [], "error": True}
+            return {"answer": f"AI 对话出错：{str(e)}", "sources": [], "error": True, "memory_context": []}
 
     async def analyze_root_cause(
         self, alert: dict, metrics: List[dict], logs: List[dict]
@@ -319,6 +358,23 @@ class AIEngine:
             )
         logs_text = "\n".join(log_lines) if log_lines else "无相关日志数据"
 
+        # 召回相关告警历史经验
+        alert_title = alert.get("title", "")
+        memories = await memory_client.recall(alert_title)
+        memory_context: List[Dict[str, Any]] = []
+        memory_prompt = ""
+        if memories:
+            memory_context = memories
+            memory_lines = []
+            for i, mem in enumerate(memories[:5], 1):
+                content = mem.get("content", mem.get("text", str(mem)))
+                memory_lines.append(f"{i}. {content}")
+            memory_prompt = (
+                "\n\n【历史类似告警处理经验】\n"
+                + "\n".join(memory_lines)
+                + "\n请参考以上历史经验进行分析。"
+            )
+
         user_msg = (
             f"请分析以下告警的根因：\n\n"
             f"【告警信息】\n{alert_text}\n\n"
@@ -326,22 +382,37 @@ class AIEngine:
             f"【相关时段日志】\n{logs_text}"
         )
 
+        system_prompt = ROOT_CAUSE_SYSTEM_PROMPT + memory_prompt
+
         messages = [
-            {"role": "system", "content": ROOT_CAUSE_SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_msg},
         ]
 
         try:
             result_text = await self._call_api(messages)
             try:
-                return self._parse_json_response(result_text)
+                result = self._parse_json_response(result_text)
             except json.JSONDecodeError:
-                return {
+                result = {
                     "root_cause": result_text,
                     "confidence": "low",
                     "evidence": [],
                     "recommendations": [],
                 }
+
+            # 异步存储根因分析结果到记忆系统
+            root_cause = result.get("root_cause", "")
+            recommendations = result.get("recommendations", [])
+            store_content = (
+                f"告警: {alert_title}\n"
+                f"根因: {root_cause}\n"
+                f"建议: {'; '.join(recommendations[:3]) if recommendations else '无'}"
+            )
+            asyncio.create_task(memory_client.store(store_content, source="vigilops-root-cause"))
+
+            result["memory_context"] = memory_context
+            return result
         except Exception as e:
             logger.error("AI root cause analysis failed: %s", str(e))
             return {
@@ -350,6 +421,7 @@ class AIEngine:
                 "evidence": [],
                 "recommendations": [],
                 "error": True,
+                "memory_context": [],
             }
 
 

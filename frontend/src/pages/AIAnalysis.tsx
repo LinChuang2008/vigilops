@@ -57,6 +57,8 @@ interface ChatMessage {
   content: string;
   /** AI 回答的参考来源 */
   sources?: Array<{ type: string; summary: string }>;
+  /** 引用的历史运维记忆 */
+  memory_context?: Array<Record<string, any>>;
 }
 
 /** AI 洞察条目 */
@@ -164,7 +166,7 @@ export default function AIAnalysis() {
     setChatLoading(true);
     try {
       const { data } = await api.post('/ai/chat', { question: q });
-      setMessages(prev => [...prev, { role: 'ai', content: data.answer, sources: data.sources }]);
+      setMessages(prev => [...prev, { role: 'ai', content: data.answer, sources: data.sources, memory_context: data.memory_context }]);
     } catch {
       setMessages(prev => [...prev, { role: 'ai', content: '抱歉，AI 分析暂时不可用，请稍后再试。' }]);
     } finally { setChatLoading(false); }
@@ -299,6 +301,18 @@ export default function AIAnalysis() {
                     children: msg.sources.map((s, j) => (
                       <div key={j} style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>
                         <Tag>{s.type}</Tag> {s.summary}
+                      </div>
+                    )),
+                  }]} />
+                )}
+                {/* 历史运维记忆引用 */}
+                {msg.memory_context && msg.memory_context.length > 0 && (
+                  <Collapse ghost style={{ marginTop: 4 }} items={[{
+                    key: 'memory',
+                    label: <Text type="secondary" style={{ fontSize: 12 }}>📚 参考了 {msg.memory_context.length} 条历史运维经验</Text>,
+                    children: msg.memory_context.map((mem, j) => (
+                      <div key={j} style={{ fontSize: 12, color: '#666', marginBottom: 4, padding: '4px 8px', background: '#f9f9f9', borderRadius: 4 }}>
+                        {mem.content || mem.text || JSON.stringify(mem)}
                       </div>
                     )),
                   }]} />

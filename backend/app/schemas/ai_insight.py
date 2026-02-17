@@ -4,7 +4,7 @@ AI 分析相关请求/响应模型
 定义 AI 洞察、日志分析、对话等 API 的数据结构。
 """
 from datetime import datetime
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 
 from pydantic import BaseModel
 
@@ -49,3 +49,4 @@ class ChatResponse(BaseModel):
     """AI 对话响应体。"""
     answer: str
     sources: list = []
+    memory_context: List[Dict[str, Any]] = []

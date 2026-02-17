@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     ai_max_tokens: int = 2000
     ai_auto_scan: bool = False
 
+    # 记忆系统配置
+    memory_api_url: str = "http://host.docker.internal:8002/api/v1/memory"
+    memory_enabled: bool = True
+
     # JWT 认证配置
     jwt_secret_key: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
