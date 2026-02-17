@@ -26,6 +26,7 @@ import AIAnalysis from './pages/AIAnalysis';
 import Users from './pages/Users';
 import AuditLogs from './pages/AuditLogs';
 import Reports from './pages/Reports';
+import Topology from './pages/Topology';
 
 export default function App() {
   return (
@@ -56,6 +57,7 @@ export default function App() {
               <Route path="/hosts/:id" element={<HostDetail />} />
               <Route path="/services" element={<ServiceList />} />
               <Route path="/services/:id" element={<ServiceDetail />} />
+              <Route path="/topology" element={<Topology />} />
               <Route path="/logs" element={<Logs />} />
               <Route path="/databases" element={<Databases />} />
               <Route path="/databases/:id" element={<DatabaseDetail />} />

@@ -17,5 +17,6 @@ from app.models.db_metric import MonitoredDatabase, DbMetric
 from app.models.ai_insight import AIInsight
 from app.models.audit_log import AuditLog
 from app.models.report import Report
+from app.models.service_dependency import ServiceDependency
 
-__all__ = ["User", "AgentToken", "Host", "HostMetric", "Service", "ServiceCheck", "Alert", "AlertRule", "NotificationChannel", "NotificationLog", "NotificationTemplate", "Setting", "LogEntry", "MonitoredDatabase", "DbMetric", "AIInsight", "AuditLog", "Report"]
+__all__ = ["User", "AgentToken", "Host", "HostMetric", "Service", "ServiceCheck", "Alert", "AlertRule", "NotificationChannel", "NotificationLog", "NotificationTemplate", "Setting", "LogEntry", "MonitoredDatabase", "DbMetric", "AIInsight", "AuditLog", "Report", "ServiceDependency"]

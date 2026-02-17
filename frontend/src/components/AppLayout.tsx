@@ -26,6 +26,7 @@ import {
   TeamOutlined,
   AuditOutlined,
   FileSearchOutlined,
+  DeploymentUnitOutlined,
 } from '@ant-design/icons';
 
 const { Header, Sider, Content } = Layout;
@@ -35,6 +36,7 @@ const menuItems = [
   { key: '/', icon: <DashboardOutlined />, label: '仪表盘' },
   { key: '/hosts', icon: <CloudServerOutlined />, label: '服务器' },
   { key: '/services', icon: <ApiOutlined />, label: '服务监控' },
+  { key: '/topology', icon: <DeploymentUnitOutlined />, label: '拓扑图' },
   { key: '/logs', icon: <FileTextOutlined />, label: '日志管理' },
   { key: '/databases', icon: <DatabaseOutlined />, label: '数据库监控' },
   { key: '/alerts', icon: <AlertOutlined />, label: '告警中心' },

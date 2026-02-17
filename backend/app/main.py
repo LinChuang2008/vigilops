@@ -14,7 +14,7 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.core.redis import get_redis, close_redis
-from app.models import User, AgentToken, Host, HostMetric, Service, ServiceCheck, Alert, AlertRule, NotificationChannel, NotificationLog, NotificationTemplate, LogEntry, MonitoredDatabase, DbMetric, AIInsight, AuditLog, Report  # noqa: F401 — register models
+from app.models import User, AgentToken, Host, HostMetric, Service, ServiceCheck, Alert, AlertRule, NotificationChannel, NotificationLog, NotificationTemplate, LogEntry, MonitoredDatabase, DbMetric, AIInsight, AuditLog, Report, ServiceDependency  # noqa: F401 — register models
 from app.routers import auth
 from app.routers import agent_tokens
 from app.routers import agent
@@ -33,6 +33,7 @@ from app.routers import reports
 from app.routers import notification_templates
 from app.routers import dashboard_ws
 from app.routers import dashboard
+from app.routers import topology
 
 
 @asynccontextmanager
@@ -120,6 +121,7 @@ app.include_router(reports.router)
 app.include_router(notification_templates.router)
 app.include_router(dashboard_ws.router)
 app.include_router(dashboard.router)
+app.include_router(topology.router)
 
 
 @app.get("/health")
