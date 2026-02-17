@@ -6,7 +6,9 @@
 
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import json
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,12 +55,18 @@ async def list_channels(
 @router.post("", response_model=NotificationChannelResponse, status_code=status.HTTP_201_CREATED)
 async def create_channel(
     data: NotificationChannelCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
     """创建新的通知渠道。"""
+    from app.services.audit import log_audit
     channel = NotificationChannel(**data.model_dump())
     db.add(channel)
+    await db.flush()
+    await log_audit(db, _user.id, "create_notification_channel", "notification_channel", channel.id,
+                    json.dumps(data.model_dump()),
+                    request.client.host if request.client else None)
     await db.commit()
     await db.refresh(channel)
     return channel
@@ -68,18 +76,24 @@ async def create_channel(
 async def update_channel(
     channel_id: int,
     data: NotificationChannelUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
     """更新指定通知渠道配置。"""
+    from app.services.audit import log_audit
     result = await db.execute(select(NotificationChannel).where(NotificationChannel.id == channel_id))
     channel = result.scalar_one_or_none()
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
 
-    for field, value in data.model_dump(exclude_unset=True).items():
+    updates = data.model_dump(exclude_unset=True)
+    for field, value in updates.items():
         setattr(channel, field, value)
 
+    await log_audit(db, _user.id, "update_notification_channel", "notification_channel", channel_id,
+                    json.dumps(updates),
+                    request.client.host if request.client else None)
     await db.commit()
     await db.refresh(channel)
     return channel
@@ -88,13 +102,17 @@ async def update_channel(
 @router.delete("/{channel_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_channel(
     channel_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
     """删除指定通知渠道。"""
+    from app.services.audit import log_audit
     result = await db.execute(select(NotificationChannel).where(NotificationChannel.id == channel_id))
     channel = result.scalar_one_or_none()
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
+    await log_audit(db, _user.id, "delete_notification_channel", "notification_channel", channel_id,
+                    None, request.client.host if request.client else None)
     await db.delete(channel)
     await db.commit()

@@ -4,7 +4,9 @@
 未在数据库中的配置项会回退到默认值。
 """
 
-from fastapi import APIRouter, Depends
+import json
+
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -12,6 +14,7 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.setting import Setting
 from app.models.user import User
+from app.services.audit import log_audit
 
 router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
 
@@ -42,6 +45,7 @@ async def get_settings(
 @router.put("")
 async def update_settings(
     data: dict,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -60,5 +64,9 @@ async def update_settings(
             # 不存在则创建新配置项
             desc = DEFAULT_SETTINGS.get(key, {}).get("description", "")
             db.add(Setting(key=key, value=str(value), description=desc))
+
+    await log_audit(db, user.id, "update_settings", "settings", None,
+                    json.dumps(data),
+                    request.client.host if request.client else None)
     await db.commit()
     return {"status": "ok"}

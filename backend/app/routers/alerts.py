@@ -6,7 +6,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +15,7 @@ from app.core.deps import get_current_user
 from app.models.alert import Alert
 from app.models.user import User
 from app.schemas.alert import AlertResponse
+from app.services.audit import log_audit
 
 router = APIRouter(prefix="/api/v1/alerts", tags=["alerts"])
 
@@ -75,6 +76,7 @@ async def get_alert(
 @router.post("/{alert_id}/ack", response_model=AlertResponse)
 async def acknowledge_alert(
     alert_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -89,6 +91,8 @@ async def acknowledge_alert(
     alert.status = "acknowledged"
     alert.acknowledged_at = datetime.now(timezone.utc)
     alert.acknowledged_by = user.id
+    await log_audit(db, user.id, "acknowledge_alert", "alert", alert_id,
+                    None, request.client.host if request.client else None)
     await db.commit()
     await db.refresh(alert)
     return alert
