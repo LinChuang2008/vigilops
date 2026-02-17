@@ -24,6 +24,7 @@ import DatabaseDetail from './pages/DatabaseDetail';
 import AIAnalysis from './pages/AIAnalysis';
 import Users from './pages/Users';
 import AuditLogs from './pages/AuditLogs';
+import Reports from './pages/Reports';
 
 export default function App() {
   return (
@@ -59,6 +60,7 @@ export default function App() {
               <Route path="/databases/:id" element={<DatabaseDetail />} />
               <Route path="/alerts" element={<AlertList />} />
               <Route path="/ai-analysis" element={<AIAnalysis />} />
+              <Route path="/reports" element={<Reports />} />
               <Route path="/notification-channels" element={<NotificationChannels />} />
               <Route path="/notification-logs" element={<NotificationLogs />} />
               <Route path="/users" element={<Users />} />

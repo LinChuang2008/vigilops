@@ -6,7 +6,8 @@
  * 和最新告警列表。数据每 30 秒自动刷新。
  */
 import { useEffect, useState } from 'react';
-import { Row, Col, Card, Statistic, Typography, Tag, Table, Spin } from 'antd';
+import { Row, Col, Card, Statistic, Typography, Tag, Table, Spin, Button, Dropdown } from 'antd';
+import { DownloadOutlined } from '@ant-design/icons';
 import {
   CloudServerOutlined,
   ApiOutlined,
@@ -148,9 +149,38 @@ export default function Dashboard() {
   /** 告警严重级别对应颜色映射 */
   const severityColor: Record<string, string> = { critical: 'red', warning: 'orange', info: 'blue' };
 
+  /** 导出 Dashboard 数据为 CSV 文件 */
+  const exportCSV = () => {
+    const rows = [
+      ['指标', '总数', '正常', '异常'],
+      ['服务器', d.hosts.total, d.hosts.online, d.hosts.offline],
+      ['服务', d.services.total, d.services.healthy, d.services.unhealthy],
+      ['数据库', dbItems.length, dbItems.filter(x => x.status === 'healthy').length, dbItems.filter(x => x.status !== 'healthy' && x.status !== 'unknown').length],
+      ['活跃告警', d.alerts.firing, '', ''],
+    ];
+    // 添加资源使用率
+    rows.push([], ['服务器', 'CPU%', '内存%']);
+    d.hosts.items.filter(h => h.latest_metrics).forEach(h => {
+      rows.push([h.hostname, h.latest_metrics!.cpu_percent, h.latest_metrics!.memory_percent] as any);
+    });
+    const csv = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `dashboard_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div>
-      <Title level={4}>系统概览</Title>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <Title level={4} style={{ margin: 0 }}>系统概览</Title>
+        <Dropdown menu={{ items: [{ key: 'csv', label: '导出 CSV', onClick: exportCSV }] }}>
+          <Button icon={<DownloadOutlined />}>导出数据</Button>
+        </Dropdown>
+      </div>
 
       {/* 核心指标统计卡片 */}
       <Row gutter={[16, 16]}>

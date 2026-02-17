@@ -24,6 +24,7 @@ import {
   RobotOutlined,
   TeamOutlined,
   AuditOutlined,
+  FileSearchOutlined,
 } from '@ant-design/icons';
 
 const { Header, Sider, Content } = Layout;
@@ -37,6 +38,7 @@ const menuItems = [
   { key: '/databases', icon: <DatabaseOutlined />, label: '数据库监控' },
   { key: '/alerts', icon: <AlertOutlined />, label: '告警中心' },
   { key: '/ai-analysis', icon: <RobotOutlined />, label: 'AI 分析' },
+  { key: '/reports', icon: <FileSearchOutlined />, label: '运维报告' },
   { key: '/notification-channels', icon: <NotificationOutlined />, label: '通知渠道' },
   { key: '/notification-logs', icon: <UnorderedListOutlined />, label: '通知日志' },
   { key: '/users', icon: <TeamOutlined />, label: '用户管理' },
