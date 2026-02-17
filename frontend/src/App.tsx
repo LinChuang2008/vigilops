@@ -27,6 +27,7 @@ import Users from './pages/Users';
 import AuditLogs from './pages/AuditLogs';
 import Reports from './pages/Reports';
 import Topology from './pages/Topology';
+import SLA from './pages/SLA';
 
 export default function App() {
   return (
@@ -62,6 +63,7 @@ export default function App() {
               <Route path="/databases" element={<Databases />} />
               <Route path="/databases/:id" element={<DatabaseDetail />} />
               <Route path="/alerts" element={<AlertList />} />
+              <Route path="/sla" element={<SLA />} />
               <Route path="/ai-analysis" element={<AIAnalysis />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/notification-channels" element={<NotificationChannels />} />
