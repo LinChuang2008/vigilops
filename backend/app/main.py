@@ -14,7 +14,7 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.core.redis import get_redis, close_redis
-from app.models import User, AgentToken, Host, HostMetric, Service, ServiceCheck, Alert, AlertRule, NotificationChannel, NotificationLog, LogEntry, MonitoredDatabase, DbMetric, AIInsight, AuditLog  # noqa: F401 — register models
+from app.models import User, AgentToken, Host, HostMetric, Service, ServiceCheck, Alert, AlertRule, NotificationChannel, NotificationLog, LogEntry, MonitoredDatabase, DbMetric, AIInsight, AuditLog, Report  # noqa: F401 — register models
 from app.routers import auth
 from app.routers import agent_tokens
 from app.routers import agent
@@ -29,6 +29,7 @@ from app.routers import databases
 from app.routers import ai_analysis
 from app.routers import users
 from app.routers import audit_logs
+from app.routers import reports
 
 
 @asynccontextmanager
@@ -63,6 +64,10 @@ async def lifespan(app: FastAPI):
     from app.services.anomaly_scanner import anomaly_scanner_loop
     anomaly_task = asyncio.create_task(anomaly_scanner_loop())
 
+    # 启动报告定时生成任务
+    from app.tasks.report_scheduler import report_scheduler_loop
+    report_task = asyncio.create_task(report_scheduler_loop())
+
     yield
 
     # 关闭阶段：取消所有后台任务并释放连接
@@ -71,6 +76,7 @@ async def lifespan(app: FastAPI):
     log_cleanup_task.cancel()
     db_cleanup_task.cancel()
     anomaly_task.cancel()
+    report_task.cancel()
     await close_redis()
     await engine.dispose()
 
@@ -107,6 +113,7 @@ app.include_router(databases.router)
 app.include_router(ai_analysis.router)
 app.include_router(users.router)
 app.include_router(audit_logs.router)
+app.include_router(reports.router)
 
 
 @app.get("/health")
