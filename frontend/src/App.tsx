@@ -22,6 +22,8 @@ import Logs from './pages/Logs';
 import Databases from './pages/Databases';
 import DatabaseDetail from './pages/DatabaseDetail';
 import AIAnalysis from './pages/AIAnalysis';
+import Users from './pages/Users';
+import AuditLogs from './pages/AuditLogs';
 
 export default function App() {
   return (
@@ -59,6 +61,8 @@ export default function App() {
               <Route path="/ai-analysis" element={<AIAnalysis />} />
               <Route path="/notification-channels" element={<NotificationChannels />} />
               <Route path="/notification-logs" element={<NotificationLogs />} />
+              <Route path="/users" element={<Users />} />
+              <Route path="/audit-logs" element={<AuditLogs />} />
               <Route path="/settings" element={<Settings />} />
             </Route>
             {/* 未匹配路由重定向到首页 */}

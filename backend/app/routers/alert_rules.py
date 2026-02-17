@@ -6,7 +6,9 @@
 
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import json
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +17,7 @@ from app.core.deps import get_current_user
 from app.models.alert import AlertRule
 from app.models.user import User
 from app.schemas.alert import AlertRuleCreate, AlertRuleUpdate, AlertRuleResponse
+from app.services.audit import log_audit
 
 router = APIRouter(prefix="/api/v1/alert-rules", tags=["alert-rules"])
 

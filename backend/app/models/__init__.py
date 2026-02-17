@@ -14,5 +14,6 @@ from app.models.setting import Setting
 from app.models.log_entry import LogEntry
 from app.models.db_metric import MonitoredDatabase, DbMetric
 from app.models.ai_insight import AIInsight
+from app.models.audit_log import AuditLog
 
-__all__ = ["User", "AgentToken", "Host", "HostMetric", "Service", "ServiceCheck", "Alert", "AlertRule", "NotificationChannel", "NotificationLog", "Setting", "LogEntry", "MonitoredDatabase", "DbMetric", "AIInsight"]
+__all__ = ["User", "AgentToken", "Host", "HostMetric", "Service", "ServiceCheck", "Alert", "AlertRule", "NotificationChannel", "NotificationLog", "Setting", "LogEntry", "MonitoredDatabase", "DbMetric", "AIInsight", "AuditLog"]

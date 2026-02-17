@@ -22,6 +22,8 @@ import {
   NotificationOutlined,
   UnorderedListOutlined,
   RobotOutlined,
+  TeamOutlined,
+  AuditOutlined,
 } from '@ant-design/icons';
 
 const { Header, Sider, Content } = Layout;
@@ -37,6 +39,8 @@ const menuItems = [
   { key: '/ai-analysis', icon: <RobotOutlined />, label: 'AI 分析' },
   { key: '/notification-channels', icon: <NotificationOutlined />, label: '通知渠道' },
   { key: '/notification-logs', icon: <UnorderedListOutlined />, label: '通知日志' },
+  { key: '/users', icon: <TeamOutlined />, label: '用户管理' },
+  { key: '/audit-logs', icon: <AuditOutlined />, label: '审计日志' },
   { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
 ];
 
