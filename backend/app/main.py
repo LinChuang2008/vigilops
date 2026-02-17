@@ -31,6 +31,8 @@ from app.routers import users
 from app.routers import audit_logs
 from app.routers import reports
 from app.routers import notification_templates
+from app.routers import dashboard_ws
+from app.routers import dashboard
 
 
 @asynccontextmanager
@@ -116,6 +118,8 @@ app.include_router(users.router)
 app.include_router(audit_logs.router)
 app.include_router(reports.router)
 app.include_router(notification_templates.router)
+app.include_router(dashboard_ws.router)
+app.include_router(dashboard.router)
 
 
 @app.get("/health")
