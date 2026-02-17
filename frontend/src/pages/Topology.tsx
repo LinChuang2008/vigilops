@@ -1,23 +1,20 @@
 /**
  * 服务拓扑图页面
  *
- * 支持：
- * 1. 自动分组布局 / 力导向布局切换
- * 2. 拖拽节点 + 保存自定义布局
- * 3. 编辑模式：点击两个节点创建依赖，点击连线删除
- * 4. AI 智能推荐依赖关系
- * 5. 节点状态指示（边框色）、悬停高亮关联
+ * 图表展示 + 侧面板编辑：
+ * - 左侧：ECharts 拓扑图（拖拽节点 + 保存布局）
+ * - 右侧面板：依赖关系列表、添加/删除依赖、AI 推荐
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  Typography, Button, Spin, message, Radio, Space, Tag, Modal,
-  Tooltip, Drawer, List, Popconfirm, Select,
+  Typography, Button, Spin, message, Radio, Space, Tag,
+  Drawer, List, Select, Card, Divider, Empty, Popconfirm, Tooltip,
 } from 'antd';
 import {
   ReloadOutlined, ApartmentOutlined, NodeIndexOutlined,
   EditOutlined, SaveOutlined, UndoOutlined, RobotOutlined,
   PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined,
-  BulbOutlined,
+  BulbOutlined, UnorderedListOutlined,
 } from '@ant-design/icons';
 import * as echarts from 'echarts';
 
@@ -35,7 +32,6 @@ interface TopoEdge {
 }
 interface TopologyData {
   nodes: TopoNode[]; edges: TopoEdge[];
-  hosts?: { id: number; name: string }[];
   saved_positions?: Record<string, { x: number; y: number }> | null;
   has_custom_deps?: boolean;
 }
@@ -45,7 +41,7 @@ interface AISuggestion {
 
 type LayoutMode = 'grouped' | 'force';
 
-/* ==================== 分组配置 ==================== */
+/* ==================== 配置 ==================== */
 
 const GROUP_CONFIG: Record<string, { label: string; color: string; bgColor: string; order: number }> = {
   web:      { label: '🌐 前端服务', color: '#FFB800', bgColor: 'rgba(255,184,0,0.08)',   order: 0 },
@@ -60,8 +56,7 @@ const GROUP_CONFIG: Record<string, { label: string; color: string; bgColor: stri
 
 const STATUS_COLORS: Record<string, string> = {
   up: '#52c41a', running: '#52c41a', healthy: '#52c41a',
-  down: '#ff4d4f', stopped: '#ff4d4f',
-  warning: '#faad14', unknown: '#d9d9d9',
+  down: '#ff4d4f', stopped: '#ff4d4f', warning: '#faad14', unknown: '#d9d9d9',
 };
 const getStatusColor = (s: string) => STATUS_COLORS[s?.toLowerCase()] || STATUS_COLORS.unknown;
 const shortName = (name: string) => {
@@ -125,29 +120,21 @@ export default function Topology() {
   const [stats, setStats] = useState({ nodes: 0, edges: 0 });
   const topoData = useRef<TopologyData | null>(null);
 
-  // 编辑模式（用 ref 同步最新值给 ECharts 闭包）
-  const [editMode, setEditMode] = useState(false);
-  const [connecting, setConnecting] = useState<number | null>(null);
-  const [depType, setDepType] = useState<string>('depends_on');
-  const editModeRef = useRef(false);
-  const connectingRef = useRef<number | null>(null);
-  const depTypeRef = useRef('depends_on');
+  // 编辑面板
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [addSource, setAddSource] = useState<number | undefined>();
+  const [addTarget, setAddTarget] = useState<number | undefined>();
+  const [addType, setAddType] = useState<string>('depends_on');
 
   // AI 推荐
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>([]);
   const [aiMessage, setAiMessage] = useState('');
+  const [aiTab, setAiTab] = useState<'deps' | 'ai'>('deps');
 
   // 节点名映射
   const nodeNameMap = useRef<Map<number, string>>(new Map());
 
-  // 同步 state → ref（确保 ECharts 闭包读到最新值）
-  useEffect(() => { editModeRef.current = editMode; }, [editMode]);
-  useEffect(() => { connectingRef.current = connecting; }, [connecting]);
-  useEffect(() => { depTypeRef.current = depType; }, [depType]);
-
-  /** 获取 token */
   const getToken = () => localStorage.getItem('access_token') || '';
 
   /** 加载数据 */
@@ -161,28 +148,19 @@ export default function Topology() {
       const data: TopologyData = await res.json();
       topoData.current = data;
       setStats({ nodes: data.nodes.length, edges: data.edges.length });
-
       const nameMap = new Map<number, string>();
       data.nodes.forEach(n => nameMap.set(n.id, n.name));
       nodeNameMap.current = nameMap;
-
       renderChart(data, layout);
     } catch {
       message.error('加载拓扑数据失败');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }, [layout]); // eslint-disable-line
-
-  // 记录拖拽后的节点位置
-  const draggedPositions = useRef<Record<string, { x: number; y: number }>>({});
 
   /** 保存布局 */
   const saveLayout = async () => {
     const chart = chartInstance.current;
     if (!chart || !topoData.current) return;
-
-    // 合并：初始位置 + 拖拽修改的位置
     const option = chart.getOption() as any;
     const seriesData = option?.series?.[0]?.data;
     if (!seriesData) return;
@@ -193,9 +171,6 @@ export default function Topology() {
         positions[node.id] = { x: node.x, y: node.y };
       }
     }
-    // 覆盖拖拽过的位置
-    Object.assign(positions, draggedPositions.current);
-
     try {
       const res = await fetch('/api/v1/topology/layout', {
         method: 'POST',
@@ -204,100 +179,81 @@ export default function Topology() {
       });
       if (!res.ok) throw new Error();
       message.success('布局已保存');
-    } catch {
-      message.error('保存布局失败');
-    }
+    } catch { message.error('保存布局失败'); }
   };
 
   /** 重置布局 */
   const resetLayout = async () => {
     try {
-      await fetch('/api/v1/topology/layout', {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
+      await fetch('/api/v1/topology/layout', { method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` } });
       message.success('布局已重置');
       fetchData();
-    } catch {
-      message.error('重置失败');
-    }
+    } catch { message.error('重置失败'); }
   };
 
   /** 添加依赖 */
-  const addDependency = async (source: number, target: number) => {
+  const addDependency = async () => {
+    if (!addSource || !addTarget) { message.warning('请选择源服务和目标服务'); return; }
+    if (addSource === addTarget) { message.warning('不能连接自己'); return; }
     try {
       const res = await fetch('/api/v1/topology/dependencies', {
         method: 'POST',
         headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          source_service_id: source,
-          target_service_id: target,
-          dependency_type: depTypeRef.current,
-          description: depTypeRef.current === 'calls' ? 'API 调用（手动添加）' : '依赖关系（手动添加）',
+          source_service_id: addSource,
+          target_service_id: addTarget,
+          dependency_type: addType,
+          description: addType === 'calls' ? 'API 调用（手动添加）' : '依赖关系（手动添加）',
         }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || '添加失败');
       }
-      message.success(`已添加: ${nodeNameMap.current.get(source)} → ${nodeNameMap.current.get(target)}`);
+      message.success('依赖已添加');
+      setAddSource(undefined);
+      setAddTarget(undefined);
       fetchData();
-    } catch (e: any) {
-      message.error(e.message || '添加依赖失败');
-    }
+    } catch (e: any) { message.error(e.message || '添加失败'); }
   };
 
   /** 删除依赖 */
   const deleteDependency = async (depId: number) => {
     try {
-      const res = await fetch(`/api/v1/topology/dependencies/${depId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${getToken()}` },
+      await fetch(`/api/v1/topology/dependencies/${depId}`, {
+        method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` },
       });
-      if (!res.ok) throw new Error();
-      message.success('依赖已删除');
+      message.success('已删除');
       fetchData();
-    } catch {
-      message.error('删除失败');
-    }
+    } catch { message.error('删除失败'); }
   };
 
-  /** 清空所有自定义依赖 */
+  /** 清空依赖 */
   const clearAllDeps = async () => {
     try {
-      const res = await fetch('/api/v1/topology/dependencies', {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${getToken()}` },
+      await fetch('/api/v1/topology/dependencies', {
+        method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` },
       });
-      if (!res.ok) throw new Error();
-      message.success('已清空自定义依赖，回退到自动推断');
+      message.success('已清空，回退到自动推断');
       fetchData();
-    } catch {
-      message.error('清空失败');
-    }
+    } catch { message.error('清空失败'); }
   };
 
   /** AI 推荐 */
   const requestAISuggest = async () => {
     setAiLoading(true);
-    setAiDrawerOpen(true);
+    setAiTab('ai');
     try {
       const res = await fetch('/api/v1/topology/ai-suggest', {
         method: 'POST',
         headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'AI 分析失败');
-      }
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || 'AI 分析失败');
       const data = await res.json();
       setAiSuggestions(data.suggestions || []);
       setAiMessage(data.message || '');
-    } catch (e: any) {
-      message.error(e.message || 'AI 分析失败');
-    } finally {
-      setAiLoading(false);
-    }
+    } catch (e: any) { message.error(e.message); }
+    finally { setAiLoading(false); }
   };
 
   /** 应用单条 AI 建议 */
@@ -306,32 +262,21 @@ export default function Topology() {
       const res = await fetch('/api/v1/topology/dependencies', {
         method: 'POST',
         headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          source_service_id: s.source,
-          target_service_id: s.target,
-          dependency_type: s.type,
-          description: s.description,
-        }),
+        body: JSON.stringify({ source_service_id: s.source, target_service_id: s.target, dependency_type: s.type, description: s.description }),
       });
       if (!res.ok) throw new Error();
       message.success('已应用');
-      // 从列表移除
       setAiSuggestions(prev => prev.filter(x => !(x.source === s.source && x.target === s.target)));
       fetchData();
-    } catch {
-      message.error('应用失败');
-    }
+    } catch { message.error('应用失败'); }
   };
 
   /** 应用全部 AI 建议 */
   const applyAllSuggestions = async () => {
+    const body = aiSuggestions.map(s => ({
+      source_service_id: s.source, target_service_id: s.target, dependency_type: s.type, description: s.description,
+    }));
     try {
-      const body = aiSuggestions.map(s => ({
-        source_service_id: s.source,
-        target_service_id: s.target,
-        dependency_type: s.type,
-        description: s.description,
-      }));
       const res = await fetch('/api/v1/topology/ai-suggest/apply', {
         method: 'POST',
         headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
@@ -339,21 +284,16 @@ export default function Topology() {
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      message.success(`已应用 ${data.created} 条依赖`);
+      message.success(`已应用 ${data.created} 条`);
       setAiSuggestions([]);
-      setAiDrawerOpen(false);
       fetchData();
-    } catch {
-      message.error('批量应用失败');
-    }
+    } catch { message.error('批量应用失败'); }
   };
 
   /** 渲染图表 */
   const renderChart = (data: TopologyData, mode: LayoutMode) => {
     if (!chartRef.current) return;
-    if (!chartInstance.current) {
-      chartInstance.current = echarts.init(chartRef.current);
-    }
+    if (!chartInstance.current) chartInstance.current = echarts.init(chartRef.current);
     const chart = chartInstance.current;
     const cw = chartRef.current.clientWidth || 1200;
     const ch = chartRef.current.clientHeight || 800;
@@ -363,41 +303,28 @@ export default function Topology() {
 
     const isGrouped = mode === 'grouped';
     const autoLayout = isGrouped ? computeGroupedPositions(data.nodes, cw, ch) : null;
-
-    // 使用保存的位置 > 自动计算
     const savedPos = data.saved_positions;
 
     const categoryNames = Array.from(new Set(data.nodes.map(n => n.group)));
     const categories = categoryNames.map(g => ({
-      name: GROUP_CONFIG[g]?.label || g,
-      itemStyle: { color: GROUP_CONFIG[g]?.color || '#999' },
+      name: GROUP_CONFIG[g]?.label || g, itemStyle: { color: GROUP_CONFIG[g]?.color || '#999' },
     }));
 
     const nodes = data.nodes.map(n => {
-      const cfg = GROUP_CONFIG[n.group] || { color: '#999', label: n.group };
-      // 优先用保存位置，其次自动计算
+      const cfg = GROUP_CONFIG[n.group] || { color: '#999' };
       const sp = savedPos?.[String(n.id)];
       const ap = autoLayout?.positions.get(n.id);
       const pos = sp || ap;
-
       return {
-        id: String(n.id),
-        name: shortName(n.name),
-        symbolSize: 40,
-        symbol: 'circle',
+        id: String(n.id), name: shortName(n.name), symbolSize: 40, symbol: 'circle',
         ...(pos ? { x: pos.x, y: pos.y, fixed: isGrouped } : {}),
-        itemStyle: {
-          color: cfg.color, borderColor: getStatusColor(n.status),
-          borderWidth: 3, shadowColor: 'rgba(0,0,0,0.1)', shadowBlur: 8,
-        },
+        itemStyle: { color: cfg.color, borderColor: getStatusColor(n.status), borderWidth: 3, shadowColor: 'rgba(0,0,0,0.1)', shadowBlur: 8 },
         label: { show: true, position: 'bottom' as const, fontSize: 11, color: '#555' },
         tooltip: {
-          formatter:
-            `<div style="font-weight:600;margin-bottom:4px">${n.name}</div>` +
-            `<div>类型: ${cfg.label}</div>` +
+          formatter: `<div style="font-weight:600;margin-bottom:4px">${n.name}</div>` +
+            `<div>类型: ${GROUP_CONFIG[n.group]?.label || n.group}</div>` +
             `<div>状态: <span style="color:${getStatusColor(n.status)}">●</span> ${n.status}</div>` +
-            `<div>主机: ${n.host || '—'}</div>` +
-            (editMode ? '<div style="color:#1890ff;margin-top:4px">💡 点击选中此节点创建连线</div>' : ''),
+            `<div>主机: ${n.host || '—'}</div>`,
         },
         category: categoryNames.indexOf(n.group),
       };
@@ -408,112 +335,35 @@ export default function Topology() {
       return {
         source: String(e.source), target: String(e.target),
         lineStyle: { color: style.color, type: style.type, width: style.width, curveness: 0.2 },
-        edgeSymbol: ['none', 'arrow'] as [string, string],
-        edgeSymbolSize: [0, 8],
+        edgeSymbol: ['none', 'arrow'] as [string, string], edgeSymbolSize: [0, 8],
         tooltip: {
-          formatter:
-            `<b>${idMap.get(e.source) ?? e.source}</b> → <b>${idMap.get(e.target) ?? e.target}</b>` +
-            `<br/>${style.label}: ${e.description}` +
-            (e.manual && e.id ? `<br/><span style="color:#ff4d4f">🗑️ 编辑模式下点击可删除 (ID:${e.id})</span>` : ''),
+          formatter: `<b>${idMap.get(e.source) ?? e.source}</b> → <b>${idMap.get(e.target) ?? e.target}</b><br/>${style.label}: ${e.description}`,
         },
-        // 存储 edge 元数据用于点击事件
-        _depId: e.id,
-        _manual: e.manual,
       };
     });
 
-    // 分组背景
     const graphics: any[] = [];
     if (isGrouped && !savedPos && autoLayout?.groupBoxes) {
       for (const box of autoLayout.groupBoxes) {
-        graphics.push({
-          type: 'rect', left: box.x, top: box.y, z: -1, silent: true,
-          shape: { width: box.width, height: box.height, r: 8 },
-          style: { fill: box.bgColor, stroke: 'rgba(0,0,0,0.06)', lineWidth: 1 },
-        });
-        graphics.push({
-          type: 'text', left: box.x + 10, top: box.y + 10, silent: true,
-          style: { text: box.label, fontSize: 13, fontWeight: 'bold' as const, fill: '#666' },
-        });
+        graphics.push({ type: 'rect', left: box.x, top: box.y, z: -1, silent: true, shape: { width: box.width, height: box.height, r: 8 }, style: { fill: box.bgColor, stroke: 'rgba(0,0,0,0.06)', lineWidth: 1 } });
+        graphics.push({ type: 'text', left: box.x + 10, top: box.y + 10, silent: true, style: { text: box.label, fontSize: 13, fontWeight: 'bold' as const, fill: '#666' } });
       }
     }
 
-    const option: echarts.EChartsOption = {
+    chart.setOption({
       tooltip: { trigger: 'item', confine: true },
-      legend: {
-        data: categories.map(c => c.name), orient: 'horizontal', bottom: 10,
-        textStyle: { fontSize: 12 }, itemWidth: 14, itemHeight: 14,
-      },
+      legend: { data: categories.map(c => c.name), orient: 'horizontal', bottom: 10, textStyle: { fontSize: 12 }, itemWidth: 14, itemHeight: 14 },
       graphic: graphics,
       animationDuration: 500,
       series: [{
-        type: 'graph',
-        layout: isGrouped ? 'none' : 'force',
-        roam: true,
-        draggable: true,
-        zoom: 1,
-        categories,
-        data: nodes,
-        links: edges as any,
-        ...(mode === 'force' ? {
-          force: { repulsion: 400, edgeLength: [150, 300], gravity: 0.08, layoutAnimation: true },
-        } : {}),
-        emphasis: {
-          focus: 'adjacency',
-          lineStyle: { width: 3 },
-          itemStyle: { shadowBlur: 12, shadowColor: 'rgba(0,0,0,0.3)' },
-        },
+        type: 'graph', layout: isGrouped ? 'none' : 'force', roam: true, draggable: true, zoom: 1,
+        categories, data: nodes, links: edges as any,
+        ...(mode === 'force' ? { force: { repulsion: 400, edgeLength: [150, 300], gravity: 0.08, layoutAnimation: true } } : {}),
+        emphasis: { focus: 'adjacency', lineStyle: { width: 3 }, itemStyle: { shadowBlur: 12, shadowColor: 'rgba(0,0,0,0.3)' } },
         lineStyle: { curveness: 0.2 },
       }],
-    };
-
-    chart.setOption(option, true);
+    }, true);
     chart.resize();
-
-    // 注册拖拽结束事件，记录新位置
-    chart.off('mouseup');
-    chart.on('mouseup', (params: any) => {
-      if (params.dataType === 'node' && params.event) {
-        // 通过 convertFromPixel 获取拖拽后的逻辑坐标
-        const point = chart.convertFromPixel({ seriesIndex: 0 }, [params.event.offsetX, params.event.offsetY]);
-        if (point) {
-          draggedPositions.current[params.data.id] = { x: point[0], y: point[1] };
-        }
-      }
-    });
-
-    // 注册点击事件（通过 ref 读取最新 state）
-    chart.off('click');
-    chart.on('click', (params: any) => {
-      if (!editModeRef.current) return;
-
-      if (params.dataType === 'node') {
-        const nodeId = parseInt(params.data.id);
-        const currentConnecting = connectingRef.current;
-        if (currentConnecting === null) {
-          setConnecting(nodeId);
-          message.info(`已选中 "${idMap.get(nodeId)}"，点击目标节点完成连线`);
-        } else if (currentConnecting === nodeId) {
-          setConnecting(null);
-          message.info('已取消选择');
-        } else {
-          addDependency(currentConnecting, nodeId);
-          setConnecting(null);
-        }
-      } else if (params.dataType === 'edge') {
-        const depId = params.data?._depId;
-        const isManual = params.data?._manual;
-        if (depId && isManual) {
-          Modal.confirm({
-            title: '删除依赖关系？',
-            content: `${params.data.source} → ${params.data.target}`,
-            okText: '删除',
-            okType: 'danger',
-            onOk: () => deleteDependency(depId),
-          });
-        }
-      }
-    });
   };
 
   const handleLayoutChange = (mode: LayoutMode) => {
@@ -527,6 +377,14 @@ export default function Topology() {
     window.addEventListener('resize', onResize);
     return () => { window.removeEventListener('resize', onResize); chartInstance.current?.dispose(); };
   }, []); // eslint-disable-line
+
+  /** 节点下拉选项 */
+  const nodeOptions = topoData.current?.nodes.map(n => ({
+    value: n.id, label: `${shortName(n.name)}  [${GROUP_CONFIG[n.group]?.label || n.group}]`,
+  })) || [];
+
+  /** 当前依赖列表 */
+  const currentEdges = topoData.current?.edges || [];
 
   return (
     <div>
@@ -544,63 +402,10 @@ export default function Topology() {
             <Radio.Button value="grouped"><ApartmentOutlined /> 分组</Radio.Button>
             <Radio.Button value="force"><NodeIndexOutlined /> 力导向</Radio.Button>
           </Radio.Group>
+          <Tooltip title="保存节点位置"><Button icon={<SaveOutlined />} onClick={saveLayout}>保存布局</Button></Tooltip>
+          <Tooltip title="重置为自动布局"><Button icon={<UndoOutlined />} onClick={resetLayout}>重置</Button></Tooltip>
+          <Button type="primary" icon={<EditOutlined />} onClick={() => setPanelOpen(true)}>编辑依赖</Button>
           <Button icon={<ReloadOutlined />} onClick={fetchData} loading={loading}>刷新</Button>
-        </Space>
-      </div>
-
-      {/* 工具栏 */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        marginBottom: 12, padding: '8px 12px', background: editMode ? '#fff7e6' : '#fafafa',
-        borderRadius: 6, border: `1px solid ${editMode ? '#ffd591' : '#f0f0f0'}`,
-      }}>
-        <Space>
-          {/* 编辑模式切换 */}
-          <Button
-            type={editMode ? 'primary' : 'default'}
-            icon={editMode ? <CheckOutlined /> : <EditOutlined />}
-            onClick={() => { setEditMode(!editMode); setConnecting(null); }}
-            danger={editMode}
-          >
-            {editMode ? '退出编辑' : '编辑模式'}
-          </Button>
-
-          {editMode && (
-            <>
-              <Select value={depType} onChange={setDepType} size="small" style={{ width: 130 }}
-                options={[
-                  { label: '━ API 调用', value: 'calls' },
-                  { label: '╌ 依赖关系', value: 'depends_on' },
-                ]}
-              />
-              {connecting && (
-                <Tag color="processing" icon={<PlusOutlined />}>
-                  已选: {shortName(nodeNameMap.current.get(connecting) || '')} → 点击目标节点
-                  <CloseOutlined style={{ marginLeft: 4, cursor: 'pointer' }} onClick={() => setConnecting(null)} />
-                </Tag>
-              )}
-              <Popconfirm title="清空所有自定义依赖？" onConfirm={clearAllDeps} okText="清空" okType="danger">
-                <Button size="small" danger icon={<DeleteOutlined />}>清空依赖</Button>
-              </Popconfirm>
-            </>
-          )}
-        </Space>
-
-        <Space>
-          {/* AI 推荐 */}
-          <Tooltip title="AI 分析服务关系，智能推荐依赖">
-            <Button icon={<RobotOutlined />} onClick={requestAISuggest} loading={aiLoading}>
-              AI 推荐
-            </Button>
-          </Tooltip>
-
-          {/* 布局操作 */}
-          <Tooltip title="保存当前节点位置">
-            <Button icon={<SaveOutlined />} onClick={saveLayout}>保存布局</Button>
-          </Tooltip>
-          <Tooltip title="重置为自动布局">
-            <Button icon={<UndoOutlined />} onClick={resetLayout}>重置布局</Button>
-          </Tooltip>
         </Space>
       </div>
 
@@ -608,81 +413,163 @@ export default function Topology() {
       <div style={{ marginBottom: 8 }}>
         <Space size={16}>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            连线: <span style={{ color: '#1890ff' }}>━</span> API 调用　
-            <span style={{ color: '#faad14' }}>╌╌</span> 依赖
+            连线: <span style={{ color: '#1890ff' }}>━</span> API 调用　<span style={{ color: '#faad14' }}>╌╌</span> 依赖
           </Text>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            边框: <span style={{ color: '#52c41a' }}>●</span> 正常　
-            <span style={{ color: '#ff4d4f' }}>●</span> 异常　
-            <span style={{ color: '#d9d9d9' }}>●</span> 未知
+            边框: <span style={{ color: '#52c41a' }}>●</span> 正常　<span style={{ color: '#ff4d4f' }}>●</span> 异常
           </Text>
-          {editMode && (
-            <Text type="warning" style={{ fontSize: 12 }}>
-              ✏️ 编辑模式：点击节点创建连线，点击自定义连线删除
-            </Text>
-          )}
+          <Text type="secondary" style={{ fontSize: 12 }}>💡 拖拽节点调整位置，点「保存布局」持久化</Text>
         </Space>
       </div>
 
       {/* 图表 */}
       <Spin spinning={loading}>
         <div ref={chartRef} style={{
-          width: '100%', height: 'calc(100vh - 280px)', minHeight: 550,
+          width: '100%', height: 'calc(100vh - 230px)', minHeight: 550,
           background: '#fafafa', borderRadius: 8, border: '1px solid #f0f0f0',
         }} />
       </Spin>
 
-      {/* AI 推荐抽屉 */}
+      {/* ===== 编辑面板 (Drawer) ===== */}
       <Drawer
-        title={<Space><RobotOutlined /> AI 智能推荐</Space>}
-        open={aiDrawerOpen}
-        onClose={() => setAiDrawerOpen(false)}
-        width={480}
-        extra={
-          aiSuggestions.length > 0 ? (
-            <Button type="primary" icon={<CheckOutlined />} onClick={applyAllSuggestions}>
-              全部应用 ({aiSuggestions.length})
-            </Button>
-          ) : null
-        }
+        title="编辑依赖关系"
+        open={panelOpen}
+        onClose={() => setPanelOpen(false)}
+        width={500}
       >
-        {aiLoading ? (
-          <div style={{ textAlign: 'center', padding: 40 }}>
-            <Spin size="large" />
-            <Paragraph style={{ marginTop: 16 }}>AI 正在分析服务关系...</Paragraph>
-          </div>
-        ) : (
+        {/* Tab 切换 */}
+        <Radio.Group value={aiTab} onChange={e => setAiTab(e.target.value)} style={{ marginBottom: 16, width: '100%' }}
+          optionType="button" buttonStyle="solid">
+          <Radio.Button value="deps" style={{ width: '50%', textAlign: 'center' }}>
+            <UnorderedListOutlined /> 依赖管理
+          </Radio.Button>
+          <Radio.Button value="ai" style={{ width: '50%', textAlign: 'center' }}>
+            <RobotOutlined /> AI 推荐
+          </Radio.Button>
+        </Radio.Group>
+
+        {aiTab === 'deps' ? (
           <>
-            {aiMessage && <Paragraph type="secondary"><BulbOutlined /> {aiMessage}</Paragraph>}
-            {aiSuggestions.length === 0 ? (
-              <Paragraph type="secondary">暂无新的推荐依赖关系</Paragraph>
+            {/* 添加依赖 */}
+            <Card size="small" title={<><PlusOutlined /> 添加依赖</>} style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>源服务（从）</Text>
+                  <Select
+                    value={addSource} onChange={setAddSource} placeholder="选择源服务"
+                    style={{ width: '100%' }} showSearch optionFilterProp="label"
+                    options={nodeOptions}
+                  />
+                </div>
+                <div style={{ textAlign: 'center', color: '#999' }}>↓</div>
+                <div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>目标服务（到）</Text>
+                  <Select
+                    value={addTarget} onChange={setAddTarget} placeholder="选择目标服务"
+                    style={{ width: '100%' }} showSearch optionFilterProp="label"
+                    options={nodeOptions}
+                  />
+                </div>
+                <div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>依赖类型</Text>
+                  <Select value={addType} onChange={setAddType} style={{ width: '100%' }}
+                    options={[
+                      { label: '━ API 调用 (calls)', value: 'calls' },
+                      { label: '╌ 依赖关系 (depends_on)', value: 'depends_on' },
+                    ]}
+                  />
+                </div>
+                <Button type="primary" icon={<PlusOutlined />} onClick={addDependency} block>
+                  添加依赖
+                </Button>
+              </div>
+            </Card>
+
+            <Divider />
+
+            {/* 依赖列表 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text strong>当前依赖 ({currentEdges.length})</Text>
+              {currentEdges.some(e => e.manual) && (
+                <Popconfirm title="清空所有自定义依赖？" onConfirm={clearAllDeps} okText="清空" okType="danger">
+                  <Button size="small" danger icon={<DeleteOutlined />}>清空自定义</Button>
+                </Popconfirm>
+              )}
+            </div>
+
+            {currentEdges.length === 0 ? (
+              <Empty description="暂无依赖关系" />
             ) : (
               <List
+                size="small"
+                dataSource={currentEdges}
+                renderItem={(edge) => (
+                  <List.Item
+                    actions={edge.manual && edge.id ? [
+                      <Popconfirm key="del" title="删除此依赖？" onConfirm={() => deleteDependency(edge.id!)} okText="删除" okType="danger">
+                        <Button type="link" danger size="small" icon={<DeleteOutlined />} />
+                      </Popconfirm>,
+                    ] : [<Tag key="auto" style={{ fontSize: 11 }}>自动</Tag>]}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                      <Text ellipsis style={{ maxWidth: 140 }}>{shortName(nodeNameMap.current.get(edge.source) || String(edge.source))}</Text>
+                      <span style={{ color: '#999' }}>→</span>
+                      <Text ellipsis style={{ maxWidth: 140 }}>{shortName(nodeNameMap.current.get(edge.target) || String(edge.target))}</Text>
+                      <Tag color={edge.type === 'calls' ? 'blue' : 'orange'} style={{ marginLeft: 'auto', flexShrink: 0 }}>
+                        {edge.type === 'calls' ? '调用' : '依赖'}
+                      </Tag>
+                    </div>
+                  </List.Item>
+                )}
+              />
+            )}
+          </>
+        ) : (
+          /* AI 推荐 Tab */
+          <>
+            <Button
+              type="primary" icon={<RobotOutlined />} onClick={requestAISuggest}
+              loading={aiLoading} block style={{ marginBottom: 16 }}
+            >
+              {aiLoading ? 'AI 分析中...' : '开始 AI 分析'}
+            </Button>
+
+            {aiMessage && <Paragraph type="secondary"><BulbOutlined /> {aiMessage}</Paragraph>}
+
+            {aiSuggestions.length > 0 && (
+              <Button type="primary" ghost icon={<CheckOutlined />} onClick={applyAllSuggestions} block style={{ marginBottom: 12 }}>
+                全部应用 ({aiSuggestions.length} 条)
+              </Button>
+            )}
+
+            {aiLoading ? (
+              <div style={{ textAlign: 'center', padding: 40 }}><Spin size="large" /><Paragraph style={{ marginTop: 16 }}>AI 正在分析服务关系...</Paragraph></div>
+            ) : aiSuggestions.length === 0 ? (
+              <Empty description="暂无推荐，点击上方按钮开始分析" />
+            ) : (
+              <List
+                size="small"
                 dataSource={aiSuggestions}
                 renderItem={(item) => (
                   <List.Item
                     actions={[
-                      <Button type="link" icon={<CheckOutlined />} onClick={() => applyOneSuggestion(item)}>
-                        应用
-                      </Button>,
-                      <Button type="link" danger icon={<CloseOutlined />}
-                        onClick={() => setAiSuggestions(prev => prev.filter(x => x !== item))}>
-                        忽略
-                      </Button>,
+                      <Button key="apply" type="link" icon={<CheckOutlined />} onClick={() => applyOneSuggestion(item)}>应用</Button>,
+                      <Button key="ignore" type="link" danger icon={<CloseOutlined />}
+                        onClick={() => setAiSuggestions(prev => prev.filter(x => x !== item))}>忽略</Button>,
                     ]}
                   >
                     <List.Item.Meta
                       title={
-                        <Space>
-                          <Text strong>{shortName(nodeNameMap.current.get(item.source) || String(item.source))}</Text>
-                          <Text type="secondary">→</Text>
-                          <Text strong>{shortName(nodeNameMap.current.get(item.target) || String(item.target))}</Text>
-                          <Tag color={item.type === 'calls' ? 'blue' : 'orange'} style={{ marginLeft: 4 }}>
-                            {item.type === 'calls' ? 'API 调用' : '依赖'}
+                        <Space size={4}>
+                          <Text strong style={{ fontSize: 13 }}>{shortName(nodeNameMap.current.get(item.source) || '')}</Text>
+                          <span style={{ color: '#999' }}>→</span>
+                          <Text strong style={{ fontSize: 13 }}>{shortName(nodeNameMap.current.get(item.target) || '')}</Text>
+                          <Tag color={item.type === 'calls' ? 'blue' : 'orange'} style={{ fontSize: 11 }}>
+                            {item.type === 'calls' ? '调用' : '依赖'}
                           </Tag>
                         </Space>
                       }
-                      description={item.description}
+                      description={<Text type="secondary" style={{ fontSize: 12 }}>{item.description}</Text>}
                     />
                   </List.Item>
                 )}
