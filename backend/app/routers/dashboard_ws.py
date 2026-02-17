@@ -171,10 +171,15 @@ async def dashboard_ws(websocket: WebSocket):
             try:
                 data = await _collect_dashboard_data()
                 await websocket.send_text(json.dumps(data, ensure_ascii=False))
+            except (WebSocketDisconnect, RuntimeError):
+                # 连接已关闭，退出循环
+                break
             except Exception as e:
-                logger.error(f"收集仪表盘数据失败: {e}")
+                logger.warning(f"收集仪表盘数据失败: {e}")
             await asyncio.sleep(PUSH_INTERVAL)
     except WebSocketDisconnect:
-        logger.info("仪表盘 WebSocket 客户端已断开")
+        pass
     except Exception as e:
         logger.error(f"仪表盘 WebSocket 异常: {e}")
+    finally:
+        logger.info("仪表盘 WebSocket 客户端已断开")
