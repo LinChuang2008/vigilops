@@ -48,12 +48,23 @@ export interface ServiceCheck {
   checked_at: string;
 }
 
+/** 主机分组数据 */
+export interface HostGroup {
+  host_id: number;
+  hostname: string;
+  ip: string;
+  host_status: string;
+  services: Service[];
+}
+
 /** 服务列表分页响应 */
 export interface ServiceListResponse {
   items: Service[];
   total: number;
   page: number;
   page_size: number;
+  /** 按主机分组（group_by_host=true 时返回） */
+  host_groups?: HostGroup[];
 }
 
 /** 服务监控服务 */

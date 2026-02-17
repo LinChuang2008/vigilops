@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.service import Service, ServiceCheck
+from app.models.host import Host
 from app.models.user import User
 from app.schemas.service import ServiceResponse, ServiceCheckResponse
 
@@ -40,12 +41,17 @@ async def list_services(
     page_size: int = Query(20, ge=1, le=100),
     status: str | None = None,
     category: str | None = None,
+    host_id: int | None = None,
+    group_by_host: bool = False,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """分页查询服务列表，支持按状态和分类筛选，附带 24h 可用率。"""
-    query = select(Service)
-    count_query = select(func.count()).select_from(Service)
+    """
+    分页查询服务列表，支持按状态、分类、主机筛选，附带 24h 可用率。
+    group_by_host=true 时返回按主机分组的结构。
+    """
+    query = select(Service).where(Service.is_active == True)
+    count_query = select(func.count()).select_from(Service).where(Service.is_active == True)
 
     if status:
         query = query.where(Service.status == status)
@@ -53,19 +59,55 @@ async def list_services(
     if category:
         query = query.where(Service.category == category)
         count_query = count_query.where(Service.category == category)
+    if host_id:
+        query = query.where(Service.host_id == host_id)
+        count_query = count_query.where(Service.host_id == host_id)
 
     total = (await db.execute(count_query)).scalar()
-    query = query.order_by(Service.id.desc()).offset((page - 1) * page_size).limit(page_size)
+    query = query.order_by(Service.host_id, Service.category, Service.name).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(query)
     services = result.scalars().all()
+
+    # 查询主机名映射
+    host_ids = list(set(s.host_id for s in services if s.host_id))
+    host_map = {}
+    if host_ids:
+        host_result = await db.execute(
+            select(Host.id, Host.hostname, Host.ip_address, Host.status)
+            .where(Host.id.in_(host_ids))
+        )
+        for hid, hname, hip, hstatus in host_result.all():
+            host_map[hid] = {"id": hid, "hostname": hname, "ip": hip, "status": hstatus}
 
     items = []
     for s in services:
         data = ServiceResponse.model_validate(s)
         data.uptime_percent = await _calc_uptime(db, s.id)
-        items.append(data.model_dump())
+        d = data.model_dump()
+        # 附加主机信息
+        d["host_info"] = host_map.get(s.host_id) if s.host_id else None
+        items.append(d)
 
-    return {"items": items, "total": total, "page": page, "page_size": page_size}
+    resp = {"items": items, "total": total, "page": page, "page_size": page_size}
+
+    # group_by_host 模式：额外返回按主机分组的结构
+    if group_by_host:
+        groups = {}
+        for item in items:
+            hid = item.get("host_id") or 0
+            if hid not in groups:
+                hi = item.get("host_info") or {}
+                groups[hid] = {
+                    "host_id": hid,
+                    "hostname": hi.get("hostname", "未关联主机"),
+                    "ip": hi.get("ip", ""),
+                    "host_status": hi.get("status", "unknown"),
+                    "services": [],
+                }
+            groups[hid]["services"].append(item)
+        resp["host_groups"] = list(groups.values())
+
+    return resp
 
 
 @router.get("/{service_id}", response_model=ServiceResponse)

@@ -1,76 +1,102 @@
 /**
  * 服务监控列表页面
  *
- * 支持按分类（中间件/业务系统/基础设施）和状态筛选，
- * 分类用彩色标签区分，表格展示服务状态、可用率等信息。
+ * 按服务器分组展示服务，每个服务器一个折叠卡片，内含该服务器上的所有服务。
+ * 支持按分类（中间件/业务系统）和状态筛选。
+ * 单台服务器时平铺显示，多台时分组显示。
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Table, Card, Tag, Typography, Progress, Button,
-  Row, Col, Select, Space, Statistic, Segmented,
+  Row, Col, Select, Space, Statistic, Collapse, Badge, Empty,
 } from 'antd';
 import {
-  CloudServerOutlined, DatabaseOutlined, AppstoreOutlined, ApiOutlined,
+  CloudServerOutlined, DatabaseOutlined, AppstoreOutlined,
+  ApiOutlined, DesktopOutlined, ReloadOutlined,
 } from '@ant-design/icons';
 import { serviceService } from '../services/services';
 import type { Service } from '../services/services';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
-/** 分类配置：颜色、图标、中文名 */
+/* ==================== 类型定义 ==================== */
+
+/** 主机分组数据 */
+interface HostGroup {
+  host_id: number;
+  hostname: string;
+  ip: string;
+  host_status: string;
+  services: ServiceItem[];
+}
+
+/** 带主机信息的服务 */
+interface ServiceItem extends Service {
+  host_info?: { id: number; hostname: string; ip: string; status: string } | null;
+}
+
+/* ==================== 分类配置 ==================== */
+
 const CATEGORY_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  middleware:      { label: '中间件',   color: 'purple',  icon: <DatabaseOutlined /> },
-  business:       { label: '业务系统', color: 'blue',    icon: <AppstoreOutlined /> },
-  infrastructure: { label: '基础设施', color: 'cyan',    icon: <CloudServerOutlined /> },
+  middleware:      { label: '中间件',   color: 'purple', icon: <DatabaseOutlined /> },
+  business:       { label: '业务系统', color: 'blue',   icon: <AppstoreOutlined /> },
+  infrastructure: { label: '基础设施', color: 'cyan',   icon: <CloudServerOutlined /> },
 };
 
-/** 获取分类标签 */
+/** 分类标签组件 */
 const CategoryTag = ({ category }: { category?: string }) => {
   const config = CATEGORY_CONFIG[category || ''] || { label: category || '未分类', color: 'default', icon: <ApiOutlined /> };
-  return (
-    <Tag color={config.color} icon={config.icon} style={{ marginRight: 0 }}>
-      {config.label}
-    </Tag>
-  );
+  return <Tag color={config.color} icon={config.icon} style={{ marginRight: 0 }}>{config.label}</Tag>;
 };
 
+/** 状态颜色 */
+const statusColor = (s: string) => {
+  if (s === 'healthy' || s === 'up') return 'success';
+  if (s === 'degraded') return 'warning';
+  return 'error';
+};
+const statusText = (s: string) => {
+  if (s === 'healthy' || s === 'up') return '健康';
+  if (s === 'degraded') return '降级';
+  return '异常';
+};
+
+/* ==================== 组件 ==================== */
+
 export default function ServiceList() {
-  const [services, setServices] = useState<Service[]>([]);
+  const [services, setServices] = useState<ServiceItem[]>([]);
+  const [hostGroups, setHostGroups] = useState<HostGroup[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  /** 状态筛选 */
-  const [statusFilter, setStatusFilter] = useState<string>('');
-  /** 分类筛选 */
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
+  const [categoryFilter, setCategoryFilter] = useState<string | undefined>(undefined);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetch = async () => {
-      setLoading(true);
-      try {
-        const params: Record<string, unknown> = { page, page_size: 50 };
-        if (statusFilter) params.status = statusFilter;
-        if (categoryFilter && categoryFilter !== 'all') params.category = categoryFilter;
-        const { data } = await serviceService.list(params);
-        setServices(data.items || []);
-        setTotal(data.total || 0);
-      } catch { /* ignore */ } finally { setLoading(false); }
-    };
-    fetch();
-  }, [page, statusFilter, categoryFilter]);
+  /** 拉取数据（group_by_host） */
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const params: Record<string, unknown> = { page: 1, page_size: 100, group_by_host: true };
+      if (statusFilter) params.status = statusFilter;
+      if (categoryFilter) params.category = categoryFilter;
+      const { data } = await serviceService.list(params);
+      setServices(data.items || []);
+      setTotal(data.total || 0);
+      setHostGroups(data.host_groups || []);
+    } catch { /* ignore */ } finally { setLoading(false); }
+  };
 
-  /** 统计各分类数量 */
-  const categoryCounts = services.reduce<Record<string, number>>((acc, s) => {
-    const cat = s.category || 'unknown';
-    acc[cat] = (acc[cat] || 0) + 1;
-    return acc;
-  }, {});
+  useEffect(() => { fetchData(); }, [statusFilter, categoryFilter]); // eslint-disable-line
 
-  /** 统计各状态数量 */
-  const healthyCount = services.filter(s => s.status === 'healthy' || s.status === 'up').length;
-  const unhealthyCount = services.filter(s => s.status === 'unhealthy' || s.status === 'down').length;
+  /** 统计 */
+  const stats = useMemo(() => {
+    const healthy = services.filter(s => s.status === 'healthy' || s.status === 'up').length;
+    const unhealthy = services.filter(s => s.status === 'unhealthy' || s.status === 'down').length;
+    const mw = services.filter(s => s.category === 'middleware').length;
+    const biz = services.filter(s => s.category === 'business').length;
+    return { healthy, unhealthy, mw, biz, hosts: hostGroups.length };
+  }, [services, hostGroups]);
 
   /** 表格列定义 */
   const columns = [
@@ -78,8 +104,8 @@ export default function ServiceList() {
       title: '服务名',
       dataIndex: 'name',
       key: 'name',
-      render: (text: string, record: Service) => (
-        <Button type="link" onClick={() => navigate(`/services/${record.id}`)}>
+      render: (text: string, record: ServiceItem) => (
+        <Button type="link" style={{ padding: 0 }} onClick={() => navigate(`/services/${record.id}`)}>
           {text}
         </Button>
       ),
@@ -88,22 +114,22 @@ export default function ServiceList() {
       title: '分类',
       dataIndex: 'category',
       key: 'category',
-      width: 120,
+      width: 110,
       render: (cat: string) => <CategoryTag category={cat} />,
     },
     {
-      title: 'URL',
+      title: '目标地址',
       key: 'url',
       ellipsis: true,
-      render: (_: unknown, r: Service) => (
-        <span style={{ color: '#999', fontSize: 13 }}>{r.target || r.url || '-'}</span>
+      render: (_: unknown, r: ServiceItem) => (
+        <Text type="secondary" style={{ fontSize: 13 }}>{r.target || r.url || '-'}</Text>
       ),
     },
     {
-      title: '检查类型',
+      title: '类型',
       key: 'check_type',
-      width: 100,
-      render: (_: unknown, r: Service) => (
+      width: 80,
+      render: (_: unknown, r: ServiceItem) => (
         <Tag>{(r.type || r.check_type || '')?.toUpperCase()}</Tag>
       ),
     },
@@ -112,21 +138,13 @@ export default function ServiceList() {
       dataIndex: 'status',
       key: 'status',
       width: 80,
-      render: (s: string) => {
-        const isHealthy = s === 'healthy' || s === 'up';
-        const isDegraded = s === 'degraded';
-        return (
-          <Tag color={isHealthy ? 'success' : isDegraded ? 'warning' : 'error'}>
-            {isHealthy ? '健康' : isDegraded ? '降级' : '异常'}
-          </Tag>
-        );
-      },
+      render: (s: string) => <Tag color={statusColor(s)}>{statusText(s)}</Tag>,
     },
     {
-      title: '可用率',
+      title: '可用率 (24h)',
       dataIndex: 'uptime_percent',
       key: 'uptime',
-      width: 160,
+      width: 150,
       render: (v: number) => (
         <Progress
           percent={v != null ? Math.round(v * 100) / 100 : 0}
@@ -144,98 +162,149 @@ export default function ServiceList() {
     },
   ];
 
+  /** 渲染单个主机的服务表格 */
+  const renderServiceTable = (items: ServiceItem[]) => (
+    <Table
+      dataSource={items}
+      columns={columns}
+      rowKey="id"
+      size="small"
+      pagination={false}
+    />
+  );
+
+  /** 渲染主机卡片头部 */
+  const renderHostHeader = (group: HostGroup) => {
+    const healthyCount = group.services.filter(s => s.status === 'up' || s.status === 'healthy').length;
+    const totalCount = group.services.length;
+    const mwCount = group.services.filter(s => s.category === 'middleware').length;
+    const bizCount = group.services.filter(s => s.category === 'business').length;
+    const isOnline = group.host_status === 'online';
+
+    return (
+      <Space size={16} style={{ width: '100%' }}>
+        <Space>
+          <DesktopOutlined style={{ fontSize: 18, color: isOnline ? '#52c41a' : '#ff4d4f' }} />
+          <span style={{ fontWeight: 600, fontSize: 15 }}>{group.hostname}</span>
+          {group.ip && <Text type="secondary">({group.ip})</Text>}
+          <Tag color={isOnline ? 'success' : 'error'}>{isOnline ? '在线' : '离线'}</Tag>
+        </Space>
+        <Space size={12}>
+          <Badge
+            count={`${healthyCount}/${totalCount}`}
+            style={{ backgroundColor: healthyCount === totalCount ? '#52c41a' : '#faad14' }}
+          />
+          {mwCount > 0 && <Tag color="purple">中间件 {mwCount}</Tag>}
+          {bizCount > 0 && <Tag color="blue">业务 {bizCount}</Tag>}
+        </Space>
+      </Space>
+    );
+  };
+
+  const isSingleHost = hostGroups.length <= 1;
+
   return (
     <div>
-      {/* 顶部标题和统计 */}
+      {/* 标题 + 统计 */}
       <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
         <Col>
-          <Title level={4} style={{ margin: 0 }}>服务监控</Title>
+          <Space size={16}>
+            <Title level={4} style={{ margin: 0 }}>服务监控</Title>
+            <Tag icon={<DesktopOutlined />} color="default">{stats.hosts} 台服务器</Tag>
+          </Space>
         </Col>
         <Col>
-          <Space size={24}>
-            <Statistic title="总服务" value={total} valueStyle={{ fontSize: 20 }} />
+          <Space size={20}>
+            <Statistic title="总服务" value={total} valueStyle={{ fontSize: 18 }} />
+            <Statistic
+              title="中间件"
+              value={stats.mw}
+              prefix={<DatabaseOutlined />}
+              valueStyle={{ fontSize: 18, color: '#722ed1' }}
+            />
+            <Statistic
+              title="业务系统"
+              value={stats.biz}
+              prefix={<AppstoreOutlined />}
+              valueStyle={{ fontSize: 18, color: '#1890ff' }}
+            />
             <Statistic
               title="健康"
-              value={healthyCount}
-              valueStyle={{ fontSize: 20, color: '#52c41a' }}
+              value={stats.healthy}
+              valueStyle={{ fontSize: 18, color: '#52c41a' }}
             />
             <Statistic
               title="异常"
-              value={unhealthyCount}
-              valueStyle={{ fontSize: 20, color: unhealthyCount > 0 ? '#ff4d4f' : '#d9d9d9' }}
+              value={stats.unhealthy}
+              valueStyle={{ fontSize: 18, color: stats.unhealthy > 0 ? '#ff4d4f' : '#d9d9d9' }}
             />
           </Space>
         </Col>
       </Row>
 
-      {/* 分类切换 + 筛选器 */}
+      {/* 筛选器 */}
       <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
         <Col>
-          <Segmented
-            value={categoryFilter}
-            onChange={(v) => { setCategoryFilter(v as string); setPage(1); }}
-            options={[
-              { label: `全部 (${total})`, value: 'all' },
-              {
-                label: (
-                  <Space size={4}>
-                    <DatabaseOutlined />
-                    <span>中间件 ({categoryCounts.middleware || 0})</span>
-                  </Space>
-                ),
-                value: 'middleware',
-              },
-              {
-                label: (
-                  <Space size={4}>
-                    <AppstoreOutlined />
-                    <span>业务系统 ({categoryCounts.business || 0})</span>
-                  </Space>
-                ),
-                value: 'business',
-              },
-              {
-                label: (
-                  <Space size={4}>
-                    <CloudServerOutlined />
-                    <span>基础设施 ({categoryCounts.infrastructure || 0})</span>
-                  </Space>
-                ),
-                value: 'infrastructure',
-              },
-            ]}
-          />
+          <Space>
+            <Select
+              placeholder="服务分类"
+              allowClear
+              style={{ width: 130 }}
+              value={categoryFilter}
+              onChange={(v) => setCategoryFilter(v || undefined)}
+              options={[
+                { label: '🗄️ 中间件', value: 'middleware' },
+                { label: '📦 业务系统', value: 'business' },
+                { label: '☁️ 基础设施', value: 'infrastructure' },
+              ]}
+            />
+            <Select
+              placeholder="运行状态"
+              allowClear
+              style={{ width: 120 }}
+              value={statusFilter}
+              onChange={(v) => setStatusFilter(v || undefined)}
+              options={[
+                { label: '✅ 健康', value: 'up' },
+                { label: '❌ 异常', value: 'down' },
+              ]}
+            />
+          </Space>
         </Col>
         <Col>
-          <Select
-            placeholder="状态筛选"
-            allowClear
-            style={{ width: 120 }}
-            onChange={(v) => { setStatusFilter(v || ''); setPage(1); }}
-            options={[
-              { label: '健康', value: 'healthy' },
-              { label: '异常', value: 'unhealthy' },
-            ]}
-          />
+          <Button icon={<ReloadOutlined />} onClick={fetchData} loading={loading}>
+            刷新
+          </Button>
         </Col>
       </Row>
 
       {/* 服务列表 */}
-      <Card>
-        <Table
-          dataSource={services}
-          columns={columns}
-          rowKey="id"
-          loading={loading}
-          pagination={{
-            current: page,
-            pageSize: 50,
-            total,
-            onChange: (p) => setPage(p),
-            showTotal: (t) => `共 ${t} 个服务`,
-          }}
+      {loading ? (
+        <Card loading />
+      ) : hostGroups.length === 0 ? (
+        <Card><Empty description="暂无服务" /></Card>
+      ) : isSingleHost ? (
+        /* 单台服务器：直接平铺 */
+        <Card
+          title={renderHostHeader(hostGroups[0])}
+          size="small"
+          styles={{ header: { background: '#fafafa' } }}
+        >
+          {renderServiceTable(hostGroups[0].services)}
+        </Card>
+      ) : (
+        /* 多台服务器：折叠分组 */
+        <Collapse
+          defaultActiveKey={hostGroups.map(g => String(g.host_id))}
+          items={hostGroups.map(group => ({
+            key: String(group.host_id),
+            label: renderHostHeader(group),
+            children: renderServiceTable(group.services),
+            style: { marginBottom: 12, borderRadius: 8, overflow: 'hidden' },
+          }))}
+          style={{ background: 'transparent' }}
         />
-      </Card>
+      )}
     </div>
   );
 }
