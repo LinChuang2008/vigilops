@@ -197,8 +197,6 @@ export default function ServiceList() {
     );
   };
 
-  const isSingleHost = hostGroups.length <= 1;
-
   return (
     <div>
       {/* 标题 + 统计 */}
@@ -274,22 +272,12 @@ export default function ServiceList() {
         </Col>
       </Row>
 
-      {/* 服务列表 */}
+      {/* 服务列表：统一折叠面板，点击展开 */}
       {loading ? (
         <Card loading />
       ) : hostGroups.length === 0 ? (
         <Card><Empty description="暂无服务" /></Card>
-      ) : isSingleHost ? (
-        /* 单台服务器：直接平铺 */
-        <Card
-          title={renderHostHeader(hostGroups[0])}
-          size="small"
-          styles={{ header: { background: '#fafafa' } }}
-        >
-          {renderServiceTable(hostGroups[0].services)}
-        </Card>
       ) : (
-        /* 多台服务器：折叠分组 */
         <Collapse
           defaultActiveKey={[]}
           items={hostGroups.map(group => ({
