@@ -18,6 +18,7 @@ import AlertList from './pages/AlertList';
 import Settings from './pages/Settings';
 import NotificationChannels from './pages/NotificationChannels';
 import NotificationLogs from './pages/NotificationLogs';
+import NotificationTemplates from './pages/NotificationTemplates';
 import Logs from './pages/Logs';
 import Databases from './pages/Databases';
 import DatabaseDetail from './pages/DatabaseDetail';
@@ -62,6 +63,7 @@ export default function App() {
               <Route path="/ai-analysis" element={<AIAnalysis />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/notification-channels" element={<NotificationChannels />} />
+              <Route path="/notification-templates" element={<NotificationTemplates />} />
               <Route path="/notification-logs" element={<NotificationLogs />} />
               <Route path="/users" element={<Users />} />
               <Route path="/audit-logs" element={<AuditLogs />} />
