@@ -1,132 +1,104 @@
-# 贡献指南
+# Contributing to VigilOps
 
-感谢你对 VigilOps 的关注！欢迎任何形式的贡献。
+感谢你对 VigilOps 的关注！无论是提 Bug、建议功能还是贡献代码，我们都非常欢迎。
 
-## 🚀 快速开始
+Thank you for your interest in contributing to VigilOps! Every contribution matters.
 
-### 开发环境搭建
+## 🐛 Reporting Bugs
+
+1. 先搜索 [existing issues](https://github.com/LinChuang2008/vigilops/issues) 确认没有重复
+2. 使用 **Bug Report** 模板创建新 Issue
+3. 提供：复现步骤、期望行为、实际行为、环境信息
+
+## 💡 Feature Requests
+
+1. 使用 **Feature Request** 模板创建 Issue
+2. 说明使用场景和期望效果
+3. 欢迎讨论实现方案
+
+## 🔀 Pull Requests
 
 ```bash
 # 1. Fork 并克隆
-git clone https://github.com/your-username/vigilops.git
+git clone https://github.com/YOUR_USERNAME/vigilops.git
 cd vigilops
 
-# 2. 启动开发环境
-cp .env.example .env
-docker compose up -d
+# 2. 创建功能分支
+git checkout -b feat/your-feature
 
-# 3. 前端开发（热重载）
+# 3. 开发并提交
+git add .
+git commit -m "feat: add your feature description"
+
+# 4. 推送并创建 PR
+git push origin feat/your-feature
+```
+
+然后在 GitHub 上创建 Pull Request，填写变更说明。
+
+### PR 规范
+
+- 分支命名：`feat/xxx`、`fix/xxx`、`docs/xxx`
+- Commit 遵循 [Conventional Commits](https://www.conventionalcommits.org/)：
+  - `feat:` 新功能
+  - `fix:` 修复
+  - `docs:` 文档
+  - `refactor:` 重构
+  - `test:` 测试
+- 确保通过 CI 检查
+
+## 🛠️ 开发环境搭建
+
+### 前置条件
+
+- Python 3.11+
+- Node.js 18+
+- Docker & Docker Compose
+- PostgreSQL 15+ (或使用 Docker)
+- Redis 7+ (或使用 Docker)
+
+### 启动开发环境
+
+```bash
+# 启动依赖服务
+docker compose -f docker-compose.dev.yml up -d
+
+# 后端
+cp .env.example .env
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements-dev.txt
+uvicorn app.main:app --reload --port 8000
+
+# 前端
 cd frontend
 npm install
 npm run dev
-
-# 4. 后端开发（自动重载，已通过 volume mount 实现）
-# 修改 backend/ 下的代码后容器自动重载
 ```
 
-### 访问
+访问：
+- 前端：http://localhost:5173
+- API 文档：http://localhost:8000/docs
 
-- 前端: http://localhost:3001
-- 后端 API: http://localhost:8001/docs
-- PostgreSQL: localhost:5433
-- Redis: localhost:6380
+## 📏 代码规范
 
-## 📋 贡献流程
+### Python (Backend)
+- 使用 `ruff` 进行 lint 和格式化
+- 类型注解（Type Hints）必须
+- 运行 `ruff check .` 和 `ruff format .`
 
-1. **Fork** 本仓库
-2. **创建分支**: `git checkout -b feature/your-feature` 或 `fix/your-fix`
-3. **编写代码** 并确保通过测试
-4. **提交**: 使用规范的 commit message
-5. **推送**: `git push origin feature/your-feature`
-6. **发起 Pull Request**
+### TypeScript (Frontend)
+- 使用 ESLint + Prettier
+- 运行 `npm run lint` 和 `npm run format`
 
-## 📝 Commit Message 规范
+### 通用
+- 有意义的变量命名
+- 关键逻辑写注释
+- 新功能配测试
 
-采用 [Conventional Commits](https://www.conventionalcommits.org/) 格式：
+## ❓ 有问题？
 
-```
-<type>: <description>
+- 创建 [Discussion](https://github.com/LinChuang2008/vigilops/discussions)
+- 加入 [Discord](https://discord.gg/vigilops)
 
-[optional body]
-```
-
-### Type
-
-| 类型 | 说明 |
-|------|------|
-| `feat` | 新功能 |
-| `fix` | Bug 修复 |
-| `docs` | 文档更新 |
-| `style` | 代码格式（不影响逻辑） |
-| `refactor` | 重构 |
-| `perf` | 性能优化 |
-| `test` | 测试 |
-| `chore` | 构建/工具变更 |
-
-### 示例
-
-```
-feat: 添加服务拓扑图页面
-fix: 修复告警规则重复触发问题
-docs: 更新 API 文档
-```
-
-## 🏗️ 项目结构
-
-```
-vigilops/
-├── backend/          # Python FastAPI 后端
-│   ├── app/
-│   │   ├── core/     # 配置、数据库、认证
-│   │   ├── models/   # SQLAlchemy 模型
-│   │   ├── routers/  # API 路由
-│   │   ├── schemas/  # Pydantic 模型
-│   │   └── services/ # 业务逻辑
-│   └── migrations/   # SQL 迁移脚本
-├── frontend/         # React + TypeScript 前端
-│   └── src/
-│       ├── pages/    # 页面组件
-│       ├── components/ # 公共组件
-│       ├── store/    # Zustand 状态
-│       └── api/      # API 调用
-├── agent/            # 采集 Agent
-└── docs/             # 文档
-```
-
-## 🎯 代码规范
-
-### 后端 (Python)
-
-- 代码注释使用**中文**
-- 类型注解使用 `Optional[X]`（兼容 Python 3.9）
-- 遵循 PEP 8 风格
-- API 路由放在 `routers/`，业务逻辑放在 `services/`
-
-### 前端 (TypeScript)
-
-- 代码注释使用**中文**
-- 使用函数式组件 + Hooks
-- 状态管理使用 Zustand
-- UI 组件使用 Ant Design 5
-- 图表使用 ECharts
-
-## 🐛 Bug 报告
-
-提交 Issue 时请包含：
-
-1. **环境信息** — OS、Docker 版本、浏览器
-2. **复现步骤** — 最小可复现步骤
-3. **期望行为** vs **实际行为**
-4. **截图 / 日志**（如有）
-
-## 💡 功能建议
-
-欢迎提交 Feature Request！请说明：
-
-1. **使用场景** — 为什么需要这个功能？
-2. **期望方案** — 你理想中的实现方式
-3. **替代方案** — 是否考虑过其他方式？
-
-## 📄 License
-
-贡献的代码将遵循 [Apache License 2.0](LICENSE)。
+再次感谢你的贡献！🎉
