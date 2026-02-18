@@ -514,105 +514,160 @@ async def apply_ai_suggestions(
 
 
 # ====================================================================
-# Cycle 8: 多服务器拓扑 API
+# Cycle 8: 多服务器拓扑概览
 # ====================================================================
 
-# ==================== Servers CRUD ====================
-
-@router.get("/servers", response_model=dict)
-async def list_servers(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    status: str | None = None,
-    search: str | None = None,
+@router.get("/multi-server", response_model=dict)
+async def get_multi_server_topology(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """
-    服务器列表（L1 视图）。
-    返回分页的服务器列表，附带每台服务器的服务数量和最新 CPU/内存均值。
+    多服务器拓扑概览（图数据）。
+    返回所有服务器节点 + nginx upstream 推导的边 + 统计摘要。
+    前端可直接渲染为拓扑图。
     """
-    query = select(Server)
-    count_query = select(func.count()).select_from(Server)
-
-    if status:
-        query = query.where(Server.status == status)
-        count_query = count_query.where(Server.status == status)
-    if search:
-        pattern = f"%{search}%"
-        query = query.where(
-            Server.hostname.ilike(pattern) | Server.label.ilike(pattern) | Server.ip_address.ilike(pattern)
-        )
-        count_query = count_query.where(
-            Server.hostname.ilike(pattern) | Server.label.ilike(pattern) | Server.ip_address.ilike(pattern)
-        )
-
-    total = (await db.execute(count_query)).scalar() or 0
-    query = query.order_by(Server.id.desc()).offset((page - 1) * page_size).limit(page_size)
-    result = await db.execute(query)
-    servers = result.scalars().all()
-
-    items = []
-    for s in servers:
-        # 该服务器上运行的服务数量
+    # 所有服务器（带摘要指标）
+    servers_result = (await db.execute(select(Server).order_by(Server.id))).scalars().all()
+    nodes = []
+    for s in servers_result:
         svc_count = (await db.execute(
             select(func.count()).select_from(ServerService).where(ServerService.server_id == s.id)
         )).scalar() or 0
 
-        # 最近 CPU / 内存均值（从 server_services 聚合）
         agg = (await db.execute(
             select(func.avg(ServerService.cpu_percent), func.avg(ServerService.mem_mb))
             .where(ServerService.server_id == s.id)
         )).one()
 
-        items.append(ServerSummary(
+        nodes.append(ServerSummary(
+            **ServerResponse.model_validate(s).model_dump(),
+            service_count=svc_count,
+            cpu_avg=round(agg[0], 2) if agg[0] is not None else None,
+            mem_avg=round(agg[1], 2) if agg[1] is not None else None,
+        ).model_dump())
+
+    # 从 nginx_upstreams 推导边：upstream 所在服务器 → backend_address 对应的服务器
+    edges = []
+    upstreams = (await db.execute(select(NginxUpstream))).scalars().all()
+
+    # 构建 IP → server 映射
+    ip_to_server = {}
+    for s in servers_result:
+        if s.ip_address:
+            ip_to_server[s.ip_address] = s.hostname
+
+    for u in upstreams:
+        # 找到 upstream 所属服务器的 hostname
+        from_server = None
+        for s in servers_result:
+            if s.id == u.server_id:
+                from_server = s.hostname
+                break
+        if not from_server:
+            continue
+
+        # backend_address 格式 "ip:port" 或 "hostname:port"
+        backend_host = u.backend_address.split(":")[0]
+        to_server = ip_to_server.get(backend_host, backend_host)
+
+        edges.append(TopologyEdge(
+            from_server=from_server,
+            to_server=to_server,
+            via="nginx_upstream",
+            upstream=u.upstream_name,
+        ).model_dump())
+
+    # 汇总
+    summary = {
+        "server_count": len(nodes),
+        "online_count": sum(1 for n in nodes if n["status"] == "online"),
+        "offline_count": sum(1 for n in nodes if n["status"] == "offline"),
+        "service_group_count": (await db.execute(
+            select(func.count()).select_from(ServiceGroup)
+        )).scalar() or 0,
+        "edge_count": len(edges),
+    }
+
+    return {"servers": nodes, "edges": edges, "summary": summary}
+
+
+# ====================================================================
+# Cycle 8: Servers CRUD
+# ====================================================================
+
+@router.get("/servers", response_model=list[ServerSummary])
+async def list_servers(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """列出所有服务器（带摘要指标）。"""
+    servers = (await db.execute(select(Server).order_by(Server.id))).scalars().all()
+    result = []
+    for s in servers:
+        svc_count = (await db.execute(
+            select(func.count()).select_from(ServerService).where(ServerService.server_id == s.id)
+        )).scalar() or 0
+        agg = (await db.execute(
+            select(func.avg(ServerService.cpu_percent), func.avg(ServerService.mem_mb))
+            .where(ServerService.server_id == s.id)
+        )).one()
+        result.append(ServerSummary(
             **ServerResponse.model_validate(s).model_dump(),
             service_count=svc_count,
             cpu_avg=round(agg[0], 2) if agg[0] is not None else None,
             mem_avg=round(agg[1], 2) if agg[1] is not None else None,
         ))
+    return result
 
-    return {"items": [i.model_dump() for i in items], "total": total, "page": page, "page_size": page_size}
 
-
-@router.get("/servers/{server_id}", response_model=dict)
-async def get_server(
+@router.get("/servers/{server_id}")
+async def get_server_detail(
     server_id: int,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """
-    服务器详情（L2 钻取）。
-    返回服务器基本信息 + 运行的服务列表 + nginx upstream 列表。
-    """
+    """获取单台服务器详情（含运行的服务列表 + nginx upstream）。"""
     server = await db.get(Server, server_id)
     if not server:
         raise HTTPException(status_code=404, detail="服务器不存在")
 
-    # 服务列表（含服务组名称）
-    svc_stmt = (
-        select(ServerService, ServiceGroup.name.label("group_name"))
+    # 服务列表
+    ss_rows = (await db.execute(
+        select(ServerService, ServiceGroup.name, ServiceGroup.category)
         .outerjoin(ServiceGroup, ServerService.group_id == ServiceGroup.id)
         .where(ServerService.server_id == server_id)
-    )
-    svc_rows = (await db.execute(svc_stmt)).all()
-    services = [
-        ServerServiceDetail(
-            **ServerServiceResponse.model_validate(row.ServerService).model_dump(),
-            group_name=row.group_name,
-        ).model_dump()
-        for row in svc_rows
-    ]
+        .order_by(ServerService.id)
+    )).all()
+    services = []
+    for ss, gname, gcat in ss_rows:
+        d = ServerServiceResponse.model_validate(ss).model_dump()
+        d["group_name"] = gname
+        d["group_category"] = gcat
+        services.append(d)
 
     # nginx upstreams
-    ups_stmt = select(NginxUpstream).where(NginxUpstream.server_id == server_id)
-    ups = (await db.execute(ups_stmt)).scalars().all()
-    upstreams = [NginxUpstreamResponse.model_validate(u).model_dump() for u in ups]
+    upstreams = (await db.execute(
+        select(NginxUpstream).where(NginxUpstream.server_id == server_id)
+    )).scalars().all()
+    upstream_list = [NginxUpstreamResponse.model_validate(u).model_dump() for u in upstreams]
+
+    # 摘要
+    svc_count = len(services)
+    agg = (await db.execute(
+        select(func.avg(ServerService.cpu_percent), func.avg(ServerService.mem_mb))
+        .where(ServerService.server_id == server_id)
+    )).one()
 
     return {
-        "server": ServerResponse.model_validate(server).model_dump(),
+        "server": ServerSummary(
+            **ServerResponse.model_validate(server).model_dump(),
+            service_count=svc_count,
+            cpu_avg=round(agg[0], 2) if agg[0] is not None else None,
+            mem_avg=round(agg[1], 2) if agg[1] is not None else None,
+        ).model_dump(),
         "services": services,
-        "nginx_upstreams": upstreams,
+        "upstreams": upstream_list,
     }
 
 
@@ -623,13 +678,11 @@ async def create_server(
     user: User = Depends(get_current_user),
 ):
     """注册新服务器。"""
-    # 检查 hostname 唯一
     existing = (await db.execute(
         select(Server).where(Server.hostname == body.hostname)
     )).scalar_one_or_none()
     if existing:
-        raise HTTPException(status_code=400, detail=f"hostname '{body.hostname}' 已存在")
-
+        raise HTTPException(status_code=400, detail=f"服务器 {body.hostname} 已存在")
     server = Server(**body.model_dump())
     db.add(server)
     await db.commit()
@@ -637,106 +690,61 @@ async def create_server(
     return ServerResponse.model_validate(server)
 
 
-@router.put("/servers/{server_id}", response_model=ServerResponse)
-async def update_server(
+@router.delete("/servers/{server_id}")
+async def delete_server(
     server_id: int,
-    body: ServerCreate,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """更新服务器信息。"""
+    """删除服务器及其关联数据。"""
     server = await db.get(Server, server_id)
     if not server:
         raise HTTPException(status_code=404, detail="服务器不存在")
-
-    # hostname 唯一性校验（排除自身）
-    if body.hostname != server.hostname:
-        dup = (await db.execute(
-            select(Server).where(Server.hostname == body.hostname)
-        )).scalar_one_or_none()
-        if dup:
-            raise HTTPException(status_code=400, detail=f"hostname '{body.hostname}' 已被占用")
-
-    for field, value in body.model_dump().items():
-        setattr(server, field, value)
-
+    await db.execute(text(f"DELETE FROM server_services WHERE server_id = {server_id}"))
+    await db.execute(text(f"DELETE FROM nginx_upstreams WHERE server_id = {server_id}"))
+    await db.delete(server)
     await db.commit()
-    await db.refresh(server)
-    return ServerResponse.model_validate(server)
+    return {"detail": "已删除"}
 
 
-# ==================== Service Groups ====================
+# ====================================================================
+# Cycle 8: Service Groups
+# ====================================================================
 
-@router.get("/service-groups", response_model=dict)
+@router.get("/service-groups")
 async def list_service_groups(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """服务组列表，附带每组的服务器数量。"""
-    count = (await db.execute(select(func.count()).select_from(ServiceGroup))).scalar() or 0
-    stmt = select(ServiceGroup).order_by(ServiceGroup.id).offset((page - 1) * page_size).limit(page_size)
-    groups = (await db.execute(stmt)).scalars().all()
-
-    items = []
+    """列出所有服务组（含服务器分布）。"""
+    groups = (await db.execute(select(ServiceGroup).order_by(ServiceGroup.id))).scalars().all()
+    result = []
     for g in groups:
-        server_count = (await db.execute(
-            select(func.count(func.distinct(ServerService.server_id)))
+        # 找到运行此服务组的服务器
+        ss_rows = (await db.execute(
+            select(ServerService, Server.hostname, Server.ip_address, Server.status)
+            .join(Server, ServerService.server_id == Server.id)
             .where(ServerService.group_id == g.id)
-        )).scalar() or 0
-        d = ServiceGroupResponse.model_validate(g).model_dump()
-        d["server_count"] = server_count
-        items.append(d)
-
-    return {"items": items, "total": count, "page": page, "page_size": page_size}
-
-
-@router.post("/service-groups", response_model=ServiceGroupResponse, status_code=201)
-async def create_service_group(
-    body: ServiceGroupCreate,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    """创建服务组。"""
-    existing = (await db.execute(
-        select(ServiceGroup).where(ServiceGroup.name == body.name)
-    )).scalar_one_or_none()
-    if existing:
-        raise HTTPException(status_code=400, detail=f"服务组 '{body.name}' 已存在")
-
-    group = ServiceGroup(**body.model_dump())
-    db.add(group)
-    await db.commit()
-    await db.refresh(group)
-    return ServiceGroupResponse.model_validate(group)
-
-
-# ==================== Nginx Upstreams ====================
-
-@router.get("/nginx-upstreams", response_model=dict)
-async def list_nginx_upstreams(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=200),
-    server_id: int | None = None,
-    upstream_name: str | None = None,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    """Nginx upstream 列表，支持按 server_id 和 upstream_name 筛选。"""
-    query = select(NginxUpstream)
-    count_query = select(func.count()).select_from(NginxUpstream)
-
-    if server_id is not None:
-        query = query.where(NginxUpstream.server_id == server_id)
-        count_query = count_query.where(NginxUpstream.server_id == server_id)
-    if upstream_name:
-        query = query.where(NginxUpstream.upstream_name.ilike(f"%{upstream_name}%"))
-        count_query = count_query.where(NginxUpstream.upstream_name.ilike(f"%{upstream_name}%"))
-
-    total = (await db.execute(count_query)).scalar() or 0
-    query = query.order_by(NginxUpstream.id).offset((page - 1) * page_size).limit(page_size)
-    upstreams = (await db.execute(query)).scalars().all()
-
-    items = [NginxUpstreamResponse.model_validate(u).model_dump() for u in upstreams]
-    return {"items": items, "total": total, "page": page, "page_size": page_size}
+        )).all()
+        servers = []
+        for ss, hostname, ip, srv_status in ss_rows:
+            servers.append({
+                "server_id": ss.server_id,
+                "hostname": hostname,
+                "ip_address": ip,
+                "server_status": srv_status,
+                "port": ss.port,
+                "pid": ss.pid,
+                "service_status": ss.status,
+                "cpu_percent": ss.cpu_percent,
+                "mem_mb": ss.mem_mb,
+            })
+        result.append({
+            "id": g.id,
+            "name": g.name,
+            "category": g.category,
+            "created_at": g.created_at.isoformat() if g.created_at else None,
+            "server_count": len(servers),
+            "servers": servers,
+        })
+    return result

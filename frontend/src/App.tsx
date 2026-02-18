@@ -27,6 +27,9 @@ import Users from './pages/Users';
 import AuditLogs from './pages/AuditLogs';
 import Reports from './pages/Reports';
 import Topology from './pages/Topology';
+import ServerListPage from './pages/topology/ServerListPage';
+import ServerDetailPage from './pages/topology/ServerDetailPage';
+import ServiceGroupsPage from './pages/topology/ServiceGroupsPage';
 import SLA from './pages/SLA';
 import RemediationList from './pages/Remediation';
 import RemediationDetail from './pages/RemediationDetail';
@@ -61,6 +64,9 @@ export default function App() {
               <Route path="/services" element={<ServiceList />} />
               <Route path="/services/:id" element={<ServiceDetail />} />
               <Route path="/topology" element={<Topology />} />
+              <Route path="/topology/servers" element={<ServerListPage />} />
+              <Route path="/topology/servers/:id" element={<ServerDetailPage />} />
+              <Route path="/topology/service-groups" element={<ServiceGroupsPage />} />
               <Route path="/logs" element={<Logs />} />
               <Route path="/databases" element={<Databases />} />
               <Route path="/databases/:id" element={<DatabaseDetail />} />

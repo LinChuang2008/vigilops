@@ -36,6 +36,8 @@ from app.routers import dashboard
 from app.routers import topology
 from app.routers import sla
 from app.routers import remediation
+from app.routers import servers
+from app.routers import server_groups
 
 
 @asynccontextmanager
@@ -135,6 +137,8 @@ app.include_router(topology.router)
 app.include_router(sla.router)
 app.include_router(remediation.router)
 app.include_router(remediation.trigger_router)
+app.include_router(servers.router)
+app.include_router(server_groups.router)
 
 
 @app.get("/health")

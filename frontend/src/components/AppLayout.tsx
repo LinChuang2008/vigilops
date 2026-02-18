@@ -38,7 +38,13 @@ const menuItems = [
   { key: '/', icon: <DashboardOutlined />, label: '仪表盘' },
   { key: '/hosts', icon: <CloudServerOutlined />, label: '服务器' },
   { key: '/services', icon: <ApiOutlined />, label: '服务监控' },
-  { key: '/topology', icon: <DeploymentUnitOutlined />, label: '拓扑图' },
+  { key: 'topology-group', icon: <DeploymentUnitOutlined />, label: '拓扑图',
+    children: [
+      { key: '/topology', label: '服务拓扑' },
+      { key: '/topology/servers', label: '多服务器' },
+      { key: '/topology/service-groups', label: '服务组' },
+    ],
+  },
   { key: '/logs', icon: <FileTextOutlined />, label: '日志管理' },
   { key: '/databases', icon: <DatabaseOutlined />, label: '数据库监控' },
   { key: '/alerts', icon: <AlertOutlined />, label: '告警中心' },
@@ -77,10 +83,27 @@ export default function AppLayout() {
     navigate('/login');
   };
 
-  /** 根据当前路径匹配侧边栏选中菜单项 */
-  const selectedKey = menuItems.find(
-    (item) => item.key !== '/' && location.pathname.startsWith(item.key)
-  )?.key || '/';
+  /** 根据当前路径匹配侧边栏选中菜单项（支持嵌套子菜单） */
+  const findSelectedKey = (): string => {
+    const path = location.pathname;
+    // 先在子菜单里找精确匹配
+    for (const item of menuItems) {
+      if ('children' in item && Array.isArray((item as any).children)) {
+        for (const child of (item as any).children) {
+          if (child.key !== '/' && path.startsWith(child.key)) return child.key;
+        }
+      }
+    }
+    // 再在顶层找
+    const found = menuItems.find(
+      (item) => item.key !== '/' && !item.key.includes('-group') && path.startsWith(item.key)
+    );
+    return found?.key || '/';
+  };
+  const selectedKey = findSelectedKey();
+  const openKey = menuItems.find(
+    (item) => 'children' in item && (item as any).children?.some((c: any) => c.key === selectedKey)
+  )?.key;
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -102,8 +125,9 @@ export default function AppLayout() {
           theme="dark"
           mode="inline"
           selectedKeys={[selectedKey]}
+          defaultOpenKeys={openKey ? [openKey] : []}
           items={menuItems}
-          onClick={({ key }) => navigate(key)}
+          onClick={({ key }) => { if (!key.includes('-group')) navigate(key); }}
         />
       </Sider>
       <Layout>
