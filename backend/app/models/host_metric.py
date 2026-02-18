@@ -35,6 +35,8 @@ class HostMetric(Base):
     net_send_rate_kb: Mapped[float | None] = mapped_column(Float, nullable=True)
     net_recv_rate_kb: Mapped[float | None] = mapped_column(Float, nullable=True)
     net_packet_loss_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # 关联拓扑服务器（可选）
+    server_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     # 记录时间
     recorded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True

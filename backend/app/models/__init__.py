@@ -19,5 +19,16 @@ from app.models.audit_log import AuditLog
 from app.models.report import Report
 from app.models.service_dependency import ServiceDependency
 from app.models.sla import SLARule, SLAViolation
+from app.models.server import Server
+from app.models.service_group import ServiceGroup
+from app.models.server_service import ServerService
+from app.models.nginx_upstream import NginxUpstream
 
-__all__ = ["User", "AgentToken", "Host", "HostMetric", "Service", "ServiceCheck", "Alert", "AlertRule", "NotificationChannel", "NotificationLog", "NotificationTemplate", "Setting", "LogEntry", "MonitoredDatabase", "DbMetric", "AIInsight", "AuditLog", "Report", "ServiceDependency", "SLARule", "SLAViolation"]
+__all__ = [
+    "User", "AgentToken", "Host", "HostMetric", "Service", "ServiceCheck",
+    "Alert", "AlertRule", "NotificationChannel", "NotificationLog",
+    "NotificationTemplate", "Setting", "LogEntry", "MonitoredDatabase",
+    "DbMetric", "AIInsight", "AuditLog", "Report", "ServiceDependency",
+    "SLARule", "SLAViolation", "Server", "ServiceGroup", "ServerService",
+    "NginxUpstream",
+]
