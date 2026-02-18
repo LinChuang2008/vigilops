@@ -6,6 +6,7 @@ RemediationAgent：核心编排器。
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -16,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.remediation_log import RemediationLog
+from app.services.memory_client import memory_client
 from app.services.notifier import send_remediation_notification
 from .ai_client import RemediationAIClient
 from .command_executor import CommandExecutor
@@ -268,8 +270,36 @@ class RemediationAgent:
 
         await db.commit()
 
+        # --- 异步存储修复经验到记忆系统（不阻塞主流程） ---
+        self._store_remediation_experience(log, result, alert)
+
         # --- 发送修复结果通知 ---
         await self._notify_result(db, log, result, alert)
+
+    def _store_remediation_experience(
+        self, log: RemediationLog, result: RemediationResult,
+        alert: RemediationAlert | None,
+    ) -> None:
+        """将修复经验异步存储到记忆系统，不阻塞主流程。"""
+        alert_name = alert.title if alert else "unknown"
+        host = alert.host if alert else "unknown"
+        status = log.status or "unknown"
+        root_cause = result.diagnosis.root_cause if result.diagnosis else "N/A"
+        runbook = result.runbook_name or "N/A"
+
+        content = (
+            f"修复经验 [{status}]: 告警={alert_name}, 主机={host}\n"
+            f"根因: {root_cause}\n"
+            f"Runbook: {runbook}\n"
+            f"结果: {'成功' if result.success else '失败/升级'}"
+        )
+        if result.blocked_reason:
+            content += f"\n原因: {result.blocked_reason}"
+
+        try:
+            asyncio.create_task(memory_client.store(content, source="vigilops-remediation"))
+        except Exception:
+            logger.debug("Failed to schedule remediation experience storage")
 
     async def _notify_result(
         self, db: AsyncSession, log: RemediationLog, result: RemediationResult,
