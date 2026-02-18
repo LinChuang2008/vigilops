@@ -6,7 +6,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Typography, Table, Tag, Card, Space, Button, Input, message, Collapse, Badge, Empty, Row, Col, Statistic,
+  Typography, Table, Tag, Card, Space, Button, Input, message, Badge, Empty, Row, Col, Statistic,
 } from 'antd';
 import {
   ArrowLeftOutlined, ReloadOutlined, SearchOutlined, AppstoreOutlined,

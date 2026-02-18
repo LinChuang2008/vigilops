@@ -6,11 +6,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Typography, Descriptions, Table, Tag, Card, Space, Button, Spin, message, Badge, Divider, Empty,
+  Typography, Descriptions, Table, Tag, Card, Space, Button, Spin, message, Badge, Empty,
 } from 'antd';
 import {
   ArrowLeftOutlined, CloudServerOutlined, ReloadOutlined,
-  CheckCircleOutlined, CloseCircleOutlined, QuestionCircleOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import api from '../../services/api';
