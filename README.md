@@ -19,7 +19,7 @@ Most monitoring tools tell you something broke. **VigilOps tells you why — and
 
 Built with an AI Agent at its core, VigilOps goes beyond dashboards and alerts. It understands your infrastructure topology, predicts failures before they happen, and autonomously remediates common issues — so your on-call team can finally sleep.
 
-![Dashboard](docs/screenshots/dashboard.png)
+![Dashboard](docs/screenshots/dashboard.jpg)
 
 ## ✨ Features
 
@@ -34,7 +34,7 @@ Built with an AI Agent at its core, VigilOps goes beyond dashboards and alerts. 
 - 🗺️ **Service Topology** — Interactive dependency maps with real-time health overlay
 - 🎨 **15+ Dashboard Pages** — Beautiful, responsive UI built with React + TypeScript
 
-![Service Topology](docs/screenshots/topology.png)
+![Service Topology](docs/screenshots/topology.jpg)
 
 ## 🚀 Quick Start
 
