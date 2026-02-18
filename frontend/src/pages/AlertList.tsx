@@ -14,6 +14,7 @@ import { alertService } from '../services/alerts';
 import { databaseService } from '../services/databases';
 import type { DatabaseItem } from '../services/databases';
 import type { Alert, AlertRule } from '../services/alerts';
+import { RemediationStatusTag } from '../components/RemediationBadge';
 
 /** 告警严重级别颜色映射 */
 const severityColor: Record<string, string> = { critical: 'red', warning: 'orange', info: 'blue' };
@@ -149,6 +150,10 @@ export default function AlertList() {
     { title: '严重级别', dataIndex: 'severity', render: (s: string) => <Tag color={severityColor[s]}>{s}</Tag> },
     { title: '状态', dataIndex: 'status', render: (s: string) => <Tag color={statusColor[s]}>{s}</Tag> },
     { title: '触发时间', dataIndex: 'fired_at', render: (t: string) => new Date(t).toLocaleString() },
+    {
+      title: '修复状态', dataIndex: 'remediation_status', key: 'remediation_status',
+      render: (s: string) => s ? <RemediationStatusTag status={s} /> : <span style={{ color: '#999' }}>-</span>,
+    },
     {
       title: '操作', key: 'action',
       render: (_: unknown, record: Alert) => (

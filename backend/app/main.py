@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from app.core.config import settings
+from app.core.config import settings as app_settings
 from app.core.database import engine, Base
 from app.core.redis import get_redis, close_redis
 from app.models import User, AgentToken, Host, HostMetric, Service, ServiceCheck, Alert, AlertRule, NotificationChannel, NotificationLog, NotificationTemplate, LogEntry, MonitoredDatabase, DbMetric, AIInsight, AuditLog, Report, ServiceDependency, SLARule, SLAViolation  # noqa: F401 — register models
@@ -35,6 +35,7 @@ from app.routers import dashboard_ws
 from app.routers import dashboard
 from app.routers import topology
 from app.routers import sla
+from app.routers import remediation
 
 
 @asynccontextmanager
@@ -73,6 +74,12 @@ async def lifespan(app: FastAPI):
     from app.tasks.report_scheduler import report_scheduler_loop
     report_task = asyncio.create_task(report_scheduler_loop())
 
+    # 启动自动修复监听任务（仅在 AGENT_ENABLED 时启动）
+    remediation_task = None
+    if app_settings.agent_enabled:
+        from app.tasks.remediation_listener import remediation_listener_loop
+        remediation_task = asyncio.create_task(remediation_listener_loop())
+
     yield
 
     # 关闭阶段：取消所有后台任务并释放连接
@@ -82,6 +89,8 @@ async def lifespan(app: FastAPI):
     db_cleanup_task.cancel()
     anomaly_task.cancel()
     report_task.cancel()
+    if remediation_task is not None:
+        remediation_task.cancel()
     await close_redis()
     await engine.dispose()
 
@@ -124,6 +133,8 @@ app.include_router(dashboard_ws.router)
 app.include_router(dashboard.router)
 app.include_router(topology.router)
 app.include_router(sla.router)
+app.include_router(remediation.router)
+app.include_router(remediation.trigger_router)
 
 
 @app.get("/health")

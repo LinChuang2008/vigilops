@@ -57,7 +57,7 @@ class Alert(Base):
     host_id: Mapped[Optional[int]] = mapped_column(Integer, index=True, nullable=True)
     service_id: Mapped[Optional[int]] = mapped_column(Integer, index=True, nullable=True)
     severity: Mapped[str] = mapped_column(String(20), nullable=False)  # critical / warning / info
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="firing")  # firing / resolved / acknowledged
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="firing")  # firing / resolved / acknowledged / remediated
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     metric_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # 触发时的指标值

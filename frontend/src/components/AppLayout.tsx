@@ -28,6 +28,7 @@ import {
   FileSearchOutlined,
   DeploymentUnitOutlined,
   SafetyCertificateOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons';
 
 const { Header, Sider, Content } = Layout;
@@ -41,6 +42,7 @@ const menuItems = [
   { key: '/logs', icon: <FileTextOutlined />, label: '日志管理' },
   { key: '/databases', icon: <DatabaseOutlined />, label: '数据库监控' },
   { key: '/alerts', icon: <AlertOutlined />, label: '告警中心' },
+  { key: '/remediations', icon: <ThunderboltOutlined />, label: '自动修复' },
   { key: '/sla', icon: <SafetyCertificateOutlined />, label: 'SLA 管理' },
   { key: '/ai-analysis', icon: <RobotOutlined />, label: 'AI 分析' },
   { key: '/reports', icon: <FileSearchOutlined />, label: '运维报告' },

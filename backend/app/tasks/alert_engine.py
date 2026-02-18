@@ -144,6 +144,17 @@ async def _evaluate_rule(db, redis, rule: AlertRule, host: Host, metrics: dict):
         # 发送告警通知
         from app.services.notifier import send_alert_notification
         await send_alert_notification(db, alert)
+        # 发布 Redis 事件，供 remediation listener 消费
+        await redis.publish("vigilops:alert:new", json.dumps({
+            "alert_id": alert.id,
+            "rule_id": rule.id,
+            "host_id": host.id,
+            "severity": rule.severity,
+            "metric": rule.metric,
+            "metric_value": float(current_value),
+            "threshold": rule.threshold,
+            "title": alert.title,
+        }))
 
     else:
         # 条件恢复正常，清理持续时间跟踪

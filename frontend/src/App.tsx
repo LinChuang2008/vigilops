@@ -28,6 +28,8 @@ import AuditLogs from './pages/AuditLogs';
 import Reports from './pages/Reports';
 import Topology from './pages/Topology';
 import SLA from './pages/SLA';
+import RemediationList from './pages/Remediation';
+import RemediationDetail from './pages/RemediationDetail';
 
 export default function App() {
   return (
@@ -63,6 +65,8 @@ export default function App() {
               <Route path="/databases" element={<Databases />} />
               <Route path="/databases/:id" element={<DatabaseDetail />} />
               <Route path="/alerts" element={<AlertList />} />
+              <Route path="/remediations" element={<RemediationList />} />
+              <Route path="/remediations/:id" element={<RemediationDetail />} />
               <Route path="/sla" element={<SLA />} />
               <Route path="/ai-analysis" element={<AIAnalysis />} />
               <Route path="/reports" element={<Reports />} />

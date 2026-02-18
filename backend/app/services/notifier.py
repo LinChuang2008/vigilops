@@ -31,6 +31,152 @@ MAX_RETRIES = 3
 
 
 # ---------------------------------------------------------------------------
+# 修复结果通知（供 remediation agent 调用）
+# ---------------------------------------------------------------------------
+
+def _remediation_success_message(alert_name: str, host: str, runbook: str, duration: str) -> str:
+    """修复成功通知正文。"""
+    return (
+        f"✅ **自动修复成功**\n\n"
+        f"**告警**: {alert_name}\n"
+        f"**主机**: {host}\n"
+        f"**Runbook**: {runbook}\n"
+        f"**执行耗时**: {duration}"
+    )
+
+
+def _remediation_failure_message(alert_name: str, host: str, reason: str) -> str:
+    """修复失败/升级通知正文。"""
+    return (
+        f"❌ **自动修复失败，需人工介入**\n\n"
+        f"**告警**: {alert_name}\n"
+        f"**主机**: {host}\n"
+        f"**失败原因**: {reason}"
+    )
+
+
+def _remediation_approval_message(alert_name: str, host: str, action: str, approval_url: str) -> str:
+    """需审批通知正文。"""
+    return (
+        f"🔒 **修复操作待审批**\n\n"
+        f"**告警**: {alert_name}\n"
+        f"**主机**: {host}\n"
+        f"**建议操作**: {action}\n"
+        f"**审批链接**: {approval_url}"
+    )
+
+
+async def send_remediation_notification(
+    db: AsyncSession,
+    *,
+    kind: str,
+    alert_name: str,
+    host: str,
+    runbook: str = "",
+    duration: str = "",
+    reason: str = "",
+    action: str = "",
+    approval_url: str = "",
+) -> None:
+    """发送修复结果通知到所有已启用渠道。
+
+    Args:
+        kind: "success" | "failure" | "approval"
+    """
+    if kind == "success":
+        body = _remediation_success_message(alert_name, host, runbook, duration)
+    elif kind == "approval":
+        body = _remediation_approval_message(alert_name, host, action, approval_url)
+    else:
+        body = _remediation_failure_message(alert_name, host, reason)
+
+    result = await db.execute(
+        select(NotificationChannel).where(NotificationChannel.is_enabled == True)  # noqa: E712
+    )
+    channels = result.scalars().all()
+
+    for channel in channels:
+        try:
+            await _send_remediation_to_channel(channel, body)
+        except Exception:
+            logger.exception("Failed to send remediation notification to channel %s", channel.name)
+
+
+async def _send_remediation_to_channel(channel: NotificationChannel, body: str) -> None:
+    """复用现有渠道发送纯文本修复通知。"""
+    config = channel.config
+
+    if channel.type == "webhook":
+        url = config.get("url", "")
+        if not url:
+            return
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(url, json={"text": body}, headers={"Content-Type": "application/json"})
+
+    elif channel.type == "dingtalk":
+        webhook_url = config.get("webhook_url", "")
+        if not webhook_url:
+            return
+        secret = config.get("secret")
+        if secret:
+            ts, sign = _dingtalk_sign(secret)
+            sep = "&" if "?" in webhook_url else "?"
+            webhook_url = f"{webhook_url}{sep}timestamp={ts}&sign={sign}"
+        payload = {"msgtype": "markdown", "markdown": {"title": "VigilOps 修复通知", "text": body}}
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(webhook_url, json=payload)
+
+    elif channel.type == "feishu":
+        webhook_url = config.get("webhook_url", "")
+        if not webhook_url:
+            return
+        payload: dict = {
+            "msg_type": "interactive",
+            "card": {
+                "header": {"title": {"tag": "plain_text", "content": "VigilOps 修复通知"}, "template": "blue"},
+                "elements": [{"tag": "div", "text": {"tag": "lark_md", "content": body}}],
+            },
+        }
+        secret = config.get("secret")
+        if secret:
+            ts, sign = _feishu_sign(secret)
+            payload["timestamp"] = ts
+            payload["sign"] = sign
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(webhook_url, json=payload)
+
+    elif channel.type == "wecom":
+        webhook_url = config.get("webhook_url", "")
+        if not webhook_url:
+            return
+        payload = {"msgtype": "markdown", "markdown": {"content": body}}
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(webhook_url, json=payload)
+
+    elif channel.type == "email":
+        import aiosmtplib
+        smtp_host = config.get("smtp_host", "")
+        smtp_port = config.get("smtp_port", 465)
+        smtp_user = config.get("smtp_user", "")
+        smtp_password = config.get("smtp_password", "")
+        use_ssl = config.get("smtp_ssl", True)
+        recipients = config.get("recipients", [])
+        if not recipients:
+            return
+        msg = MIMEMultipart("alternative")
+        msg["From"] = smtp_user
+        msg["To"] = ", ".join(recipients)
+        msg["Subject"] = "VigilOps 修复通知"
+        msg.attach(MIMEText(body, "plain", "utf-8"))
+        kwargs = {"hostname": smtp_host, "port": smtp_port, "username": smtp_user, "password": smtp_password}
+        if use_ssl:
+            kwargs["use_tls"] = True
+        else:
+            kwargs["start_tls"] = True
+        await aiosmtplib.send(msg, **kwargs)
+
+
+# ---------------------------------------------------------------------------
 # 模板相关辅助函数
 # ---------------------------------------------------------------------------
 
