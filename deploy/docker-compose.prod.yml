@@ -1,0 +1,124 @@
+# VigilOps 生产环境 Docker Compose
+# 由 vigilops-deploy.sh 自动生成/使用
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vigilops}
+      POSTGRES_USER: ${POSTGRES_USER:-vigilops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vigilops}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    networks:
+      - vigilops
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    networks:
+      - vigilops
+
+  backend:
+    build: ../backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8001}:8000"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-vigilops}
+      POSTGRES_USER: ${POSTGRES_USER:-vigilops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY is required}
+      JWT_ALGORITHM: HS256
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-120}
+      JWT_REFRESH_TOKEN_EXPIRE_DAYS: ${JWT_REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      AI_PROVIDER: ${AI_PROVIDER:-deepseek}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_API_BASE: ${AI_API_BASE:-https://api.deepseek.com/v1}
+      AI_MODEL: ${AI_MODEL:-deepseek-chat}
+      AI_MAX_TOKENS: ${AI_MAX_TOKENS:-2000}
+      AI_AUTO_SCAN: ${AI_AUTO_SCAN:-false}
+      MEMORY_ENABLED: ${MEMORY_ENABLED:-false}
+      MEMORY_API_URL: ${MEMORY_API_URL:-}
+      AGENT_ENABLED: ${AGENT_ENABLED:-false}
+      AGENT_DRY_RUN: ${AGENT_DRY_RUN:-true}
+      AGENT_MAX_AUTO_PER_HOUR: ${AGENT_MAX_AUTO_PER_HOUR:-10}
+      AGENT_NOTIFY_ON_SUCCESS: ${AGENT_NOTIFY_ON_SUCCESS:-true}
+      AGENT_NOTIFY_ON_FAILURE: ${AGENT_NOTIFY_ON_FAILURE:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    networks:
+      - vigilops
+
+  frontend:
+    build: ../frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3001}:80"
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    networks:
+      - vigilops
+
+volumes:
+  pgdata:
+  redisdata:
+
+networks:
+  vigilops:
+    driver: bridge
