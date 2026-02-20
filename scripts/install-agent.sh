@@ -15,6 +15,7 @@ CONFIG_FILE="$CONFIG_DIR/agent.yaml"
 SERVICE_NAME="vigilops-agent"
 VENV_DIR="$INSTALL_DIR/venv"
 REPO_URL="https://github.com/LinChuang2008/vigilops.git"
+GITEE_REPO_URL="https://gitee.com/LinChuang2008/vigilops.git"
 MIN_PYTHON="3.9"
 
 # ── Colors ─────────────────────────────────────────────────
@@ -41,6 +42,7 @@ while [[ $# -gt 0 ]]; do
     --interval|-i)  METRICS_INTERVAL="$2"; shift 2 ;;
     --upgrade)      UPGRADE=true; shift ;;
     --uninstall)    UNINSTALL=true; shift ;;
+    --local|-l)     LOCAL_PKG="$2"; shift 2 ;;
     --help|-h)
       echo "VigilOps Agent Installer v$AGENT_VERSION"
       echo ""
@@ -53,6 +55,7 @@ while [[ $# -gt 0 ]]; do
       echo "Optional:"
       echo "  --hostname, -n NAME  Override hostname (default: auto-detect)"
       echo "  --interval, -i SEC   Metrics collection interval (default: 15)"
+      echo "  --local, -l PATH     Use local agent package (dir or .tar.gz)"
       echo "  --upgrade            Upgrade existing installation"
       echo "  --uninstall          Remove VigilOps Agent completely"
       echo "  --help, -h           Show this help"
@@ -148,7 +151,20 @@ if ! command -v git &>/dev/null; then
 fi
 
 # ── Download / Update Agent Code ───────────────────────────
-if [[ -d "$INSTALL_DIR/repo" ]]; then
+LOCAL_PKG="${LOCAL_PKG:-}"
+
+if [[ -n "$LOCAL_PKG" ]]; then
+  # Local package mode: skip git, use provided path
+  msg "Using local agent package: $LOCAL_PKG"
+  mkdir -p "$INSTALL_DIR/repo"
+  if [[ -d "$LOCAL_PKG" ]]; then
+    cp -r "$LOCAL_PKG" "$INSTALL_DIR/repo/agent"
+  elif [[ -f "$LOCAL_PKG" ]]; then
+    tar xzf "$LOCAL_PKG" -C "$INSTALL_DIR/repo/"
+  else
+    err "Local package not found: $LOCAL_PKG"
+  fi
+elif [[ -d "$INSTALL_DIR/repo" ]]; then
   msg "Updating agent code..."
   cd "$INSTALL_DIR/repo"
   git pull --ff-only 2>/dev/null || {
@@ -159,7 +175,14 @@ if [[ -d "$INSTALL_DIR/repo" ]]; then
 else
   msg "Downloading VigilOps agent..."
   mkdir -p "$INSTALL_DIR"
-  git clone --depth 1 "$REPO_URL" "$INSTALL_DIR/repo"
+  # Try GitHub first, fallback to Gitee mirror (faster in China)
+  if timeout 30 git clone --depth 1 "$REPO_URL" "$INSTALL_DIR/repo" 2>/dev/null; then
+    msg "Cloned from GitHub."
+  elif timeout 30 git clone --depth 1 "$GITEE_REPO_URL" "$INSTALL_DIR/repo" 2>/dev/null; then
+    msg "Cloned from Gitee mirror."
+  else
+    err "Failed to clone from GitHub and Gitee. Use --local to provide a local package."
+  fi
 fi
 
 # ── Setup Virtual Environment ──────────────────────────────
