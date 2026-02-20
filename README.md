@@ -21,20 +21,64 @@ Built with an AI Agent at its core, VigilOps goes beyond dashboards and alerts. 
 
 ![Dashboard](docs/screenshots/dashboard.jpg)
 
+## 🤖 How the AI Agent Works
+
+```
+  Alert Triggered        AI Diagnoses          Runbook Executes       Resolved
+  ┌──────────┐        ┌──────────────┐        ┌───────────────┐     ┌─────────┐
+  │ Disk 95% │───────▶│ Root Cause   │───────▶│ disk_cleanup   │────▶│ Disk 60%│
+  │ Alert    │        │ Analysis     │        │ runbook runs   │     │ ✅ Fixed │
+  └──────────┘        └──────────────┘        └───────────────┘     └─────────┘
+       │                     │                        │
+   Monitors              DeepSeek AI            Safety checks +
+   detect issue          correlates logs        approval workflow
+                         & metrics              before execution
+```
+
+**6 Built-in Runbooks** — ready to use out of the box:
+
+| Runbook | What it does |
+|---------|-------------|
+| 🧹 `disk_cleanup` | Clears temp files, old logs, reclaims disk space |
+| 🔄 `service_restart` | Gracefully restarts failed services |
+| 💾 `memory_pressure` | Identifies and mitigates memory hogs |
+| 📝 `log_rotation` | Rotates and compresses oversized logs |
+| 💀 `zombie_killer` | Detects and terminates zombie processes |
+| 🔌 `connection_reset` | Resets stuck connections and connection pools |
+
 ## ✨ Features
 
-- 🖥️ **Server Monitoring** — CPU, memory, disk, network with real-time metrics
+- 🤖 **AI Agent Auto-Remediation** — Autonomous incident response with 6 built-in runbooks, safety checks, and approval workflows
+- 🧠 **AI Root Cause Analysis** — DeepSeek-powered log correlation, anomaly detection, and intelligent insights
+- 🖥️ **Server Monitoring** — CPU, memory, disk, network with real-time WebSocket metrics
 - 🔌 **Service Health Checks** — HTTP, TCP, gRPC endpoint monitoring with latency tracking
-- 🗄️ **Database Monitoring** — PostgreSQL, MySQL, Redis performance & connection pooling
-- 🤖 **AI-Powered Analysis** — Root cause detection, anomaly prediction, intelligent correlation
-- 🔧 **AI Agent Auto-Remediation** *(NEW)* — Autonomous incident response: restart services, scale resources, roll back deployments
-- 🚨 **Smart Alerting** — Context-aware alerts with noise reduction, escalation policies
-- 📊 **SLA Tracking** — Uptime SLOs, error budgets, compliance reports
-- 📝 **Operations Reports** — Auto-generated daily/weekly runbooks and incident summaries
-- 🗺️ **Service Topology** — Interactive dependency maps with real-time health overlay
-- 🎨 **15+ Dashboard Pages** — Beautiful, responsive UI built with React + TypeScript
+- 🗄️ **Database Monitoring** — PostgreSQL, MySQL, Oracle — slow queries, connections, QPS
+- 🚨 **Smart Alerting** — Metric, log keyword, and DB threshold rules with noise reduction & cooldown
+- 📊 **SLA Management** — Uptime SLOs, error budgets, violation detection
+- 🗺️ **Service Topology** — Interactive dependency maps with drag layout, AI-suggested dependencies, health overlay
+- 📝 **Operations Reports** — Auto-generated daily/weekly incident summaries
+- 🔔 **5 Notification Channels** — DingTalk, Feishu, WeCom, Email, Webhook
+- 📋 **Audit Logs** — Full operation audit trail for compliance
+- 🎨 **22 Dashboard Pages** — Beautiful, responsive UI built with React + TypeScript
 
 ![Service Topology](docs/screenshots/topology.jpg)
+
+## 🏆 Why VigilOps?
+
+| Feature | VigilOps | Zabbix | Prometheus+Grafana | Datadog |
+|---------|----------|--------|-------------------|---------|
+| AI Root Cause Analysis | ✅ Built-in | ❌ | ❌ | 💰 Add-on |
+| Auto-Remediation | ✅ 6 Runbooks | ❌ | ❌ | 💰 Enterprise |
+| Self-Hosted | ✅ | ✅ | ✅ | ❌ |
+| Setup Time | ~2 min | Hours | Hours | Minutes |
+| Open Source | ✅ Apache 2.0 | ✅ GPL | ✅ Apache | ❌ |
+| All-in-One (Monitor+Alert+Fix) | ✅ | Partial | ❌ Need stack | ✅ |
+
+## 👥 Who is this for?
+
+- **DevOps / SRE Teams** — Reduce MTTR with AI-driven diagnostics and auto-remediation
+- **SMB IT Teams** — Enterprise-grade monitoring without enterprise complexity or cost
+- **MSPs / Managed Service Providers** — Monitor multiple clients with one self-hosted platform
 
 ## 🚀 Quick Start
 
@@ -87,10 +131,10 @@ That's it. No complex configuration needed.
 
 | Layer | Technology |
 |-------|-----------|
-| **Frontend** | React 18, TypeScript, Vite, Ant Design |
+| **Frontend** | React 18, TypeScript, Vite, Ant Design, ECharts |
 | **Backend** | Python 3.11+, FastAPI, SQLAlchemy |
 | **Database** | PostgreSQL 15+, Redis 7+ |
-| **AI** | DeepSeek API, 自研 AI Agent (~500行) |
+| **AI** | DeepSeek API, Custom AI Agent with Runbook engine |
 | **Infra** | Docker, Docker Compose, Nginx |
 
 ## 🤝 Contributing
@@ -115,17 +159,29 @@ cd frontend && npm install
 
 ## 🇨🇳 中文简介
 
-**VigilOps** 是一个 AI 驱动的基础设施监控平台。与传统监控工具不同，VigilOps 内置 AI Agent，不仅能发现问题、分析根因，还能**自动修复**常见故障——重启服务、扩容资源、回滚部署，无需人工介入。
+**VigilOps** 是一个 AI 驱动的开源基础设施监控平台。与传统监控工具不同，VigilOps 内置 AI Agent，不仅能发现问题、分析根因，还能**自动修复**常见故障——无需人工介入。
 
-**核心能力：**
-- 服务器 / 服务 / 数据库全方位监控
-- AI 智能分析与异常预测
-- AI Agent 自动修复（全新功能）
-- 告警降噪与升级策略
-- SLA 追踪与运维报告自动生成
-- 服务拓扑可视化
+### 核心差异化：AI 自动修复
 
-**快速体验：**
+内置 6 个修复 Runbook：磁盘清理、服务重启、内存压力缓解、日志轮转、僵尸进程清除、连接重置。告警触发 → AI 诊断 → 安全检查 → 自动执行，全流程闭环。
+
+### 为什么选 VigilOps？
+
+- ✅ **AI 根因分析 + 自动修复** — 竞品要么没有，要么收费
+- ✅ **2 分钟部署** — `docker compose up -d` 即可运行
+- ✅ **全栈监控** — 服务器 / 服务 / 数据库 / 日志 / 拓扑 一站搞定
+- ✅ **5 种通知渠道** — 钉钉、飞书、企微、邮件、Webhook
+- ✅ **SLA 管理** — 可用性追踪、错误预算、违规检测
+- ✅ **开源免费** — Apache 2.0，可私有部署
+
+### 适合谁？
+
+- 🏢 中小企业 IT 团队 — 企业级能力，零门槛上手
+- 🔧 DevOps / SRE — AI 辅助降低 MTTR
+- 🌐 MSP 运维服务商 — 一套平台管理多个客户
+
+### 快速体验
+
 ```bash
 git clone https://github.com/LinChuang2008/vigilops.git
 cd vigilops && docker compose up -d
@@ -138,5 +194,10 @@ cd vigilops && docker compose up -d
 ---
 
 <div align="center">
-  <sub>Built with ❤️ by the VigilOps community</sub>
+
+🏢 **Need managed monitoring & AI operations?** We offer professional services.<br>
+📧 [support@lchuang.net](mailto:support@lchuang.net)
+
+<sub>Built with ❤️ by the VigilOps community</sub>
+
 </div>
