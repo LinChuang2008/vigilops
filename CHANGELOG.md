@@ -1,0 +1,94 @@
+# Changelog
+
+All notable changes to VigilOps will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## [0.9.0] - 2026-02-20
+
+### Added
+- **Agent Installer**: One-line install script with offline mode support (`scripts/install-agent.sh`)
+- **CI/CD Pipeline**: GitHub Actions for automated build, test, and Docker image push
+- **Customer Onboarding SOP**: Step-by-step deployment guide for service delivery
+- **Blog Content**: 6 technical articles (zh/en) covering AI observability trends, quick start guide, and Agentic SRE
+- **Landing Page Copy**: README redesigned as product landing page with feature highlights
+
+### Improved
+- README.md restructured for better GitHub discoverability and conversion
+- Agent install script supports both online and offline deployment modes
+
+## [0.8.0] - 2026-02-19
+
+### Added
+- **Multi-Server Topology**: Hierarchical drill-down topology view (L1 global → L2 server → L3 service)
+- Topology supports drag-and-drop layout with persistence
+- AI-suggested service dependencies in topology view
+- Adjacency highlighting for connected services
+
+### Improved
+- Topology rendering performance for large service graphs
+- Server group management with topology integration
+
+## [0.7.0] - 2026-02-18
+
+### Added
+- **AI Memory Integration**: VigilOps AI engine connected to xiaoqiang-memory for fault history recall
+- AI analysis recalls past incidents for better root cause diagnosis
+- Resolved incidents auto-stored as operational knowledge
+- GitHub open-source materials: CONTRIBUTING.md, issue templates, PR template
+
+### Changed
+- AI engine uses historical context for smarter anomaly detection
+
+## [0.6.0] - 2026-02-18
+
+### Added
+- **ECS Deployment**: Full stack deployed to Alibaba Cloud ECS (139.196.210.68)
+- Docker Compose production configuration
+- Migration 014 for production database
+
+### Fixed
+- Docker build optimizations for smaller image size
+- Environment variable handling for production deployment
+
+## [0.5.0] - 2026-02-17
+
+### Added
+- **SLA Management**: Availability tracking, error budgets, violation detection
+- **Audit Logging**: Full operation audit trail
+- **Notification System**: 5 channels (DingTalk, Feishu, WeCom, Email, Webhook)
+- Notification templates with variable substitution
+- Notification throttling (cooldown + silence periods)
+
+## [0.4.0] - 2026-02-17
+
+### Added
+- **Auto-Remediation System**: AI-driven self-healing for common incidents
+- 6 built-in runbooks: disk cleanup, memory pressure, service restart, log rotation, zombie killer, connection reset
+- Safety checks with approval workflow for destructive operations
+- Remote command execution via SSH
+
+## [0.3.0] - 2026-02-16
+
+### Added
+- **Dashboard**: Real-time WebSocket updates, health score, trend charts
+- **Database Monitoring**: PostgreSQL, MySQL, Oracle support with slow query Top10
+- **Log Management**: Collection, full-text search, real-time streaming
+- **Report Generation**: Automated operational reports
+
+## [0.2.0] - 2026-02-16
+
+### Added
+- **AI Analysis Module**: DeepSeek integration for intelligent diagnostics
+- AI conversation interface for interactive troubleshooting
+- Root cause analysis with one-click trigger from alerts
+- AI insights dashboard with severity scoring
+
+## [0.1.0] - 2026-02-16
+
+### Added
+- **Core Monitoring**: Host and service monitoring with metric collection
+- **Alert System**: Metric-based, log keyword, and database alert rules
+- **User Management**: Registration, login, JWT auth, RBAC
+- **Agent**: Data collection agent with HTTP reporting
+- FastAPI backend + React frontend + PostgreSQL + Redis

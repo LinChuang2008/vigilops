@@ -14,6 +14,13 @@
 | [Agentic SRE：2026 年运维的终极形态](agentic-sre-self-healing-zh.md) | 中文 | 知乎 / 掘金 / CSDN / SegmentFault |
 | [Agentic SRE: Open-Source Self-Healing](agentic-sre-self-healing-en.md) | English | HN / Reddit / Dev.to |
 
+## 🔍 Comparison & Selection Guide
+
+| Title | Language | Target Platform |
+|-------|----------|----------------|
+| [2026 监控工具选型指南：VigilOps vs Zabbix vs Prometheus vs Datadog](monitoring-tools-comparison-zh.md) | 中文 | 知乎 / 掘金 / CSDN / SegmentFault |
+| [Monitoring Tools Comparison 2026](monitoring-tools-comparison-en.md) | English | HN / Reddit / Dev.to |
+
 ## 📊 Industry Analysis
 
 | Title | Language | Target Platform |
