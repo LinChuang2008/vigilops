@@ -265,13 +265,33 @@ else
   die "缺少 $COMPOSE_FILE"
 fi
 
-# ─── Docker 构建启动 ──────────────────────────────────
-step 6 "构建并启动服务"
+# ─── Docker 镜像获取 & 启动 ──────────────────────────
+step 6 "获取镜像并启动服务"
 
 cd "$INSTALL_DIR"
 
-info "构建 Docker 镜像（首次可能需要几分钟）..."
-docker compose -f "$COMPOSE_FILE" build --quiet 2>&1 | tail -5
+GHCR_BACKEND="ghcr.io/linchuang2008/vigilops-backend:latest"
+GHCR_FRONTEND="ghcr.io/linchuang2008/vigilops-frontend:latest"
+
+pull_or_build() {
+  info "尝试从 GHCR 拉取预构建镜像..."
+  if docker pull "$GHCR_BACKEND" 2>/dev/null && docker pull "$GHCR_FRONTEND" 2>/dev/null; then
+    ok "镜像拉取成功（跳过本地构建）"
+    return 0
+  else
+    warn "GHCR 拉取失败，回退到本地构建..."
+    if [ -d "$INSTALL_DIR/backend" ] && [ -d "$INSTALL_DIR/frontend" ]; then
+      info "构建 Docker 镜像（首次可能需要几分钟）..."
+      docker build -t "$GHCR_BACKEND" "$INSTALL_DIR/backend" 2>&1 | tail -3
+      docker build -t "$GHCR_FRONTEND" "$INSTALL_DIR/frontend" 2>&1 | tail -3
+      ok "本地构建完成"
+    else
+      die "无法拉取镜像且缺少源码，无法继续"
+    fi
+  fi
+}
+
+pull_or_build
 
 info "启动容器..."
 docker compose -f "$COMPOSE_FILE" up -d
