@@ -5,13 +5,16 @@ set -euo pipefail
 
 # ── Constants ──────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
+COMPOSE_FILE="$SCRIPT_DIR/docker-compose.prod.yml"
+COMPOSE_DEV_FILE="$SCRIPT_DIR/docker-compose.yml"
 ENV_FILE="$SCRIPT_DIR/.env"
+ENV_EXAMPLE="$SCRIPT_DIR/.env.example"
 MIGRATIONS_DIR="$SCRIPT_DIR/backend/migrations"
 DEFAULT_BACKEND_PORT=8001
 DEFAULT_FRONTEND_PORT=3001
 DEFAULT_POSTGRES_PORT=5433
 DEFAULT_REDIS_PORT=6380
+VERSION="1.0.0"
 
 # ── Colors ─────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -21,6 +24,7 @@ BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
 msg()  { echo -e "${GREEN}[VigilOps]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 err()  { echo -e "${RED}[ERROR]${NC} $1" >&2; }
+
 banner() {
   echo -e "${CYAN}"
   echo "╔══════════════════════════════════════════════╗"
@@ -30,17 +34,85 @@ banner() {
   echo -e "${NC}"
 }
 
+# ── Usage / Help ───────────────────────────────────────────
+usage() {
+  cat <<EOF
+VigilOps Installer v${VERSION}
+
+Usage: ./install.sh [OPTIONS]
+
+Options:
+  (no args)       Interactive install / 交互式安装
+  --help, -h      Show this help message / 显示帮助
+  --status        Show running status / 显示运行状态
+  --uninstall     Stop and remove containers / 停止并删除容器
+  --upgrade       Pull latest and restart / 升级并重启
+
+Port options (non-interactive):
+  --backend-port PORT    Backend port  (default: ${DEFAULT_BACKEND_PORT})
+  --frontend-port PORT   Frontend port (default: ${DEFAULT_FRONTEND_PORT})
+  --postgres-port PORT   Postgres port (default: ${DEFAULT_POSTGRES_PORT})
+  --redis-port PORT      Redis port    (default: ${DEFAULT_REDIS_PORT})
+
+Examples:
+  ./install.sh                                    # Interactive install
+  ./install.sh --backend-port 9001                # Custom backend port
+  ./install.sh --status                           # Check status
+  ./install.sh --uninstall                        # Remove containers
+
+EOF
+  exit 0
+}
+
+# ── Status ─────────────────────────────────────────────────
+show_status() {
+  msg "VigilOps Service Status / 服务状态"
+  echo ""
+  cd "$SCRIPT_DIR"
+  detect_compose
+  if [[ -z "$COMPOSE_CMD" ]]; then
+    err "Docker Compose not found."
+    exit 1
+  fi
+  # Use prod compose if available, fallback to dev
+  local cf="$COMPOSE_FILE"
+  [[ ! -f "$cf" ]] && cf="$COMPOSE_DEV_FILE"
+  $COMPOSE_CMD -f "$cf" ps 2>/dev/null || echo "  No containers running. / 没有运行中的容器。"
+  echo ""
+
+  # Show ports from .env or defaults
+  if [[ -f "$ENV_FILE" ]]; then
+    local bp fp pp rp
+    bp=$(grep "^BACKEND_PORT_HOST=" "$ENV_FILE" 2>/dev/null | cut -d= -f2 || echo "$DEFAULT_BACKEND_PORT")
+    fp=$(grep "^FRONTEND_PORT_HOST=" "$ENV_FILE" 2>/dev/null | cut -d= -f2 || echo "$DEFAULT_FRONTEND_PORT")
+    pp=$(grep "^POSTGRES_PORT_HOST=" "$ENV_FILE" 2>/dev/null | cut -d= -f2 || echo "$DEFAULT_POSTGRES_PORT")
+    rp=$(grep "^REDIS_PORT_HOST=" "$ENV_FILE" 2>/dev/null | cut -d= -f2 || echo "$DEFAULT_REDIS_PORT")
+    bp="${bp:-$DEFAULT_BACKEND_PORT}"; fp="${fp:-$DEFAULT_FRONTEND_PORT}"
+    pp="${pp:-$DEFAULT_POSTGRES_PORT}"; rp="${rp:-$DEFAULT_REDIS_PORT}"
+    echo "  Configured Ports / 配置端口:"
+    echo "    Backend:  ${bp}"
+    echo "    Frontend: ${fp}"
+    echo "    Postgres: ${pp}"
+    echo "    Redis:    ${rp}"
+  fi
+  exit 0
+}
+
 # ── Uninstall ──────────────────────────────────────────────
 uninstall() {
   msg "Uninstalling VigilOps… / 卸载 VigilOps…"
   cd "$SCRIPT_DIR"
-  docker compose down 2>/dev/null || docker-compose down 2>/dev/null || true
+  detect_compose
+  local cf="$COMPOSE_FILE"
+  [[ ! -f "$cf" ]] && cf="$COMPOSE_DEV_FILE"
+
+  $COMPOSE_CMD -f "$cf" down 2>/dev/null || true
   echo ""
-  read -rp "Delete data volumes? 删除数据卷？(y/N): " del_data
-  if [[ "${del_data,,}" == "y" ]]; then
-    docker compose down -v 2>/dev/null || docker-compose down -v 2>/dev/null || true
-    msg "Volumes removed. / 数据卷已删除。"
-  fi
+  msg "Containers and networks removed. / 容器和网络已删除。"
+  echo ""
+  warn "Data volumes are preserved. To remove them manually: / 数据卷已保留，手动删除："
+  echo "  docker volume rm \$(docker volume ls -q | grep vigilops)"
+  echo ""
   read -rp "Delete .env file? 删除配置文件？(y/N): " del_env
   if [[ "${del_env,,}" == "y" ]]; then
     rm -f "$ENV_FILE"
@@ -54,9 +126,12 @@ uninstall() {
 upgrade() {
   msg "Upgrading VigilOps… / 升级 VigilOps…"
   cd "$SCRIPT_DIR"
+  detect_compose
+  local cf="$COMPOSE_FILE"
+  [[ ! -f "$cf" ]] && cf="$COMPOSE_DEV_FILE"
+
   git pull --ff-only 2>/dev/null || warn "Git pull failed, skipping. / Git 拉取失败，跳过。"
-  $COMPOSE_CMD build --no-cache
-  $COMPOSE_CMD up -d
+  $COMPOSE_CMD -f "$cf" up -d
   run_migrations
   msg "Upgrade complete! / 升级完成！"
   exit 0
@@ -95,7 +170,6 @@ check_prerequisites() {
     exit 1
   fi
 
-  # Check Docker daemon running
   if ! docker info &>/dev/null; then
     err "Docker daemon not running. / Docker 服务未启动。"
     echo "  sudo systemctl start docker"
@@ -117,15 +191,23 @@ configure() {
   echo "Press Enter to use [default]. / 按回车使用 [默认值]。"
   echo ""
 
-  # Ports
-  read -rp "Backend port  后端端口 [$DEFAULT_BACKEND_PORT]: " BACKEND_PORT
-  BACKEND_PORT="${BACKEND_PORT:-$DEFAULT_BACKEND_PORT}"
-  read -rp "Frontend port 前端端口 [$DEFAULT_FRONTEND_PORT]: " FRONTEND_PORT
-  FRONTEND_PORT="${FRONTEND_PORT:-$DEFAULT_FRONTEND_PORT}"
-  read -rp "Postgres port 数据库端口 [$DEFAULT_POSTGRES_PORT]: " POSTGRES_PORT
-  POSTGRES_PORT="${POSTGRES_PORT:-$DEFAULT_POSTGRES_PORT}"
-  read -rp "Redis port    缓存端口 [$DEFAULT_REDIS_PORT]: " REDIS_PORT
-  REDIS_PORT="${REDIS_PORT:-$DEFAULT_REDIS_PORT}"
+  # Ports (may be pre-set via CLI args)
+  if [[ -z "${BACKEND_PORT:-}" ]]; then
+    read -rp "Backend port  后端端口 [$DEFAULT_BACKEND_PORT]: " BACKEND_PORT
+    BACKEND_PORT="${BACKEND_PORT:-$DEFAULT_BACKEND_PORT}"
+  fi
+  if [[ -z "${FRONTEND_PORT:-}" ]]; then
+    read -rp "Frontend port 前端端口 [$DEFAULT_FRONTEND_PORT]: " FRONTEND_PORT
+    FRONTEND_PORT="${FRONTEND_PORT:-$DEFAULT_FRONTEND_PORT}"
+  fi
+  if [[ -z "${POSTGRES_PORT:-}" ]]; then
+    read -rp "Postgres port 数据库端口 [$DEFAULT_POSTGRES_PORT]: " POSTGRES_PORT
+    POSTGRES_PORT="${POSTGRES_PORT:-$DEFAULT_POSTGRES_PORT}"
+  fi
+  if [[ -z "${REDIS_PORT:-}" ]]; then
+    read -rp "Redis port    缓存端口 [$DEFAULT_REDIS_PORT]: " REDIS_PORT
+    REDIS_PORT="${REDIS_PORT:-$DEFAULT_REDIS_PORT}"
+  fi
 
   # DB password
   DB_PASSWORD="$(rand_pw)"
@@ -141,7 +223,11 @@ configure() {
   read -rp "AI Model [deepseek-chat]: " AI_MODEL
   AI_MODEL="${AI_MODEL:-deepseek-chat}"
 
-  # Write .env
+  write_env
+}
+
+# ── Write .env file ───────────────────────────────────────
+write_env() {
   cat > "$ENV_FILE" <<EOF
 # VigilOps Configuration — auto-generated $(date +%Y-%m-%d)
 
@@ -166,6 +252,12 @@ JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
 BACKEND_HOST=0.0.0.0
 BACKEND_PORT=8000
 
+# Host-mapped ports (used by docker-compose.prod.yml)
+BACKEND_PORT_HOST=${BACKEND_PORT}
+FRONTEND_PORT_HOST=${FRONTEND_PORT}
+POSTGRES_PORT_HOST=${POSTGRES_PORT}
+REDIS_PORT_HOST=${REDIS_PORT}
+
 # AI (optional)
 AI_PROVIDER=deepseek
 AI_API_KEY=${AI_KEY}
@@ -177,33 +269,41 @@ EOF
   msg "✅ .env generated / 配置文件已生成"
 }
 
-# ── Update docker-compose ports ───────────────────────────
-patch_compose_ports() {
-  # Create override file for custom ports
-  cat > "$SCRIPT_DIR/docker-compose.override.yml" <<EOF
-services:
-  postgres:
-    ports:
-      - "${POSTGRES_PORT}:5432"
-  redis:
-    ports:
-      - "${REDIS_PORT}:6379"
-  backend:
-    ports:
-      - "${BACKEND_PORT}:8000"
-  frontend:
-    ports:
-      - "${FRONTEND_PORT}:80"
-EOF
-  msg "✅ Port mapping configured / 端口映射已配置"
+# ── Load images (offline mode) ────────────────────────────
+load_images() {
+  msg "Loading Docker images… / 加载 Docker 镜像…"
+  local loaded=0
+  for tarball in "$SCRIPT_DIR"/backend.tar.gz "$SCRIPT_DIR"/frontend.tar.gz; do
+    if [[ -f "$tarball" ]]; then
+      echo -n "  Loading $(basename "$tarball")… "
+      docker load -i "$tarball" &>/dev/null && echo -e "${GREEN}✅${NC}" || echo -e "${RED}❌${NC}"
+      loaded=$((loaded+1))
+    fi
+  done
+  if [[ $loaded -gt 0 ]]; then
+    msg "✅ Loaded $loaded image(s) / 已加载 $loaded 个镜像"
+  fi
 }
 
-# ── Build & Start ─────────────────────────────────────────
+# ── Start services ────────────────────────────────────────
 start_services() {
-  msg "Building and starting services… / 构建并启动服务…"
+  msg "Starting services… / 启动服务…"
   cd "$SCRIPT_DIR"
-  $COMPOSE_CMD build
-  $COMPOSE_CMD up -d
+
+  # Prefer prod compose (uses image:), fallback to dev (uses build:)
+  local cf="$COMPOSE_FILE"
+  if [[ ! -f "$cf" ]]; then
+    warn "docker-compose.prod.yml not found, using docker-compose.yml"
+    cf="$COMPOSE_DEV_FILE"
+  fi
+
+  # Export ports for docker-compose.prod.yml variable substitution
+  export BACKEND_PORT="${BACKEND_PORT:-$DEFAULT_BACKEND_PORT}"
+  export FRONTEND_PORT="${FRONTEND_PORT:-$DEFAULT_FRONTEND_PORT}"
+  export POSTGRES_PORT="${POSTGRES_PORT:-$DEFAULT_POSTGRES_PORT}"
+  export REDIS_PORT="${REDIS_PORT:-$DEFAULT_REDIS_PORT}"
+
+  $COMPOSE_CMD -f "$cf" --env-file "$ENV_FILE" up -d
 }
 
 # ── Health check ──────────────────────────────────────────
@@ -212,7 +312,6 @@ wait_healthy() {
   local max_wait=120
   local elapsed=0
 
-  # Wait for postgres
   echo -n "  PostgreSQL: "
   while ! docker compose exec -T postgres pg_isready -U vigilops &>/dev/null; do
     sleep 2; elapsed=$((elapsed+2))
@@ -223,7 +322,6 @@ wait_healthy() {
   done
   echo -e " ${GREEN}✅${NC}"
 
-  # Wait for redis
   echo -n "  Redis:      "
   elapsed=0
   while ! docker compose exec -T redis redis-cli ping &>/dev/null; do
@@ -235,7 +333,6 @@ wait_healthy() {
   done
   echo -e " ${GREEN}✅${NC}"
 
-  # Wait for backend
   echo -n "  Backend:    "
   elapsed=0
   while ! curl -sf "http://localhost:${BACKEND_PORT}/docs" &>/dev/null; do
@@ -247,7 +344,6 @@ wait_healthy() {
   done
   echo -e " ${GREEN}✅${NC}"
 
-  # Wait for frontend
   echo -n "  Frontend:   "
   elapsed=0
   while ! curl -sf "http://localhost:${FRONTEND_PORT}" &>/dev/null; do
@@ -264,19 +360,16 @@ wait_healthy() {
 run_migrations() {
   msg "Running database migrations… / 执行数据库迁移…"
 
-  # Create tracking table
   $COMPOSE_CMD exec -T postgres psql -U vigilops -d vigilops -c "
     CREATE TABLE IF NOT EXISTS schema_migrations (
       filename VARCHAR(255) PRIMARY KEY,
       applied_at TIMESTAMP DEFAULT NOW()
     );" 2>/dev/null || true
 
-  # Run each SQL file in order
   local count=0
   for sql_file in $(ls "$MIGRATIONS_DIR"/*.sql 2>/dev/null | sort); do
     local fname
     fname="$(basename "$sql_file")"
-    # Check if already applied
     local applied
     applied=$($COMPOSE_CMD exec -T postgres psql -U vigilops -d vigilops -tAc \
       "SELECT COUNT(*) FROM schema_migrations WHERE filename='$fname';" 2>/dev/null || echo "0")
@@ -324,19 +417,42 @@ print_summary() {
   echo -e "${CYAN}╠══════════════════════════════════════════════╣${NC}"
   echo -e "${CYAN}║${NC} Commands 常用命令:"
   echo -e "${CYAN}║${NC}   View logs 查看日志:  cd $(basename "$SCRIPT_DIR") && docker compose logs -f"
-  echo -e "${CYAN}║${NC}   Stop 停止:           ./install.sh --uninstall"
+  echo -e "${CYAN}║${NC}   Status 状态:         ./install.sh --status"
+  echo -e "${CYAN}║${NC}   Uninstall 卸载:      ./install.sh --uninstall"
   echo -e "${CYAN}║${NC}   Upgrade 升级:        ./install.sh --upgrade"
   echo -e "${CYAN}╚══════════════════════════════════════════════╝${NC}"
 }
 
-# ── Handle flags ───────────────────────────────────────────
-[[ "${1:-}" == "--uninstall" ]] && uninstall
-if [[ "${1:-}" == "--upgrade" ]]; then detect_compose; upgrade; fi
+# ── Parse arguments ────────────────────────────────────────
+BACKEND_PORT=""
+FRONTEND_PORT=""
+POSTGRES_PORT=""
+REDIS_PORT=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)       usage ;;
+    --status)        detect_compose; show_status ;;
+    --uninstall)     detect_compose; uninstall ;;
+    --upgrade)       detect_compose; upgrade ;;
+    --backend-port)  BACKEND_PORT="$2"; shift 2 ;;
+    --frontend-port) FRONTEND_PORT="$2"; shift 2 ;;
+    --postgres-port) POSTGRES_PORT="$2"; shift 2 ;;
+    --redis-port)    REDIS_PORT="$2"; shift 2 ;;
+    *)
+      err "Unknown option: $1"
+      echo "Run './install.sh --help' for usage."
+      exit 1 ;;
+  esac
+done
 
 # ── Main ──────────────────────────────────────────────────
 main() {
   banner
   check_prerequisites
+
+  # Load offline images if tar files present
+  load_images
 
   # If .env exists, ask to reconfigure
   if [[ -f "$ENV_FILE" ]]; then
@@ -345,26 +461,30 @@ main() {
     if [[ "${reconf,,}" == "y" ]]; then
       configure
     else
-      # Read existing ports from override or use defaults
-      BACKEND_PORT=$DEFAULT_BACKEND_PORT
-      FRONTEND_PORT=$DEFAULT_FRONTEND_PORT
-      POSTGRES_PORT=$DEFAULT_POSTGRES_PORT
-      REDIS_PORT=$DEFAULT_REDIS_PORT
-      if [[ -f "$SCRIPT_DIR/docker-compose.override.yml" ]]; then
-        BACKEND_PORT=$(grep -A1 'backend:' "$SCRIPT_DIR/docker-compose.override.yml" | grep -oP '\d+(?=:8000)' || echo $DEFAULT_BACKEND_PORT)
-        FRONTEND_PORT=$(grep -A1 'frontend:' "$SCRIPT_DIR/docker-compose.override.yml" | grep -oP '\d+(?=:80)' || echo $DEFAULT_FRONTEND_PORT)
-      fi
+      # Read existing ports from .env
+      BACKEND_PORT="${BACKEND_PORT:-$(grep '^BACKEND_PORT_HOST=' "$ENV_FILE" 2>/dev/null | cut -d= -f2 || true)}"
+      FRONTEND_PORT="${FRONTEND_PORT:-$(grep '^FRONTEND_PORT_HOST=' "$ENV_FILE" 2>/dev/null | cut -d= -f2 || true)}"
+      POSTGRES_PORT="${POSTGRES_PORT:-$(grep '^POSTGRES_PORT_HOST=' "$ENV_FILE" 2>/dev/null | cut -d= -f2 || true)}"
+      REDIS_PORT="${REDIS_PORT:-$(grep '^REDIS_PORT_HOST=' "$ENV_FILE" 2>/dev/null | cut -d= -f2 || true)}"
+      BACKEND_PORT="${BACKEND_PORT:-$DEFAULT_BACKEND_PORT}"
+      FRONTEND_PORT="${FRONTEND_PORT:-$DEFAULT_FRONTEND_PORT}"
+      POSTGRES_PORT="${POSTGRES_PORT:-$DEFAULT_POSTGRES_PORT}"
+      REDIS_PORT="${REDIS_PORT:-$DEFAULT_REDIS_PORT}"
       msg "Using existing configuration. / 使用现有配置。"
     fi
+  elif [[ -f "$ENV_EXAMPLE" ]]; then
+    # Copy .env.example as starting point, then run interactive config
+    msg "Creating .env from .env.example… / 从模板创建配置…"
+    cp "$ENV_EXAMPLE" "$ENV_FILE"
+    configure
   else
     configure
   fi
 
-  patch_compose_ports
   start_services
   wait_healthy
   run_migrations
   print_summary
 }
 
-main "$@"
+main

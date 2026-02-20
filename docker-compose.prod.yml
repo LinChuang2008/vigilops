@@ -1,10 +1,14 @@
+# VigilOps Production Docker Compose (offline deployment)
+# Uses pre-built images — no source code required
 services:
   postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-vigilops}
       POSTGRES_USER: ${POSTGRES_USER:-vigilops}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    ports:
+      - "${POSTGRES_PORT_HOST:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
@@ -25,6 +29,8 @@ services:
   redis:
     image: redis:7-alpine
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "${REDIS_PORT_HOST:-6380}:6379"
     volumes:
       - redisdata:/data
     restart: unless-stopped
@@ -43,9 +49,9 @@ services:
       - vigilops
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: vigilops-backend:latest
+    ports:
+      - "${BACKEND_PORT_HOST:-8001}:8000"
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-vigilops}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-vigilops}
@@ -65,12 +71,9 @@ services:
       - vigilops
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: vigilops-frontend:latest
     ports:
-      - "${PORT:-80}:80"
-      - "${SSL_PORT:-443}:443"
+      - "${FRONTEND_PORT_HOST:-3001}:80"
     depends_on:
       - backend
     restart: unless-stopped
