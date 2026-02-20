@@ -195,9 +195,9 @@ cd vigilops && docker compose up -d
 
 <div align="center">
 
-🏢 **Need managed monitoring & AI operations?** We offer professional services.<br>
-📧 [support@lchuang.net](mailto:support@lchuang.net)
+🏢 **Need managed AI operations (Agentic SRE)?** We offer professional monitoring & auto-remediation services.<br>
+📧 [support@lchuang.net](mailto:support@lchuang.net) · [Service Plans](docs/commercial/)
 
-<sub>Built with ❤️ by the VigilOps community</sub>
+<sub>Built with ❤️ by the VigilOps community · Keywords: observability, monitoring, AIOps, Agentic SRE, self-healing infrastructure, open-source</sub>
 
 </div>
