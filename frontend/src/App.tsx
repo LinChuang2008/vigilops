@@ -3,7 +3,7 @@
  * 配置 Ant Design 主题与国际化，定义全局路由结构
  * 所有需要认证的页面由 AuthGuard 守卫保护，嵌套在 AppLayout 布局内
  */
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ConfigProvider, App as AntApp } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import AppLayout from './components/AppLayout';
@@ -34,6 +34,22 @@ import SLA from './pages/SLA';
 import RemediationList from './pages/Remediation';
 import RemediationDetail from './pages/RemediationDetail';
 
+/** 路由权限守卫：根据角色限制可访问的页面 */
+const viewerAllowedPrefixes = ['/', '/hosts', '/services', '/topology', '/logs', '/databases', '/alerts', '/ai-analysis'];
+function RoleGuard({ children }: { children: React.ReactElement }) {
+  const location = useLocation();
+  const role = localStorage.getItem('user_role') || 'viewer';
+  const path = location.pathname;
+  if (role === 'viewer') {
+    const allowed = viewerAllowedPrefixes.some((p) => p === '/' ? path === '/' : path.startsWith(p));
+    if (!allowed) return <Navigate to="/" replace />;
+  }
+  if (role === 'member') {
+    if (path.startsWith('/users') || path.startsWith('/settings')) return <Navigate to="/" replace />;
+  }
+  return children;
+}
+
 export default function App() {
   return (
     <ConfigProvider
@@ -54,7 +70,9 @@ export default function App() {
             <Route
               element={
                 <AuthGuard>
-                  <AppLayout />
+                  <RoleGuard>
+                    <AppLayout />
+                  </RoleGuard>
                 </AuthGuard>
               }
             >

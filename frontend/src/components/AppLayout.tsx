@@ -33,8 +33,30 @@ import {
 
 const { Header, Sider, Content } = Layout;
 
+/** viewer 可见的菜单 key */
+const viewerKeys = new Set(['/', '/hosts', '/services', 'topology-group', '/topology', '/topology/servers', '/topology/service-groups', '/logs', '/databases', '/alerts', '/ai-analysis']);
+/** member 隐藏的菜单 key */
+const memberHiddenKeys = new Set(['/users', '/settings']);
+
+/** 根据角色过滤菜单 */
+function filterMenuByRole(items: typeof allMenuItems, role: string) {
+  if (role === 'admin') return items;
+  return items
+    .filter((item) => {
+      if (role === 'viewer') return viewerKeys.has(item.key);
+      if (role === 'member') return !memberHiddenKeys.has(item.key);
+      return true;
+    })
+    .map((item) => {
+      if ('children' in item && Array.isArray((item as any).children) && role === 'viewer') {
+        return { ...item, children: (item as any).children.filter((c: any) => viewerKeys.has(c.key)) };
+      }
+      return item;
+    });
+}
+
 /** 侧边栏菜单项配置，key 对应路由路径 */
-const menuItems = [
+const allMenuItems = [
   { key: '/', icon: <DashboardOutlined />, label: '仪表盘' },
   { key: '/hosts', icon: <CloudServerOutlined />, label: '服务器' },
   { key: '/services', icon: <ApiOutlined />, label: '服务监控' },
@@ -72,14 +94,17 @@ export default function AppLayout() {
   const location = useLocation();
   const { token: { colorBgContainer, borderRadiusLG } } = theme.useToken();
 
-  /** 从 localStorage 读取用户名，用于顶部栏展示 */
+  /** 从 localStorage 读取用户名和角色 */
   const userName = localStorage.getItem('user_name') || 'Admin';
+  const userRole = localStorage.getItem('user_role') || 'viewer';
+  const menuItems = filterMenuByRole(allMenuItems, userRole);
 
   /** 退出登录：清除本地存储的认证信息并跳转到登录页 */
   const handleLogout = () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user_name');
+    localStorage.removeItem('user_role');
     navigate('/login');
   };
 
@@ -87,7 +112,7 @@ export default function AppLayout() {
   const findSelectedKey = (): string => {
     const path = location.pathname;
     // 先在子菜单里找精确匹配
-    for (const item of menuItems) {
+    for (const item of allMenuItems) {
       if ('children' in item && Array.isArray((item as any).children)) {
         for (const child of (item as any).children) {
           if (child.key !== '/' && path.startsWith(child.key)) return child.key;
@@ -95,13 +120,13 @@ export default function AppLayout() {
       }
     }
     // 再在顶层找
-    const found = menuItems.find(
+    const found = allMenuItems.find(
       (item) => item.key !== '/' && !item.key.includes('-group') && path.startsWith(item.key)
     );
     return found?.key || '/';
   };
   const selectedKey = findSelectedKey();
-  const openKey = menuItems.find(
+  const openKey = allMenuItems.find(
     (item) => 'children' in item && (item as any).children?.some((c: any) => c.key === selectedKey)
   )?.key;
 

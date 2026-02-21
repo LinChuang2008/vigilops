@@ -36,6 +36,7 @@ export default function Login() {
       // 获取用户信息并存储用户名
       const { data: user } = await authService.me();
       localStorage.setItem('user_name', user.name);
+      localStorage.setItem('user_role', user.role);
       messageApi.success('登录成功');
       navigate('/');
     } catch (e: unknown) {
@@ -55,6 +56,7 @@ export default function Login() {
       localStorage.setItem('refresh_token', data.refresh_token);
       const { data: user } = await authService.me();
       localStorage.setItem('user_name', user.name);
+      localStorage.setItem('user_role', user.role);
       messageApi.success('注册成功');
       navigate('/');
     } catch (e: unknown) {
