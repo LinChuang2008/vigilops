@@ -34,6 +34,11 @@ services:
     ports:
       - "${BACKEND_PORT:-8001}:8000"
     env_file: .env
+    environment:
+      # Override port vars so backend connects to container-internal ports,
+      # not the host-mapped ports from .env
+      REDIS_PORT: 6379
+      POSTGRES_PORT: 5432
     depends_on:
       postgres:
         condition: service_healthy
