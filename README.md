@@ -82,25 +82,37 @@ Built with an AI Agent at its core, VigilOps goes beyond dashboards and alerts. 
 
 ## 🚀 Quick Start
 
-Get VigilOps running in under 2 minutes:
+**One-line install** (Ubuntu/Debian/CentOS/RHEL, auto-installs Docker if needed):
 
 ```bash
-# Clone the repository
-git clone https://github.com/LinChuang2008/vigilops.git
-cd vigilops
-
-# Start all services
-docker compose up -d
-
-# Open the dashboard
-open http://localhost:3001
+curl -sSL https://raw.githubusercontent.com/LinChuang2008/vigilops/main/install.sh | sudo bash
 ```
 
-Default admin credentials: `admin` / `vigilops`
+That's it — opens at `http://your-server:3001` with default login `admin` / `admin123`.
+
+<details>
+<summary>📦 Manual install / Custom ports</summary>
+
+```bash
+git clone https://github.com/LinChuang2008/vigilops.git
+cd vigilops
+docker compose up -d
+# Dashboard: http://localhost:3001
+```
+
+Or use the installer with options:
+```bash
+curl -sSL https://raw.githubusercontent.com/LinChuang2008/vigilops/main/install.sh | sudo bash -s -- --dir=/opt/vigilops --branch=main
+```
+
+Upgrade existing installation:
+```bash
+curl -sSL https://raw.githubusercontent.com/LinChuang2008/vigilops/main/install.sh | sudo bash -s -- --upgrade
+```
+
+</details>
 
 **🎯 Try the live demo:** [http://139.196.210.68:3001](http://139.196.210.68:3001) — Login with `demo@vigilops.io` / `demo123` (read-only)
-
-That's it. No complex configuration needed.
 
 ## 🏗️ Architecture
 
