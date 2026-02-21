@@ -181,6 +181,7 @@ app.include_router(server_groups.router)  # 服务器分组 (Server grouping)
 
 
 @app.get("/health")
+@app.get("/api/v1/health")
 async def health():
     """
     健康检查接口 (Health Check Endpoint)
