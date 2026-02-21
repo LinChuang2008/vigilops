@@ -133,6 +133,10 @@ export default function Login() {
           },
         ]} />
       </Card>
+      <div style={{ marginTop: 24, textAlign: 'center', color: 'rgba(255,255,255,0.6)', fontSize: 12, lineHeight: 1.8 }}>
+        <div>琳创科技（LinChuang Technology）</div>
+        <div>contact@lchuangnet.com · <a href="https://lchuangnet.com" style={{ color: 'rgba(255,255,255,0.6)' }}>lchuangnet.com</a></div>
+      </div>
     </div>
   );
 }
