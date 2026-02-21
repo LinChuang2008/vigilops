@@ -94,7 +94,10 @@ export default function Logs() {
     }).catch(() => {});
   }, []);
 
-  /** 搜索模式下获取日志数据 */
+  /** 搜索模式日志查询 (Search mode log query)
+   * 根据关键字、主机、服务、日志级别、时间范围等条件查询历史日志
+   * 支持分页查询，每页默认显示20条记录
+   */
   const doFetch = useCallback(async () => {
     setLoading(true);
     try {
@@ -114,7 +117,10 @@ export default function Logs() {
     if (mode === 'search') doFetch();
   }, [mode, doFetch]);
 
-  // 实时模式下建立 WebSocket 连接
+  /** 实时模式 WebSocket 连接管理 (Real-time mode WebSocket connection)
+   * 根据筛选条件建立 WebSocket 连接，实时接收日志流
+   * 支持按主机、服务、级别、关键字过滤，最多保留500条防止内存溢出
+   */
   useEffect(() => {
     if (mode !== 'realtime') {
       wsRef.current?.close();
@@ -134,7 +140,7 @@ export default function Logs() {
     setRealtimeLogs([]);
 
     ws.onmessage = (evt) => {
-      // 暂停时不处理新消息
+      // 暂停时不处理新消息，避免界面过载
       if (pausedRef.current) return;
       try {
         const entry: LogEntry = JSON.parse(evt.data);
@@ -159,12 +165,18 @@ export default function Logs() {
     }
   }, [realtimeLogs, mode, paused]);
 
-  /** 切换暂停/继续实时日志接收 */
+  /** 切换实时日志暂停状态 (Toggle real-time log pause state)
+   * 暂停时停止处理 WebSocket 消息，但保持连接
+   * 使用 ref 跟踪状态避免 WebSocket 回调中的闭包陷阱
+   */
   const togglePause = () => {
     setPaused(p => { pausedRef.current = !p; return !p; });
   };
 
-  /** 打开日志详情抽屉，同时加载前后 5 分钟的上下文日志 */
+  /** 打开日志详情和上下文 (Open log details and context)
+   * 显示选中日志的完整信息，并加载前后5分钟的相关日志
+   * 用于排查问题时了解日志的完整上下文
+   */
   const openDrawer = async (log: LogEntry) => {
     setSelectedLog(log);
     setDrawerVisible(true);

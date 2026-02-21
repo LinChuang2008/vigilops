@@ -116,7 +116,10 @@ export default function AIAnalysis() {
 
   const [messageApi, contextHolder] = message.useMessage();
 
-  /** 获取系统概况数据，将后端原始结构转为扁平化格式 */
+  /** 获取系统概况数据 (Fetch system overview data)
+   * 从后端获取原始嵌套结构数据，转换为前端使用的扁平化格式
+   * 包含主机、服务、告警、日志统计以及平均资源使用率
+   */
   const fetchSummary = async () => {
     setSummaryLoading(true);
     try {
@@ -136,7 +139,10 @@ export default function AIAnalysis() {
     } catch { /* ignore */ } finally { setSummaryLoading(false); }
   };
 
-  /** 获取 AI 洞察列表，支持按严重级别和状态筛选 */
+  /** 获取 AI 洞察分析列表 (Fetch AI insights analysis list)
+   * 支持按严重级别(critical/high/warning/info)和状态(new/acknowledged/resolved)筛选
+   * 分页显示AI自动产生的异常检测、根因分析、趋势分析等洞察
+   */
   const fetchInsights = async () => {
     setInsightsLoading(true);
     try {
@@ -157,7 +163,12 @@ export default function AIAnalysis() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  /** 发送聊天消息：追加用户消息，调用 AI 接口，追加 AI 回复 */
+  /** AI 对话流程处理 (AI chat flow handler)
+   * 1. 追加用户消息到对话历史
+   * 2. 调用后端 AI 聊天接口，传入用户问题
+   * 3. 获取 AI 回答，包含答案内容、参考来源、运维记忆上下文
+   * 4. 追加 AI 回复到对话历史，失败时显示友好错误信息
+   */
   const sendChat = async (question: string) => {
     if (!question.trim()) return;
     const q = question.trim();
@@ -172,7 +183,10 @@ export default function AIAnalysis() {
     } finally { setChatLoading(false); }
   };
 
-  /** 手动触发日志分析，完成后刷新洞察列表 */
+  /** 手动触发日志智能分析 (Manually trigger log intelligent analysis)
+   * 调用 AI 引擎分析最近1小时的日志数据，识别异常模式和潜在问题
+   * 分析完成后自动刷新洞察列表，展示新发现的问题
+   */
   const handleAnalyze = async () => {
     setAnalyzeLoading(true);
     try {

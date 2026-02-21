@@ -1,18 +1,83 @@
-"""Runbook：服务重启。需要确认，因为重启会导致短暂中断。"""
+"""
+VigilOps 自动修复 Runbook - 服务重启
+VigilOps Automatic Remediation Runbook - Service Restart
+
+这是一个服务重启修复脚本，用于处理服务异常或停止运行的告警。
+This is a service restart remediation script for handling service failure or stopped service alerts.
+
+适用场景 (Applicable Scenarios):
+- 服务进程意外停止 (Service process unexpectedly stopped)
+- 服务响应超时或无响应 (Service timeout or unresponsive)
+- 服务状态检查失败 (Service status check failed)
+- 应用崩溃需要重启 (Application crash requiring restart)
+
+修复原理 (Remediation Principle):
+- 使用 systemd 服务管理机制
+- 先检查状态，再执行重启，后验证结果
+- 支持变量替换，可以指定具体的服务名称
+
+风险评估 (Risk Assessment):
+- 风险等级：CONFIRM（需要确认）
+- 影响：会导致服务短暂中断（通常几秒到几十秒）
+- 数据安全：依赖服务本身的持久化机制
+- 恢复时间：通常在30秒内完成重启
+
+变量支持 (Variable Support):
+- {service_name}: 从告警标签中获取的服务名称
+- 示例：nginx, apache2, mysql, redis-server 等
+
+注意事项 (Important Notes):
+- 重启会中断现有连接和会话
+- 某些服务重启可能需要较长时间
+- 数据库等有状态服务重启需谨慎
+
+作者：VigilOps Team
+版本：v1.0
+风险等级：MEDIUM
+"""
 from ..models import RiskLevel, RunbookDefinition, RunbookStep
 
+# 服务重启 Runbook 定义 (Service Restart Runbook Definition)
 RUNBOOK = RunbookDefinition(
+    # 基本信息 (Basic Information)
     name="service_restart",
     description="Restart a failed or unresponsive service",
-    match_alert_types=["service_down", "service_unhealthy", "process_not_running"],
-    match_keywords=["service", "down", "stopped", "not running", "unresponsive", "crashed"],
-    risk_level=RiskLevel.CONFIRM,
+    
+    # 匹配规则 (Matching Rules)
+    match_alert_types=["service_down", "service_unhealthy", "process_not_running"],  # 服务异常告警类型
+    match_keywords=["service", "down", "stopped", "not running", "unresponsive", "crashed"],  # 服务故障关键词
+    
+    # 安全设置 (Safety Settings)
+    risk_level=RiskLevel.CONFIRM,  # 需要确认：服务重启会导致短暂中断，需要人工审批
+    
+    # 服务重启命令序列 (Service Restart Command Sequence)
+    # 遵循"检查-操作-验证"的标准流程
     commands=[
-        RunbookStep(description="Check service status before restart", command="systemctl status {service_name}", timeout_seconds=10),
-        RunbookStep(description="Restart the service", command="systemctl restart {service_name}", timeout_seconds=30),
+        # 第1步：重启前检查服务状态 (Step 1: Check service status before restart)
+        RunbookStep(
+            description="Check service status before restart",
+            command="systemctl status {service_name}",  # 检查服务当前状态，{service_name} 从告警标签获取
+            timeout_seconds=10
+        ),
+        
+        # 第2步：执行服务重启 (Step 2: Execute service restart)
+        RunbookStep(
+            description="Restart the service",
+            command="systemctl restart {service_name}",  # systemd 重启服务命令
+            timeout_seconds=30  # 给足时间让服务完成重启流程
+        ),
     ],
+    
+    # 验证命令 (Verification Commands)
+    # 确认服务重启成功并正常运行
     verify_commands=[
-        RunbookStep(description="Verify service is running after restart", command="systemctl status {service_name}", timeout_seconds=10),
+        RunbookStep(
+            description="Verify service is running after restart",
+            command="systemctl status {service_name}",  # 重启后再次检查状态确认成功
+            timeout_seconds=10
+        ),
     ],
+    
+    # 冷却时间：5分钟，避免频繁重启 (Cooldown: 5 minutes, avoid frequent restarts)
     cooldown_seconds=300,
 )

@@ -54,7 +54,11 @@ export default function AlertList() {
   /** AI 根因分析结果 */
   const [rcData, setRcData] = useState<{ root_cause: string; confidence: string; evidence: string[]; recommendations: string[] } | null>(null);
 
-  /** 触发 AI 根因分析：打开弹窗并请求分析结果 */
+  /** 触发 AI 根因分析流程 (Trigger AI root cause analysis)
+   * 1. 清空旧分析结果，打开分析弹窗
+   * 2. 调用后端 AI 分析接口，传入告警ID
+   * 3. 展示分析结果：根因、置信度、证据、修复建议
+   */
   const handleRootCause = async (alertId: string) => {
     setRcData(null);
     setRcModalOpen(true);
@@ -68,7 +72,10 @@ export default function AlertList() {
     } finally { setRcLoading(false); }
   };
 
-  /** 获取告警列表，支持分页和筛选 */
+  /** 获取告警列表数据 (Fetch alerts list data)
+   * 支持按状态(firing/resolved/acknowledged)和严重级别(critical/warning/info)筛选
+   * 分页加载，每页显示20条记录
+   */
   const fetchAlerts = async () => {
     setLoading(true);
     try {
@@ -81,7 +88,10 @@ export default function AlertList() {
     } catch { /* ignore */ } finally { setLoading(false); }
   };
 
-  /** 获取告警规则列表 */
+  /** 获取告警规则配置列表 (Fetch alert rules configuration list)
+   * 包含指标告警、日志关键字告警、数据库告警三种类型的规则
+   * 每种规则有不同的触发条件和阈值设置
+   */
   const fetchRules = async () => {
     setRulesLoading(true);
     try {
