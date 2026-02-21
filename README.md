@@ -137,6 +137,20 @@ That's it. No complex configuration needed.
 | **AI** | DeepSeek API, Custom AI Agent with Runbook engine |
 | **Infra** | Docker, Docker Compose, Nginx |
 
+## 📖 Documentation
+
+| 文档 | 说明 |
+|------|------|
+| [快速入门](docs/getting-started.md) | 2 分钟从零开始 |
+| [详细安装](docs/installation.md) | Docker / 手动部署 + 环境变量 |
+| [Agent 指南](docs/agent-guide.md) | Agent 安装、配置、批量部署 |
+| [用户手册](docs/user-guide.md) | 全功能使用说明 |
+| [API 参考](docs/api-reference.md) | 完整 REST API 文档 |
+| [架构设计](docs/architecture.md) | 系统架构 + 数据流 + ER 图 |
+| [更新日志](docs/changelog.md) | 版本历史 |
+| [常见问题](docs/faq.md) | FAQ |
+| [贡献指南](docs/contributing.md) | 开发环境 + 代码规范 |
+
 ## 🤝 Contributing
 
 We love contributions! Whether it's bug reports, feature requests, or pull requests — every bit helps.
