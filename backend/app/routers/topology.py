@@ -711,8 +711,8 @@ async def delete_server(
     server = await db.get(Server, server_id)
     if not server:
         raise HTTPException(status_code=404, detail="服务器不存在")
-    await db.execute(text(f"DELETE FROM server_services WHERE server_id = {server_id}"))
-    await db.execute(text(f"DELETE FROM nginx_upstreams WHERE server_id = {server_id}"))
+    await db.execute(text("DELETE FROM server_services WHERE server_id = :sid"), {"sid": server_id})
+    await db.execute(text("DELETE FROM nginx_upstreams WHERE server_id = :sid"), {"sid": server_id})
     await db.delete(server)
     await db.commit()
     return {"detail": "已删除"}
