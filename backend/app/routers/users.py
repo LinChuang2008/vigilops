@@ -102,6 +102,10 @@ async def update_user(
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
 
+    # 保护 demo 账号不可编辑
+    if user.email == "demo@vigilops.io":
+        raise HTTPException(status_code=403, detail="Demo 账号不可编辑")
+
     updates = data.model_dump(exclude_unset=True)
 
     # 验证角色值
@@ -135,6 +139,10 @@ async def delete_user(
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
 
+    # 保护 demo 账号不可删除
+    if user.email == "demo@vigilops.io":
+        raise HTTPException(status_code=403, detail="Demo 账号不可删除")
+
     await log_audit(db, admin.id, "delete_user", "user", user_id,
                     json.dumps({"email": user.email}),
                     request.client.host if request.client else None)
@@ -155,6 +163,10 @@ async def reset_password(
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
+
+    # 保护 demo 账号密码不可修改
+    if user.email == "demo@vigilops.io":
+        raise HTTPException(status_code=403, detail="Demo 账号密码不可修改")
 
     user.hashed_password = hash_password(data.new_password)
 

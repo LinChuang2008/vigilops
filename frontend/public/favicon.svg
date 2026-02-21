@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Shield -->
+  <path d="M32 4L8 16v16c0 14.4 10.24 27.84 24 32 13.76-4.16 24-17.6 24-32V16L32 4z" fill="#1677ff"/>
+  <path d="M32 8L12 18v14c0 12.6 8.96 24.36 20 28 11.04-3.64 20-15.4 20-28V18L32 8z" fill="#e6f4ff"/>
+  <!-- Eye -->
+  <ellipse cx="32" cy="34" rx="12" ry="8" fill="#1677ff"/>
+  <circle cx="32" cy="34" r="4" fill="#fff"/>
+  <circle cx="32" cy="34" r="2" fill="#0958d9"/>
+</svg>
