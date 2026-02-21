@@ -1,35 +1,49 @@
+# VigilOps Quickstart - 客户快速部署
+# 
+# 使用方式:
+#   1. 复制此文件和 .env.example 到部署目录
+#   2. cp .env.example .env && 编辑 .env
+#   3. docker compose -f docker-compose.quickstart.yml up -d
+#
+# 注意: backend/frontend 镜像需要先推送到 GHCR
+# 当前状态: 镜像尚未发布，请使用主仓库的 docker-compose.yml (需源码 build)
+# TODO: 镜像发布后取消下方 image 行的注释
+
 services:
   postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-vigilops}
       POSTGRES_USER: ${POSTGRES_USER:-vigilops}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vigilops_dev_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_in_production}
     ports:
       - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vigilops}"]
-      interval: 5s
-      timeout: 3s
+      interval: 10s
+      timeout: 5s
       retries: 5
     restart: unless-stopped
 
   redis:
     image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     ports:
       - "${REDIS_PORT:-6380}:6379"
     volumes:
       - redisdata:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
+      interval: 10s
+      timeout: 5s
       retries: 5
     restart: unless-stopped
 
   backend:
+    # TODO: 镜像发布后启用
+    # image: ghcr.io/linchuang2008/vigilops-backend:latest
     build: ./backend
     ports:
       - "${BACKEND_PORT:-8001}:8000"
@@ -39,11 +53,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ./backend:/app
     restart: unless-stopped
 
   frontend:
+    # TODO: 镜像发布后启用
+    # image: ghcr.io/linchuang2008/vigilops-frontend:latest
     build: ./frontend
     ports:
       - "${FRONTEND_PORT:-3001}:80"
