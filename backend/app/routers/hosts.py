@@ -179,8 +179,9 @@ async def get_host_metrics(
         return result.scalars().all()
 
     # 使用PostgreSQL的date_trunc函数聚合数据 (Use PostgreSQL date_trunc for data aggregation)
-    interval_map = {"5min": "5 minutes", "1h": "1 hour", "1d": "1 day"}
-    trunc = interval_map[interval]
+    # 安全说明：trunc_unit 来自固定白名单映射，非用户输入，无 SQL 注入风险
+    interval_trunc_map = {"5min": "minute", "1h": "hour", "1d": "day"}
+    trunc_unit = interval_trunc_map[interval]
 
     from sqlalchemy import text
     sql = text(f"""
@@ -200,10 +201,10 @@ async def get_host_metrics(
             avg(net_send_rate_kb) as net_send_rate_kb,
             avg(net_recv_rate_kb) as net_recv_rate_kb,
             avg(net_packet_loss_rate) as net_packet_loss_rate,
-            date_trunc('{trunc.split()[1]}', recorded_at) as recorded_at
+            date_trunc('{trunc_unit}', recorded_at) as recorded_at
         FROM host_metrics
         WHERE host_id = :host_id AND recorded_at >= :since
-        GROUP BY date_trunc('{trunc.split()[1]}', recorded_at)
+        GROUP BY date_trunc('{trunc_unit}', recorded_at)
         ORDER BY recorded_at ASC
         LIMIT 500
     """)

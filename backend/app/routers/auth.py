@@ -7,11 +7,15 @@
   - 用户登录验证与令牌生成
   - JWT访问令牌和刷新令牌管理
   - 获取当前用户信息
-依赖关系：依赖 SQLAlchemy、JWT安全模块、审计服务
+  - 速率限制防暴力破解
+依赖关系：依赖 SQLAlchemy、JWT安全模块、审计服务、Redis
 API端点：POST /register, POST /login, POST /refresh, GET /me
 
 Author: VigilOps Team
 """
+import time
+from collections import defaultdict
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,27 +29,67 @@ from app.services.audit import log_audit
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
+# ── 速率限制 (Rate Limiting) ──────────────────────────────
+# 基于内存的简单速率限制，适合单实例部署
+# 生产环境多实例部署建议改用 Redis 实现
+_rate_limit_store: dict[str, list[float]] = defaultdict(list)
+RATE_LIMIT_LOGIN = 5       # 登录：每窗口最多 5 次
+RATE_LIMIT_REGISTER = 3    # 注册：每窗口最多 3 次
+RATE_LIMIT_WINDOW = 300    # 窗口：5 分钟（秒）
+
+
+def _check_rate_limit(key: str, max_attempts: int, window: int = RATE_LIMIT_WINDOW):
+    """
+    检查速率限制 (Check Rate Limit)
+    
+    基于滑动窗口的速率限制检查。超限时抛出 429 异常。
+    
+    Args:
+        key: 限制键（通常为 IP 地址）
+        max_attempts: 窗口内最大允许次数
+        window: 时间窗口（秒）
+    Raises:
+        HTTPException 429: 请求过于频繁
+    """
+    now = time.time()
+    # 清理过期记录 (Purge expired entries)
+    _rate_limit_store[key] = [t for t in _rate_limit_store[key] if now - t < window]
+    if len(_rate_limit_store[key]) >= max_attempts:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many attempts. Please try again in {window // 60} minutes.",
+        )
+    _rate_limit_store[key].append(now)
+
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
+async def register(data: UserRegister, request: Request, db: AsyncSession = Depends(get_db)):
     """
     用户注册接口 (User Registration)
     
     新用户注册功能，系统中第一个注册的用户将自动成为管理员。
+    含速率限制：每 IP 每 5 分钟最多 3 次注册请求。
     
     Args:
         data: 用户注册数据（邮箱、姓名、密码）
+        request: HTTP请求对象（用于获取客户端IP进行速率限制）
         db: 数据库会话依赖注入
     Returns:
         TokenResponse: 包含访问令牌和刷新令牌的响应
     Raises:
         HTTPException 409: 邮箱已被注册
+        HTTPException 429: 注册请求过于频繁
     流程：
-        1. 检查邮箱唯一性
-        2. 统计现有用户数量，决定权限角色
-        3. 创建用户并保存到数据库
-        4. 生成并返回JWT令牌
+        1. 速率限制检查
+        2. 检查邮箱唯一性
+        3. 统计现有用户数量，决定权限角色
+        4. 创建用户并保存到数据库
+        5. 生成并返回JWT令牌
     """
+    # 速率限制检查 (Rate limit check)
+    client_ip = request.client.host if request.client else "unknown"
+    _check_rate_limit(f"register:{client_ip}", RATE_LIMIT_REGISTER)
+
     # 检查邮箱唯一性约束 (Check email uniqueness constraint)
     existing = await db.execute(select(User).where(User.email == data.email))
     if existing.scalar_one_or_none():
@@ -78,6 +122,7 @@ async def login(data: UserLogin, request: Request, db: AsyncSession = Depends(ge
     用户登录接口 (User Login)
     
     验证用户凭证并生成访问令牌，同时记录审计日志。
+    含速率限制：每 IP 每 5 分钟最多 5 次登录请求，防暴力破解。
     
     Args:
         data: 用户登录数据（邮箱、密码）
@@ -88,13 +133,20 @@ async def login(data: UserLogin, request: Request, db: AsyncSession = Depends(ge
     Raises:
         HTTPException 401: 凭证无效（邮箱不存在或密码错误）
         HTTPException 403: 账户已禁用
+        HTTPException 429: 登录请求过于频繁
     流程：
-        1. 根据邮箱查找用户
-        2. 验证密码哈希值
-        3. 检查账户状态
-        4. 记录登录审计日志
-        5. 生成并返回JWT令牌
+        1. 速率限制检查
+        2. 根据邮箱查找用户
+        3. 验证密码哈希值
+        4. 检查账户状态
+        5. 记录登录审计日志
+        6. 生成并返回JWT令牌
     """
+    # 速率限制检查 (Rate limit check) — 同时限制 IP 和邮箱维度
+    client_ip = request.client.host if request.client else "unknown"
+    _check_rate_limit(f"login:{client_ip}", RATE_LIMIT_LOGIN)
+    _check_rate_limit(f"login:{data.email}", RATE_LIMIT_LOGIN)
+
     # 根据邮箱查找用户 (Find user by email)
     result = await db.execute(select(User).where(User.email == data.email))
     user = result.scalar_one_or_none()

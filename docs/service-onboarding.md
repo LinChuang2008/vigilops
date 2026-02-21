@@ -20,7 +20,7 @@
 - [ ] 核心业务系统清单
 - [ ] 现有监控方案（如有）
 - [ ] 告警通知渠道偏好（钉钉/飞书/企微/邮件/Webhook）
-- [ ] 服务等级选择（基础/智能/企业）
+- [ ] 服务等级选择（基础版 ¥699/月 / 专业版 ¥1,599/月）
 
 ### 输出
 - 服务合同（含 SLA 条款）
@@ -72,8 +72,9 @@ curl -X POST http://vigilops:8001/api/v1/agent-tokens \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -d '{"name": "客户服务器-01"}'
 
-# 安装 Agent（待开发：一键安装脚本）
-# TODO: 提供 agent 安装脚本
+# 一键安装 Agent
+curl -fsSL https://raw.githubusercontent.com/LinChuang2008/vigilops/main/scripts/install-agent.sh \
+  | sudo bash -s -- --server http://vigilops:8001 --token $AGENT_TOKEN
 ```
 
 ### 验证数据上报
@@ -87,7 +88,7 @@ curl -X POST http://vigilops:8001/api/v1/agent-tokens \
 
 ### 标准告警规则（按服务等级）
 
-#### 基础监控包
+#### 托管基础版
 | 指标 | 阈值 | 动作 |
 |------|------|------|
 | CPU > 90% | 持续 5 分钟 | 通知 |
@@ -95,17 +96,13 @@ curl -X POST http://vigilops:8001/api/v1/agent-tokens \
 | 磁盘 > 90% | 立即 | 通知 |
 | 服务宕机 | 立即 | 通知 |
 
-#### 智能运维包（额外）
+#### 托管专业版（额外）
 | 指标 | 阈值 | 动作 |
 |------|------|------|
 | 异常检测 | AI 判定 | AI 分析 + 通知 |
 | 慢查询 | > 1s | AI 分析 |
 | 日志异常 | 关键字匹配 | AI 分析 + 通知 |
 | 自动修复 | 预设条件 | 自动执行 Runbook |
-
-#### 企业托管包（额外）
-| 指标 | 阈值 | 动作 |
-|------|------|------|
 | SLA 违规预警 | 接近阈值 | 人工介入 |
 | 定制 Runbook | 客户定义 | 自动/半自动 |
 | 容量预测 | AI 预测 | 提前通知 |
