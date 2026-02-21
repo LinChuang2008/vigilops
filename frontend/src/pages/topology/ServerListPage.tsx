@@ -1,7 +1,17 @@
 /**
- * 多服务器拓扑 — 服务器列表页（L1）
+ * 服务器列表页 - L1 全局视图 (Server List Page - L1 Overview)
  *
- * 显示所有服务器的表格视图，支持排序，状态颜色标识，点击钻取到详情。
+ * 功能：多服务器拓扑的入口页面，展示所有服务器的概览
+ * 数据源：GET /api/v1/servers (服务器列表 + 统计信息)
+ * 刷新策略：手动刷新按钮
+ *
+ * 页面结构：
+ *   1. 统计卡片行 - 服务器总数、在线/离线/告警数量
+ *   2. 搜索栏 - 按服务器名/IP搜索
+ *   3. 服务器表格 - 名称、IP、OS、状态、服务数、操作
+ *      点击行 → 钻取到 ServerDetailPage (L2)
+ *
+ * 状态颜色：online=green, offline=red, warning=orange
  */
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';

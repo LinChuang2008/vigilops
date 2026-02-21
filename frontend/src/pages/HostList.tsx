@@ -29,7 +29,10 @@ export default function HostList() {
   const [viewMode, setViewMode] = useState<string>('table');
   const navigate = useNavigate();
 
-  /** 根据当前筛选条件从后端获取主机列表 */
+  /** 获取主机列表数据 (Fetch hosts list data)
+   * 根据分页参数、状态筛选、搜索关键词动态构建查询参数
+   * 支持按主机名模糊搜索和在线/离线状态过滤
+   */
   const fetchHosts = async () => {
     setLoading(true);
     try {
@@ -44,13 +47,19 @@ export default function HostList() {
     }
   };
 
-  // 当分页或状态筛选变化时重新获取数据
+  /** 响应分页和筛选参数变化 (React to pagination and filter changes)
+   * 监听分页(page/pageSize)和状态筛选变化，自动重新加载数据
+   * 搜索功能通过手动触发 fetchHosts，不在依赖数组中
+   */
   useEffect(() => { fetchHosts(); }, [page, pageSize, statusFilter]);
 
-  /** 表格列定义 */
+  /** 表格列配置定义 (Table columns configuration)
+   * 包含主机基本信息、资源使用率进度条、标签展示等
+   */
   const columns = [
     {
       title: '主机名', dataIndex: 'hostname', key: 'hostname',
+      // 主机名渲染为可点击链接，跳转到主机详情页
       render: (text: string, record: Host) => (
         <Button type="link" onClick={() => navigate(`/hosts/${record.id}`)}>{text}</Button>
       ),
@@ -59,37 +68,45 @@ export default function HostList() {
     { title: '操作系统', dataIndex: 'os', key: 'os' },
     {
       title: '状态', dataIndex: 'status', key: 'status',
+      // 状态显示为彩色标签：在线(绿色) / 离线(红色)
       render: (s: string) => <Tag color={s === 'online' ? 'success' : 'error'}>{s === 'online' ? '在线' : '离线'}</Tag>,
     },
     {
       title: 'CPU', key: 'cpu',
+      // CPU 使用率进度条，超过90%显示为异常状态(红色)
       render: (_: unknown, record: Host) => record.latest_metrics ? (
         <Progress percent={Math.round(record.latest_metrics.cpu_percent)} size="small" status={record.latest_metrics.cpu_percent > 90 ? 'exception' : 'normal'} />
       ) : '-',
     },
     {
       title: '内存', key: 'mem',
+      // 内存使用率进度条，超过90%显示为异常状态(红色)
       render: (_: unknown, record: Host) => record.latest_metrics ? (
         <Progress percent={Math.round(record.latest_metrics.memory_percent)} size="small" status={record.latest_metrics.memory_percent > 90 ? 'exception' : 'normal'} />
       ) : '-',
     },
     {
       title: '磁盘', key: 'disk',
+      // 磁盘使用率进度条，超过90%显示为异常状态(红色)
       render: (_: unknown, record: Host) => record.latest_metrics ? (
         <Progress percent={Math.round(record.latest_metrics.disk_percent)} size="small" status={record.latest_metrics.disk_percent > 90 ? 'exception' : 'normal'} />
       ) : '-',
     },
     {
       title: '标签', dataIndex: 'tags', key: 'tags',
+      // 标签处理：支持数组或对象格式，统一转换为标签组件展示
       render: (tags: Record<string, boolean> | string[] | null) => {
         if (!tags) return '-';
-        const arr = Array.isArray(tags) ? tags : Object.keys(tags);
+        const arr = Array.isArray(tags) ? tags : Object.keys(tags); // 兼容不同数据格式
         return arr.map(t => <Tag key={t}>{t}</Tag>);
       },
     },
   ];
 
-  /** 卡片视图：以网格卡片形式展示主机基本信息和资源使用率 */
+  /** 卡片视图渲染 (Card view rendering)
+   * 响应式网格布局，每张卡片包含：主机名、IP、在线状态、CPU/内存使用率
+   * 卡片可点击跳转到主机详情页，适合移动端和可视化浏览
+   */
   const cardView = (
     <Row gutter={[16, 16]}>
       {hosts.map(host => (
@@ -125,7 +142,9 @@ export default function HostList() {
         <Col><Typography.Title level={4} style={{ margin: 0 }}>服务器列表</Typography.Title></Col>
         <Col>
           <Space>
+            {/* 主机名搜索：立即触发查询并重置分页 */}
             <Search placeholder="搜索主机名" onSearch={v => { setSearch(v); setPage(1); fetchHosts(); }} style={{ width: 200 }} allowClear />
+            {/* 状态筛选：改变时重置到第一页，触发 useEffect 自动查询 */}
             <Select placeholder="状态" allowClear style={{ width: 120 }} onChange={v => { setStatusFilter(v || ''); setPage(1); }}
               options={[{ label: '在线', value: 'online' }, { label: '离线', value: 'offline' }]} />
             <Segmented options={[

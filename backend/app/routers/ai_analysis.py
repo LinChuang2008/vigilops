@@ -1,7 +1,17 @@
-"""AI 智能分析路由模块。
+"""
+AI智能分析路由模块 (AI Intelligent Analysis Router)
 
-提供日志分析、AI 对话、根因分析和系统概览等 AI 驱动的运维分析接口。
-所有分析结果会持久化到 ai_insights 表中供后续查阅。
+功能说明：提供基于DeepSeek AI引擎的智能运维分析服务
+核心职责：
+  - 日志智能分析（异常检测和模式识别）
+  - AI自然语言对话（基于系统上下文问答）
+  - 告警根因分析（时间窗口内数据关联分析）
+  - 系统概览生成（多维度数据汇总）
+  - AI洞察持久化存储（分析结果保存和查询）
+依赖关系：依赖AI引擎服务、SQLAlchemy、系统监控数据
+API端点：POST /analyze-logs, POST /chat, POST /root-cause, GET /insights, GET /system-summary
+
+Author: VigilOps Team
 """
 
 from datetime import datetime, timezone, timedelta
@@ -38,53 +48,68 @@ async def analyze_logs(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    """手动触发 AI 日志分析。
-
-    根据时间范围、主机和日志级别筛选日志，调用 AI 引擎进行分析，
-    并将分析结果保存为 AI 洞察记录。
+    """
+    AI日志智能分析接口 (AI Log Intelligent Analysis)
+    
+    对指定时间范围内的日志进行AI分析，识别异常模式和潜在问题。
+    
+    Args:
+        req: 日志分析请求（时间范围、主机ID、日志级别筛选）
+        db: 数据库会话依赖注入
+        _user: 当前登录用户（JWT认证）
+    Returns:
+        AnalyzeLogsResponse: 分析结果响应（成功状态、分析内容、日志数量）
+    流程：
+        1. 根据筛选条件查询指定时间范围内的日志（最多500条）
+        2. 将日志数据转换为AI引擎可处理的格式
+        3. 调用AI引擎进行日志分析和异常检测
+        4. 分析成功时创建AIInsight记录持久化结果
+        5. 返回分析状态和详细结果
     """
     since = datetime.now(timezone.utc) - timedelta(hours=req.hours)
 
-    # 构建查询过滤条件
-    filters = [LogEntry.timestamp >= since]
+    # 构建日志查询过滤条件 (Build log query filter conditions)
+    filters = [LogEntry.timestamp >= since]  # 时间范围过滤
     if req.host_id is not None:
-        filters.append(LogEntry.host_id == req.host_id)
+        filters.append(LogEntry.host_id == req.host_id)  # 按主机过滤
     if req.level is not None:
-        filters.append(LogEntry.level == req.level.upper())
+        filters.append(LogEntry.level == req.level.upper())  # 按日志级别过滤
 
+    # 查询符合条件的日志，限制500条防止AI处理超载 (Query matching logs, limit 500 to prevent AI overload)
     q = (
         select(LogEntry)
         .where(and_(*filters))
-        .order_by(LogEntry.timestamp.desc())
+        .order_by(LogEntry.timestamp.desc())  # 按时间倒序，优先分析最新日志
         .limit(500)
     )
     result = await db.execute(q)
     entries = result.scalars().all()
 
-    # 将日志条目转换为字典列表供 AI 引擎使用
+    # 将日志条目转换为AI引擎可处理的格式 (Convert log entries to AI engine compatible format)
     logs_data: List[dict] = [
         {
-            "timestamp": str(e.timestamp),
-            "level": e.level,
-            "host_id": e.host_id,
-            "service": e.service,
-            "message": e.message,
+            "timestamp": str(e.timestamp),  # 时间戳转字符串
+            "level": e.level,              # 日志级别
+            "host_id": e.host_id,          # 主机ID
+            "service": e.service,          # 服务名称
+            "message": e.message,          # 日志消息内容
         }
         for e in entries
     ]
 
+    # 调用AI引擎进行日志分析，识别异常模式 (Call AI engine for log analysis and anomaly detection)
     analysis = await ai_engine.analyze_logs(logs_data)
 
-    # 分析成功时保存洞察记录到数据库
+    # 分析成功时保存AI洞察到数据库供后续查阅 (Save AI insight to database for future reference when analysis succeeds)
     if not analysis.get("error"):
         insight = AIInsight(
-            insight_type="anomaly",
+            insight_type="anomaly",  # 异常检测类型
             severity=analysis.get("severity", "info"),
             title=analysis.get("title", "AI 分析结果"),
-            summary=analysis.get("summary", ""),
-            details=analysis,
-            related_host_id=req.host_id,
-            status="new",
+            summary=analysis.get("summary", ""),  # 分析摘要
+            details=analysis,  # 完整分析结果
+            related_host_id=req.host_id,  # 关联主机
+            status="new",  # 新生成状态
         )
         db.add(insight)
         await db.commit()
@@ -105,7 +130,26 @@ async def list_insights(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    """获取 AI 分析洞察列表，支持按严重级别和状态筛选，分页返回。"""
+    """
+    AI洞察列表查询接口 (AI Insights List Query)
+    
+    分页查询AI分析生成的洞察记录，支持严重级别和状态筛选。
+    
+    Args:
+        page: 页码，从1开始
+        page_size: 每页数量，限制1-100之间
+        severity: 严重级别筛选（critical/high/medium/low/info）
+        status: 洞察状态筛选（new/reviewed/archived）
+        db: 数据库会话依赖注入
+        _user: 当前登录用户（JWT认证）
+    Returns:
+        dict: 包含洞察列表、总数、分页信息的响应
+    流程：
+        1. 根据筛选条件构建查询和计数语句
+        2. 执行分页查询获取AI洞察记录
+        3. 按创建时间倒序排列（最新洞察在前）
+        4. 返回分页结果和元数据
+    """
     q = select(AIInsight)
     count_q = select(func.count(AIInsight.id))
 
@@ -133,10 +177,21 @@ async def list_insights(
 
 
 async def _build_chat_context(db: AsyncSession) -> Dict[str, Any]:
-    """从数据库构建 AI 对话的系统上下文。
-
-    收集最近 1 小时内的错误日志、主机指标、活跃告警和服务状态，
-    作为 AI 对话的背景信息。
+    """
+    构建AI对话系统上下文 (Build AI Chat System Context)
+    
+    从数据库收集最近系统状态信息，为AI对话提供实时上下文。
+    
+    Args:
+        db: 数据库会话对象
+    Returns:
+        Dict[str, Any]: 系统上下文字典，包含日志、指标、告警、服务状态
+    收集数据：
+        1. 最近1小时的错误/警告级别日志（最多50条）
+        2. 各主机的最新性能指标（CPU、内存、磁盘使用率）
+        3. 当前触发状态的告警（最多20条）
+        4. 活跃服务的健康状态信息
+    用途：为AI对话提供系统实时状态，提高回答的准确性和相关性
     """
     since = datetime.now(timezone.utc) - timedelta(hours=1)
     context: Dict[str, Any] = {}
@@ -239,10 +294,23 @@ async def ai_chat(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    """AI 自然语言对话接口。
-
-    基于当前系统上下文（日志、指标、告警、服务状态）回答用户问题，
-    并将对话记录保存为洞察。
+    """
+    AI智能对话接口 (AI Intelligent Chat)
+    
+    基于系统实时状态进行自然语言对话，回答运维相关问题。
+    
+    Args:
+        req: 对话请求（用户问题）
+        db: 数据库会话依赖注入
+        _user: 当前登录用户（JWT认证）
+    Returns:
+        ChatResponse: 对话响应（AI回答、参考来源、记忆上下文）
+    流程：
+        1. 构建系统实时上下文（日志、指标、告警、服务状态）
+        2. 调用AI引擎基于上下文回答用户问题
+        3. 保存对话记录为AIInsight用于历史查阅
+        4. 返回AI回答和相关参考信息
+    特点：结合系统状态的智能问答，非简单的聊天机器人
     """
     # 从数据库构建系统上下文
     context = await _build_chat_context(db)
@@ -277,9 +345,26 @@ async def root_cause_analysis(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    """针对指定告警进行根因分析。
-
-    收集告警前后 30 分钟的指标和日志数据，调用 AI 引擎进行根因推断。
+    """
+    告警根因分析接口 (Alert Root Cause Analysis)
+    
+    对指定告警进行智能根因分析，基于时间窗口内的关联数据推断原因。
+    
+    Args:
+        alert_id: 告警记录ID
+        db: 数据库会话依赖注入
+        _user: 当前登录用户（JWT认证）
+    Returns:
+        dict: 根因分析结果和记忆上下文
+    Raises:
+        HTTPException 404: 告警记录不存在
+    流程：
+        1. 查询目标告警的详细信息
+        2. 收集告警前后30分钟的主机性能指标
+        3. 收集同时间窗口内的相关日志数据
+        4. 调用AI引擎进行时序关联分析
+        5. 保存根因分析结果为AIInsight
+        6. 返回分析结论和建议措施
     """
     # 查询目标告警
     alert_result = await db.execute(select(Alert).where(Alert.id == alert_id))
@@ -299,22 +384,22 @@ async def root_cause_analysis(
         "host_id": alert.host_id,
     }
 
-    # 时间窗口：告警前后各 30 分钟
+    # 定义根因分析时间窗口：告警前后各30分钟 (Define root cause analysis time window: 30 minutes before and after alert)
     window_start = alert.fired_at - timedelta(minutes=30)
     window_end = alert.fired_at + timedelta(minutes=30)
 
-    # 获取关联主机的指标数据
+    # 收集告警主机在时间窗口内的性能指标数据 (Collect host performance metrics within time window)
     metrics_data: List[dict] = []
     if alert.host_id:
         metric_q = (
             select(HostMetric)
             .where(and_(
                 HostMetric.host_id == alert.host_id,
-                HostMetric.recorded_at >= window_start,
-                HostMetric.recorded_at <= window_end,
+                HostMetric.recorded_at >= window_start,  # 窗口起始时间
+                HostMetric.recorded_at <= window_end,    # 窗口结束时间
             ))
-            .order_by(HostMetric.recorded_at.asc())
-            .limit(60)
+            .order_by(HostMetric.recorded_at.asc())  # 按时间升序，用于时序分析
+            .limit(60)  # 最多60个数据点，约1分钟间隔
         )
         metric_result = await db.execute(metric_q)
         metrics = metric_result.scalars().all()
@@ -391,9 +476,22 @@ async def system_summary(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    """获取系统概览快照，用于 AI 前端展示。
-
-    汇总主机、服务、告警、错误日志数量以及平均资源使用率。
+    """
+    系统概览快照接口 (System Summary Snapshot)
+    
+    生成系统整体状态快照，为AI分析前端提供数据概览。
+    
+    Args:
+        db: 数据库会话依赖注入
+        _user: 当前登录用户（JWT认证）
+    Returns:
+        dict: 系统概览数据（主机、服务、告警、日志、资源使用率统计）
+    统计维度：
+        1. 主机统计（总数、在线数、离线数）
+        2. 服务统计（总数、正常数、异常数）
+        3. 最近1小时告警和错误日志数量
+        4. 各主机最新指标的平均CPU和内存使用率
+    用途：为AI分析页面提供系统健康度总览和关键指标摘要
     """
     since = datetime.now(timezone.utc) - timedelta(hours=1)
 

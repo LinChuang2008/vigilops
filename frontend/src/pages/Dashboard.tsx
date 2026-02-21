@@ -91,7 +91,10 @@ export default function Dashboard() {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  /** 获取仪表盘数据 */
+  /** 获取仪表盘数据 (Fetch dashboard data)
+   * 并行请求主机、服务、告警数据，同时获取日志统计和数据库列表
+   * 用于初始化数据加载和轮询更新
+   */
   const fetchData = useCallback(async () => {
     try {
       const [hostsRes, servicesRes, alertsRes] = await Promise.all([
@@ -125,10 +128,18 @@ export default function Dashboard() {
     } catch {} finally { setLoading(false); }
   }, []);
 
+  /** 获取 24 小时趋势数据 (Fetch 24h trend data)
+   * 包含 CPU、内存使用率趋势以及告警和错误日志数量趋势
+   * 用于生成迷你趋势图表
+   */
   const fetchTrends = useCallback(async () => {
     try { setTrends((await api.get('/dashboard/trends')).data.trends || []); } catch {}
   }, []);
 
+  /** 开始数据轮询 (Start data polling)
+   * WebSocket 断线时的降级方案，30 秒轮询一次
+   * 防重复启动，确保同时只有一个轮询定时器
+   */
   const startPolling = useCallback(() => {
     if (pollTimerRef.current) return;
     pollTimerRef.current = setInterval(() => { fetchData(); fetchTrends(); }, 30000);
@@ -138,25 +149,41 @@ export default function Dashboard() {
     if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
   }, []);
 
+  /** 建立 WebSocket 连接 (Establish WebSocket connection)
+   * 实时推送仪表盘数据，自动处理协议选择 (ws/wss)
+   * 连接失败或断线时自动降级为轮询模式，5秒后重试连接
+   */
   const connectWs = useCallback(() => {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${wsProtocol}//${window.location.host}/api/v1/ws/dashboard`;
     try {
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
-      ws.onopen = () => { setWsConnected(true); stopPolling(); };
-      ws.onmessage = (e) => { try { setWsData(JSON.parse(e.data)); } catch {} };
-      ws.onclose = () => { setWsConnected(false); wsRef.current = null; startPolling(); reconnectTimerRef.current = setTimeout(connectWs, 5000); };
+      ws.onopen = () => { setWsConnected(true); stopPolling(); }; // 连接成功，停止轮询
+      ws.onmessage = (e) => { try { setWsData(JSON.parse(e.data)); } catch {} }; // 接收实时数据
+      ws.onclose = () => { 
+        setWsConnected(false); 
+        wsRef.current = null; 
+        startPolling(); // 断线降级为轮询
+        reconnectTimerRef.current = setTimeout(connectWs, 5000); // 5秒后重连
+      };
       ws.onerror = () => { ws.close(); };
-    } catch { startPolling(); reconnectTimerRef.current = setTimeout(connectWs, 5000); }
+    } catch { 
+      startPolling(); // 连接失败降级为轮询
+      reconnectTimerRef.current = setTimeout(connectWs, 5000); 
+    }
   }, [startPolling, stopPolling]);
 
+  /** 组件初始化和清理 (Component initialization and cleanup)
+   * 挂载时：加载初始数据 + 建立 WebSocket 连接
+   * 卸载时：清理所有定时器和连接，防止内存泄漏
+   */
   useEffect(() => {
     fetchData(); fetchTrends(); connectWs();
     return () => {
-      wsRef.current?.close();
-      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
-      stopPolling();
+      wsRef.current?.close(); // 关闭 WebSocket 连接
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current); // 清理重连定时器
+      stopPolling(); // 清理轮询定时器
     };
   }, [fetchData, fetchTrends, connectWs, stopPolling]);
 
@@ -174,7 +201,12 @@ export default function Dashboard() {
   const healthScore = wsData?.health_score ?? 100;
   const scoreColor = healthScore > 80 ? '#52c41a' : healthScore >= 60 ? '#faad14' : '#ff4d4f';
 
-  /** 迷你图配置 */
+  /** 迷你趋势图配置 (Sparkline chart option)
+   * 生成小型面积图，用于展示 24 小时趋势数据
+   * @param values 数据点数组，支持 null 值显示为"无数据"
+   * @param color 图表主色调
+   * @param title 图表标题
+   */
   const sparklineOption = (values: (number | null)[], color: string, title: string) => ({
     title: { text: title, left: 'center', top: 0, textStyle: { fontSize: 12, color: '#666' } },
     tooltip: { trigger: 'axis' as const, formatter: (params: any) => params[0]?.value != null ? `${params[0].value}` : '无数据' },
@@ -184,7 +216,10 @@ export default function Dashboard() {
     grid: { top: 25, bottom: 5, left: 5, right: 5 },
   });
 
-  /** 多服务器资源对比图 */
+  /** 多服务器资源对比图配置 (Multi-server resource comparison chart)
+   * 横向对比所有在线服务器的 CPU、内存、磁盘使用率
+   * 服务器名称过多时自动旋转标签，柱状图最大宽度限制
+   */
   const resourceCompareOption = () => {
     const hosts = d.hosts.items.filter(h => h.latest_metrics);
     if (hosts.length === 0) return null;
@@ -203,7 +238,10 @@ export default function Dashboard() {
     };
   };
 
-  /** 网络带宽对比图 */
+  /** 网络带宽对比图配置 (Network bandwidth comparison chart)
+   * 对比各服务器的上传/下载带宽使用情况 (KB/s)
+   * 仅显示有网络指标数据的服务器
+   */
   const networkCompareOption = () => {
     const hosts = d.hosts.items.filter(h => h.latest_metrics?.net_send_rate_kb != null);
     if (hosts.length === 0) return null;
@@ -222,7 +260,12 @@ export default function Dashboard() {
 
   const severityColor: Record<string, string> = { critical: 'red', warning: 'orange', info: 'blue' };
 
-  /** CSV 导出 */
+  /** CSV 数据导出 (CSV data export)
+   * 导出仪表盘所有关键指标数据，包括：
+   * 1. 总体统计（服务器、服务、数据库、告警）
+   * 2. 各服务器详细资源使用情况
+   * 自动添加 BOM 头处理中文乱码问题
+   */
   const exportCSV = () => {
     const rows: any[][] = [
       ['指标', '总数', '正常', '异常'],

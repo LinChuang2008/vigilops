@@ -1,8 +1,19 @@
 """
-服务拓扑路由
+服务拓扑路由模块 (Service Topology Router)
 
-提供服务依赖关系的拓扑图数据、自定义布局存储和 AI 智能推荐接口。
-Cycle 8: 新增多服务器拓扑 API（servers CRUD、service-groups、nginx-upstreams）。
+功能说明：提供服务依赖拓扑图的数据管理和智能分析功能
+核心职责：
+  - 服务拓扑图数据查询（支持力导向和分层布局）
+  - 服务依赖关系CRUD管理
+  - AI智能依赖关系推荐
+  - 自定义布局存储和恢复
+  - 多服务器拓扑管理（Cycle 8新增）
+  - 服务分组和Nginx上游配置管理
+  - 支持服务分类的层级展示
+依赖关系：依赖SQLAlchemy、AI引擎、JWT认证
+API端点：GET /topology, POST /dependencies, GET /recommend-dependencies, POST /layout, 多服务器相关API
+
+Author: VigilOps Team
 """
 import re
 import json

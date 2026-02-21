@@ -1,7 +1,16 @@
 /**
- * 多服务器拓扑 — 服务组视图
+ * 服务组视图页 (Service Groups Page)
  *
- * 跨主机同名服务归组展示，显示每个服务组在哪些服务器上运行。
+ * 功能：跨主机同名服务归组展示，从服务维度（而非服务器维度）观察系统
+ * 数据源：GET /api/v1/topology/service-groups (服务组列表 + 实例分布)
+ *
+ * 页面结构：
+ *   1. 统计卡片行 - 服务组总数、健康/异常/告警数量
+ *   2. 搜索栏 - 按服务名搜索
+ *   3. 服务组表格 - 服务名、类型、实例数、分布服务器、整体状态
+ *      展开行 → 显示该服务在各服务器上的实例详情
+ *
+ * 使用场景：快速定位某个服务（如 Redis、Nginx）在哪些服务器上运行及其健康状态
  */
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';

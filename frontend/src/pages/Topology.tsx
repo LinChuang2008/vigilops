@@ -81,9 +81,13 @@ const EDGE_STYLES: Record<string, { color: string; type: 'solid' | 'dashed'; wid
 
 interface StageBox { stageIdx: number; label: string; x: number; y: number; width: number; height: number; color: string; }
 
-/**
- * 管道布局：从左到右 4 个阶段，每个阶段内节点纵向排列。
- * 阶段之间用箭头连接管道和连线。
+/** 计算管道布局位置 (Calculate pipeline layout positions)
+ * 按服务分组的阶段布局：接入层→应用层→中间件→数据层，从左到右4个阶段
+ * 每个阶段内的节点按纵向排列，实现标准的分层架构可视化
+ * @param nodes 拓扑节点数组
+ * @param w 画布宽度
+ * @param h 画布高度
+ * @returns 节点位置映射和阶段框信息
  */
 const computePipelinePositions = (nodes: TopoNode[], w: number, h: number) => {
   // 按 stage 分组
@@ -162,7 +166,10 @@ export default function Topology() {
 
   const getToken = () => localStorage.getItem('access_token') || '';
 
-  /** 加载数据 */
+  /** 获取拓扑图数据 (Fetch topology data)
+   * 从后端加载节点、边和已保存的布局位置信息
+   * 构建节点名称映射表，用于快速查找和显示
+   */
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -182,7 +189,10 @@ export default function Topology() {
     } finally { setLoading(false); }
   }, [layout]); // eslint-disable-line
 
-  /** 保存布局 */
+  /** 保存用户自定义布局 (Save custom layout)
+   * 读取当前 ECharts 实例中节点的拖拽位置，保存到后端
+   * 下次加载时将恢复用户自定义的节点位置
+   */
   const saveLayout = async () => {
     const chart = chartInstance.current;
     if (!chart || !topoData.current) return;
@@ -207,7 +217,10 @@ export default function Topology() {
     } catch { message.error('保存布局失败'); }
   };
 
-  /** 重置布局 */
+  /** 重置为默认布局 (Reset to default layout)
+   * 删除用户自定义位置，恢复算法生成的默认布局
+   * 清理后端存储的位置数据并重新渲染图表
+   */
   const resetLayout = async () => {
     try {
       await fetch('/api/v1/topology/layout', { method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` } });
@@ -216,7 +229,10 @@ export default function Topology() {
     } catch { message.error('重置失败'); }
   };
 
-  /** 添加依赖 */
+  /** 手动添加服务依赖 (Manually add service dependency)
+   * 支持两种依赖类型：API调用(calls)和依赖关系(depends_on)
+   * 验证源服务和目标服务选择，避免自环依赖
+   */
   const addDependency = async () => {
     if (!addSource || !addTarget) { message.warning('请选择源服务和目标服务'); return; }
     if (addSource === addTarget) { message.warning('不能连接自己'); return; }

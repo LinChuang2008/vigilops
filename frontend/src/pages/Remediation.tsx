@@ -1,6 +1,17 @@
 /**
- * 自动修复列表页
- * 展示所有修复任务，支持按状态、主机筛选和分页
+ * 自动修复列表页 (Remediation List Page)
+ *
+ * 功能：展示所有自动修复任务，支持按状态、主机筛选和分页
+ * 数据源：GET /api/v1/remediations (分页查询)
+ * 刷新策略：筛选条件或页码变化时自动重新加载
+ *
+ * 页面结构：
+ *   - 顶部筛选栏：状态下拉 + 主机下拉（主机列表从数据中动态提取）
+ *   - 主体表格：时间、告警名、主机、状态、Runbook、风险级别、操作
+ *   - 点击"详情"跳转到 /remediations/:id 详情页
+ *
+ * 状态流转：pending → approved → executing → success/failed
+ *          pending → rejected
  */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';

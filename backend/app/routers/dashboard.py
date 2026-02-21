@@ -1,7 +1,16 @@
 """
-仪表盘数据接口模块。
+仪表盘数据路由模块 (Dashboard Data Router)
 
-提供仪表盘趋势数据查询接口，返回最近 24 小时每小时的聚合指标。
+功能说明：为前端仪表盘提供聚合趋势数据，展示系统整体运行状况
+核心职责：
+  - 查询最近24小时的系统指标趋势
+  - 聚合CPU和内存使用率的每小时平均值
+  - 统计告警和错误日志的每小时数量
+  - 构建完整24小时时间轴用于图表展示
+依赖关系：依赖SQLAlchemy、PostgreSQL date_trunc聚合函数
+API端点：GET /trends
+
+Author: VigilOps Team
 """
 from datetime import datetime, timezone, timedelta
 
@@ -24,13 +33,32 @@ async def get_trends(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    """获取最近 24 小时每小时的趋势数据。
-
-    返回每小时的平均 CPU、平均内存、告警数和错误日志数。
     """
+    仪表盘趋势数据查询接口 (Dashboard Trends Data Query)
+    
+    获取最近24小时的系统运行趋势数据，用于仪表盘图表展示。
+    
+    Args:
+        db: 数据库会话依赖注入
+        _user: 当前登录用户（JWT认证，但此接口不使用用户信息）
+    Returns:
+        dict: 包含24个小时趋势数据的响应
+            - hour: 小时时间戳（ISO格式）
+            - avg_cpu: 平均CPU使用率（百分比，保留1位小数）
+            - avg_mem: 平均内存使用率（百分比，保留1位小数）  
+            - alert_count: 该小时告警数量
+            - error_log_count: 该小时错误日志数量
+    流程：
+        1. 计算24小时前的起始时间
+        2. 分别查询每小时的指标、告警、错误日志聚合数据
+        3. 构建完整的24小时时间轴
+        4. 将数据库结果映射到时间轴，填补空缺小时
+    """
+    # 计算24小时前的时间作为查询起点 (Calculate 24 hours ago as query start point)
     since = datetime.now(timezone.utc) - timedelta(hours=24)
 
-    # 每小时平均 CPU 和内存（使用 date_trunc 按小时分组）
+    # 查询每小时平均CPU和内存使用率（使用PostgreSQL date_trunc按小时分组聚合） 
+    # (Query hourly average CPU and memory usage with PostgreSQL date_trunc grouping)
     metric_sql = text("""
         SELECT
             date_trunc('hour', recorded_at) AS hour,
@@ -44,7 +72,7 @@ async def get_trends(
     metric_result = await db.execute(metric_sql, {"since": since})
     metric_rows = metric_result.mappings().all()
 
-    # 每小时告警数
+    # 查询每小时告警触发数量 (Query hourly alert firing count)
     alert_sql = text("""
         SELECT
             date_trunc('hour', fired_at) AS hour,
@@ -57,7 +85,7 @@ async def get_trends(
     alert_result = await db.execute(alert_sql, {"since": since})
     alert_rows = alert_result.mappings().all()
 
-    # 每小时错误日志数
+    # 查询每小时错误级别日志数量（ERROR/CRITICAL/FATAL） (Query hourly error-level log count)
     log_sql = text("""
         SELECT
             date_trunc('hour', timestamp) AS hour,
@@ -70,26 +98,31 @@ async def get_trends(
     log_result = await db.execute(log_sql, {"since": since})
     log_rows = log_result.mappings().all()
 
-    # 构建 24 小时时间轴
-    now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    # 构建完整的24小时时间轴，确保图表显示连续性 (Build complete 24-hour timeline for chart continuity)
+    now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)  # 对齐到整点
     hours = []
     for i in range(24):
-        h = now - timedelta(hours=23 - i)
+        h = now - timedelta(hours=23 - i)  # 从24小时前到现在
         hours.append(h)
 
-    # 将数据库结果映射到时间轴
+    # 将数据库查询结果映射为哈希表，便于快速查找 (Map database results to hash tables for fast lookup)
     metric_map = {row["hour"].replace(tzinfo=timezone.utc): row for row in metric_rows}
     alert_map = {row["hour"].replace(tzinfo=timezone.utc): row["cnt"] for row in alert_rows}
     log_map = {row["hour"].replace(tzinfo=timezone.utc): row["cnt"] for row in log_rows}
 
+    # 遍历时间轴，构建完整的趋势数据数组 (Iterate timeline to build complete trend data array)
     result = []
     for h in hours:
-        m = metric_map.get(h)
+        m = metric_map.get(h)  # 获取该小时的指标数据
         result.append({
-            "hour": h.isoformat(),
+            "hour": h.isoformat(),  # ISO格式时间戳用于前端图表
+            # 保留1位小数的CPU使用率，无数据时为None (1 decimal place for CPU, None if no data)
             "avg_cpu": round(float(m["avg_cpu"]), 1) if m and m["avg_cpu"] is not None else None,
+            # 保留1位小数的内存使用率，无数据时为None (1 decimal place for memory, None if no data)
             "avg_mem": round(float(m["avg_mem"]), 1) if m and m["avg_mem"] is not None else None,
+            # 告警数量，无数据时为0 (Alert count, 0 if no data)
             "alert_count": int(alert_map.get(h, 0)),
+            # 错误日志数量，无数据时为0 (Error log count, 0 if no data)
             "error_log_count": int(log_map.get(h, 0)),
         })
 

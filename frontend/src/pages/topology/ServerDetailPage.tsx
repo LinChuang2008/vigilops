@@ -1,7 +1,16 @@
 /**
- * 多服务器拓扑 — 服务器详情页（L2 钻取）
+ * 服务器详情页 - L2 钻取 (Server Detail Page - L2 Drill-down)
  *
- * 展示单台服务器信息 + 运行的服务列表 + nginx upstream 配置。
+ * 功能：在多服务器拓扑架构中，展示单台服务器的详细信息
+ * 数据源：GET /api/v1/servers/:id (服务器信息 + 关联服务 + Nginx Upstream)
+ * 路由参数：id - 服务器ID
+ *
+ * 页面结构：
+ *   1. 服务器基本信息（Descriptions 组件）- IP、操作系统、状态等
+ *   2. 服务列表（Table）- 该服务器上运行的所有服务，含状态、端口、类型
+ *   3. Nginx Upstream 配置（Table）- 负载均衡上游配置信息
+ *
+ * 导航：从 ServerListPage (L1) 点击服务器卡片进入
  */
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';

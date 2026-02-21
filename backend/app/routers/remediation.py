@@ -1,6 +1,17 @@
-"""修复操作路由模块。
+"""
+自动修复路由模块 (Automatic Remediation Router)
 
-提供修复日志的查询、审批、拒绝、手动触发和统计接口。
+功能说明：提供智能自动修复系统的管理和审计接口
+核心职责：
+  - 修复操作日志查询（支持多维度筛选）
+  - 修复操作审批流程（审批、拒绝机制）
+  - 手动触发修复任务执行
+  - 修复成功率和效果统计分析
+  - 集成6个内置Runbook（磁盘清理、内存释放、服务重启等）
+依赖关系：依赖SQLAlchemy、JWT认证、审计服务、修复引擎
+API端点：GET /remediations, POST /remediations/{id}/approve, POST /remediations/{id}/reject, POST /remediations/trigger, GET /remediations/stats
+
+Author: VigilOps Team
 """
 
 from datetime import datetime, timezone, timedelta

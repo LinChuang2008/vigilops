@@ -19,7 +19,10 @@ export default function ServiceDetail() {
   const [checks, setChecks] = useState<ServiceCheck[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 并行获取服务信息和检查记录
+  /** 获取服务详情和检查历史 (Fetch service details and check history)
+   * 并行请求服务基本信息和最近100条检查记录
+   * 兼容后端返回格式：数组或分页对象结构
+   */
   useEffect(() => {
     if (!id) return;
     const fetch = async () => {
@@ -41,14 +44,24 @@ export default function ServiceDetail() {
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
   if (!service) return <Typography.Text>服务不存在</Typography.Text>;
 
-  /** 判断状态是否为健康 */
+  /** 判断服务状态是否为健康 (Check if service status is healthy)
+   * 兼容 'up' 和 'healthy' 两种健康状态标识
+   * @param s 服务状态字符串
+   * @returns 是否为健康状态
+   */
   const isUp = (s: string) => s === 'up' || s === 'healthy';
 
-  // 按检查时间升序排列，用于图表时间轴
+  /** 检查记录时间排序和格式化 (Sort and format check records by time)
+   * 按检查时间升序排列，确保图表时间轴正确显示
+   * 提取本地化时间标签用于图表X轴
+   */
   const sorted = [...checks].sort((a, b) => new Date(a.checked_at).getTime() - new Date(b.checked_at).getTime());
   const timestamps = sorted.map(c => new Date(c.checked_at).toLocaleTimeString());
 
-  /** 响应时间折线图配置 */
+  /** 响应时间趋势图配置 (Response time trend chart options)
+   * 平滑折线图显示服务响应时间变化，带面积填充效果
+   * 用于分析服务性能趋势和异常波动
+   */
   const rtOption = {
     title: { text: '响应时间 (ms)', left: 'center', textStyle: { fontSize: 14 } },
     tooltip: { trigger: 'axis' as const },
@@ -58,7 +71,10 @@ export default function ServiceDetail() {
     grid: { top: 40, bottom: 60, left: 50, right: 20 },
   };
 
-  /** 可用率散点图配置（1=可用, 0=不可用） */
+  /** 可用率散点图配置 (Uptime scatter plot options)
+   * 散点图显示服务可用性：1=可用，0=不可用
+   * 直观展示服务稳定性和故障时间点分布
+   */
   const uptimeOption = {
     title: { text: '可用率趋势', left: 'center', textStyle: { fontSize: 14 } },
     tooltip: { trigger: 'axis' as const },
@@ -73,12 +89,16 @@ export default function ServiceDetail() {
     grid: { top: 40, bottom: 60, left: 50, right: 20 },
   };
 
-  // 兼容 target/url 和 type/check_type 两种字段命名
+  /** 字段兼容性处理 (Field compatibility handling)
+   * 兼容后端不同版本可能使用的字段名：target/url 和 type/check_type
+   */
   const serviceUrl = service.target || service.url || '-';
   const serviceType = service.type || service.check_type || '-';
   const serviceIsUp = isUp(service.status);
 
-  // 从检查记录中获取最近一次检查时间
+  /** 最近检查时间计算 (Calculate latest check time)
+   * 从检查记录中获取最新的检查时间，用于基本信息展示
+   */
   const lastCheckTime = checks.length > 0
     ? new Date(checks[0].checked_at).toLocaleString()
     : '-';
@@ -87,12 +107,13 @@ export default function ServiceDetail() {
     <div>
       <Typography.Title level={4}>{service.name}</Typography.Title>
 
-      {/* 服务基本信息卡片 */}
+      {/* 服务基本信息展示卡片 (Service basic information card) */}
       <Card style={{ marginBottom: 16 }}>
         <Descriptions column={{ xs: 1, sm: 2, md: 3 }}>
           <Descriptions.Item label="URL">{serviceUrl}</Descriptions.Item>
           <Descriptions.Item label="检查类型"><Tag>{serviceType.toUpperCase()}</Tag></Descriptions.Item>
           <Descriptions.Item label="状态">
+            {/* 状态标签：健康=绿色，异常=红色 */}
             <Tag color={serviceIsUp ? 'success' : 'error'}>{serviceIsUp ? '健康' : '异常'}</Tag>
           </Descriptions.Item>
           <Descriptions.Item label="可用率">{service.uptime_percent != null ? `${service.uptime_percent}%` : '-'}</Descriptions.Item>
@@ -100,17 +121,19 @@ export default function ServiceDetail() {
         </Descriptions>
       </Card>
 
-      {/* 监控图表 */}
+      {/* 性能监控图表区域 (Performance monitoring charts) */}
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} md={12}>
+          {/* 响应时间趋势图 */}
           <Card><ReactECharts option={rtOption} style={{ height: 280 }} /></Card>
         </Col>
         <Col xs={24} md={12}>
+          {/* 可用率散点图 */}
           <Card><ReactECharts option={uptimeOption} style={{ height: 280 }} /></Card>
         </Col>
       </Row>
 
-      {/* 检查历史记录表格 */}
+      {/* 检查历史记录详情表格 (Check history details table) */}
       <Card title="检查历史">
         <Table dataSource={checks} rowKey="id" size="small"
           pagination={{ pageSize: 20 }}

@@ -1,7 +1,17 @@
 """
-服务监控路由
+服务监控路由模块 (Service Monitoring Router)
 
-提供服务列表、详情、健康检查历史等接口。
+功能说明：提供服务健康监控和可用性分析的核心接口
+核心职责：
+  - 服务列表查询（支持状态、分类、主机筛选）
+  - 服务详情获取（包含可用率计算）
+  - 健康检查历史记录查询
+  - 服务可用率统计分析（24小时/自定义时间范围）
+  - 支持三层服务分类（middleware/business/infrastructure）
+依赖关系：依赖SQLAlchemy、JWT认证、服务健康检查数据
+API端点：GET /services, GET /services/{id}, GET /services/{id}/checks
+
+Author: VigilOps Team
 """
 from datetime import datetime, timezone, timedelta
 

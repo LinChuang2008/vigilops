@@ -1,7 +1,19 @@
 """
-Agent 数据上报路由
+Agent数据上报路由模块 (Agent Data Reporting Router)
 
-提供 Agent 注册、心跳、指标上报、服务检查、日志写入、数据库指标等接口。
+功能说明：提供Agent端向VigilOps平台上报各类监控数据的核心接口
+核心职责：
+  - Agent注册与主机信息管理（幂等性设计）
+  - 心跳保活与在线状态维护
+  - 主机性能指标收集和存储
+  - 服务健康检查结果上报
+  - 数据库性能指标监控
+  - 批量日志采集与实时推送
+  - 自动触发告警规则检查
+依赖关系：依赖SQLAlchemy、Redis缓存、WebSocket广播、告警系统
+API端点：POST /register, POST /heartbeat, POST /metrics, POST /services, POST /db-metrics, POST /logs
+
+Author: VigilOps Team
 """
 from datetime import datetime, timezone
 
@@ -33,18 +45,31 @@ router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 
 
 def _auto_classify_service(name: str) -> str:
-    """根据服务名自动分类: middleware / business / infrastructure"""
+    """
+    服务自动分类函数 (Automatic Service Classification)
+    
+    基于服务名称的关键词智能识别服务类型，用于服务拓扑图的层级展示。
+    
+    Args:
+        name: 服务名称字符串
+    Returns:
+        str: 服务类别（middleware/business/infrastructure）
+    分类规则：
+        1. middleware - 数据库、缓存、消息队列等中间件
+        2. infrastructure - Web服务器、代理、系统服务等基础设施
+        3. business - 业务应用、API服务等（默认分类）
+    """
     lower = name.lower()
-    # 中间件：数据库、缓存、消息队列、注册中心、搜索引擎等
+    # 中间件层：数据库、缓存、消息队列、注册中心、搜索引擎等 (Middleware layer)
     if re.search(r'postgres|mysql|redis|rabbitmq|oracle|clickhouse|nacos|kafka|mongo|memcache|elasticsearch|mq', lower):
         return "middleware"
-    # 基础设施：Web 服务器、代理、系统服务等
+    # 基础设施层：Web服务器、代理、系统服务等 (Infrastructure layer)
     if re.search(r'nginx|httpd|apache|caddy|traefik|haproxy|keepalived|crond|ntpd|envoy', lower):
         return "infrastructure"
-    # 业务系统：后端、前端、应用服务等
+    # 业务应用层：后端、前端、应用服务等 (Business application layer)
     if re.search(r'backend|frontend|api|service|app|admin|job', lower):
         return "business"
-    # 默认归为业务系统
+    # 默认归为业务系统，确保所有服务都有分类 (Default to business to ensure all services are classified)
     return "business"
 
 
@@ -54,8 +79,24 @@ async def register_agent(
     agent_token: AgentToken = Depends(verify_agent_token),
     db: AsyncSession = Depends(get_db),
 ):
-    """Agent 注册接口，幂等操作：已存在则更新信息，不存在则新建主机。"""
-    # 查找是否已有相同 hostname + token 的主机
+    """
+    Agent注册接口 (Agent Registration)
+    
+    Agent启动时向平台注册主机信息，支持幂等性操作确保重启安全。
+    
+    Args:
+        body: Agent注册请求数据（主机名、IP、系统信息等）
+        agent_token: 通过Token认证的Agent令牌对象
+        db: 数据库会话依赖注入
+    Returns:
+        AgentRegisterResponse: 包含主机ID、状态、是否新建的响应
+    流程：
+        1. 基于hostname+token查找已有主机记录
+        2. 存在则更新主机信息并设置在线状态
+        3. 不存在则创建新主机记录
+        4. 返回主机ID供后续API调用使用
+    """
+    # 查找是否已有相同hostname+token的主机（幂等性关键） (Find existing host by hostname+token for idempotency)
     result = await db.execute(
         select(Host).where(
             Host.hostname == body.hostname,
@@ -65,13 +106,13 @@ async def register_agent(
     existing = result.scalar_one_or_none()
 
     if existing:
-        # 更新已有主机信息
+        # 更新已有主机信息，支持Agent重启或配置变更 (Update existing host info for Agent restart or config changes)
         for field in ["ip_address", "os", "os_version", "arch", "cpu_cores", "memory_total_mb", "agent_version", "tags", "group_name"]:
             val = getattr(body, field)
             if val is not None:
                 setattr(existing, field, val)
-        existing.status = "online"
-        existing.last_heartbeat = datetime.now(timezone.utc)
+        existing.status = "online"  # 重新标记为在线状态
+        existing.last_heartbeat = datetime.now(timezone.utc)  # 更新心跳时间
         await db.commit()
         await db.refresh(existing)
         return AgentRegisterResponse(host_id=existing.id, hostname=existing.hostname, status="online", created=False)
@@ -105,18 +146,34 @@ async def heartbeat(
     agent_token: AgentToken = Depends(verify_agent_token),
     db: AsyncSession = Depends(get_db),
 ):
-    """Agent 心跳接口，更新主机在线状态并写入 Redis 用于离线检测。"""
+    """
+    Agent心跳保活接口 (Agent Heartbeat)
+    
+    定期接收Agent心跳，维护主机在线状态，支持离线检测机制。
+    
+    Args:
+        body: 心跳请求数据（包含主机ID）
+        agent_token: 通过Token认证的Agent令牌对象
+        db: 数据库会话依赖注入
+    Returns:
+        AgentHeartbeatResponse: 包含状态确认和服务器时间
+    流程：
+        1. 更新数据库中主机的last_heartbeat时间
+        2. 设置主机状态为online
+        3. 写入Redis缓存，设置300秒过期时间
+        4. 返回服务器当前时间用于时钟同步
+    """
     now = datetime.now(timezone.utc)
 
-    # 更新数据库中的心跳时间
+    # 更新数据库中的心跳时间和在线状态 (Update heartbeat time and online status in database)
     result = await db.execute(select(Host).where(Host.id == body.host_id))
     host = result.scalar_one_or_none()
     if host:
         host.last_heartbeat = now
-        host.status = "online"
+        host.status = "online"  # 确保主机标记为在线
         await db.commit()
 
-    # 写入 Redis，设置 300 秒过期用于离线检测
+    # 写入Redis缓存，设置300秒过期用于快速离线检测 (Write to Redis cache with 300s expiry for fast offline detection)
     redis = await get_redis()
     await redis.set(f"heartbeat:{body.host_id}", now.isoformat(), ex=300)
 
@@ -129,39 +186,54 @@ async def report_metrics(
     agent_token: AgentToken = Depends(verify_agent_token),
     db: AsyncSession = Depends(get_db),
 ):
-    """Agent 上报主机性能指标，同时缓存最新值到 Redis。"""
+    """
+    主机性能指标上报接口 (Host Metrics Reporting)
+    
+    收集Agent上报的CPU、内存、磁盘、网络等系统性能指标。
+    
+    Args:
+        body: 指标报告数据（CPU使用率、内存、磁盘、网络流量等）
+        agent_token: 通过Token认证的Agent令牌对象
+        db: 数据库会话依赖注入
+    Returns:
+        dict: 包含状态和指标记录ID的响应
+    流程：
+        1. 创建HostMetric记录持久化到数据库
+        2. 缓存最新指标到Redis供仪表盘实时展示
+        3. 设置600秒过期时间防止内存泄漏
+    """
     import json as _json
 
     now = datetime.now(timezone.utc)
     recorded_at = body.timestamp or now
 
-    # 持久化到数据库
+    # 持久化指标到数据库用于历史趋势分析 (Persist metrics to database for historical trend analysis)
     metric = HostMetric(
         host_id=body.host_id,
-        cpu_percent=body.cpu_percent,
-        cpu_load_1=body.cpu_load_1,
-        cpu_load_5=body.cpu_load_5,
-        cpu_load_15=body.cpu_load_15,
-        memory_used_mb=body.memory_used_mb,
-        memory_percent=body.memory_percent,
-        disk_used_mb=body.disk_used_mb,
-        disk_total_mb=body.disk_total_mb,
-        disk_percent=body.disk_percent,
-        net_bytes_sent=body.net_bytes_sent,
-        net_bytes_recv=body.net_bytes_recv,
-        net_send_rate_kb=body.net_send_rate_kb,
-        net_recv_rate_kb=body.net_recv_rate_kb,
-        net_packet_loss_rate=body.net_packet_loss_rate,
+        cpu_percent=body.cpu_percent,  # CPU使用率
+        cpu_load_1=body.cpu_load_1,    # 1分钟负载
+        cpu_load_5=body.cpu_load_5,    # 5分钟负载
+        cpu_load_15=body.cpu_load_15,  # 15分钟负载
+        memory_used_mb=body.memory_used_mb,     # 内存使用量
+        memory_percent=body.memory_percent,     # 内存使用率
+        disk_used_mb=body.disk_used_mb,         # 磁盘已用空间
+        disk_total_mb=body.disk_total_mb,       # 磁盘总空间
+        disk_percent=body.disk_percent,         # 磁盘使用率
+        net_bytes_sent=body.net_bytes_sent,     # 网络发送字节
+        net_bytes_recv=body.net_bytes_recv,     # 网络接收字节
+        net_send_rate_kb=body.net_send_rate_kb, # 发送速率
+        net_recv_rate_kb=body.net_recv_rate_kb, # 接收速率
+        net_packet_loss_rate=body.net_packet_loss_rate,  # 丢包率
         recorded_at=recorded_at,
     )
     db.add(metric)
     await db.commit()
 
-    # 缓存最新指标到 Redis，供仪表盘实时展示
+    # 缓存最新指标到Redis，供仪表盘实时展示使用 (Cache latest metrics to Redis for real-time dashboard display)
     redis = await get_redis()
     latest = body.model_dump(exclude={"host_id", "timestamp"}, exclude_none=True)
     latest["recorded_at"] = recorded_at.isoformat()
-    await redis.set(f"metrics:latest:{body.host_id}", _json.dumps(latest), ex=600)
+    await redis.set(f"metrics:latest:{body.host_id}", _json.dumps(latest), ex=600)  # 10分钟过期
 
     return {"status": "ok", "metric_id": metric.id}
 
@@ -172,7 +244,23 @@ async def register_service(
     agent_token: AgentToken = Depends(verify_agent_token),
     db: AsyncSession = Depends(get_db),
 ):
-    """注册或查找服务，返回 service_id，幂等操作。"""
+    """
+    服务注册接口 (Service Registration)
+    
+    注册待监控的服务，支持幂等性操作，自动分类服务类型。
+    
+    Args:
+        body: 服务注册数据（名称、目标URL、类型、检查间隔等）
+        agent_token: 通过Token认证的Agent令牌对象
+        db: 数据库会话依赖注入
+    Returns:
+        dict: 包含服务ID和是否新建的响应
+    流程：
+        1. 根据name+target查找已有服务
+        2. 存在则返回服务ID，不存在则创建新服务
+        3. 基于服务名自动分类（middleware/business/infrastructure）
+        4. 返回服务ID供健康检查使用
+    """
     name = body.get("name", "")
     target = body.get("target", body.get("url", ""))
     svc_type = body.get("type", "http")
@@ -208,7 +296,22 @@ async def report_service_check(
     agent_token: AgentToken = Depends(verify_agent_token),
     db: AsyncSession = Depends(get_db),
 ):
-    """Agent 上报服务健康检查结果。"""
+    """
+    服务健康检查结果上报接口 (Service Health Check Reporting)
+    
+    接收Agent执行的服务健康检查结果，更新服务状态。
+    
+    Args:
+        body: 健康检查报告（服务ID、状态、响应时间、错误信息等）
+        agent_token: 通过Token认证的Agent令牌对象
+        db: 数据库会话依赖注入
+    Returns:
+        dict: 包含状态和检查记录ID的响应
+    流程：
+        1. 创建ServiceCheck记录保存检查详情
+        2. 同步更新Service表中的当前状态
+        3. 供服务列表和拓扑图显示使用
+    """
     now = datetime.now(timezone.utc)
 
     check = ServiceCheck(
@@ -237,7 +340,25 @@ async def report_db_metrics(
     agent_token: AgentToken = Depends(verify_agent_token),
     db: AsyncSession = Depends(get_db),
 ):
-    """Agent 上报数据库性能指标，自动创建或更新被监控数据库记录。"""
+    """
+    数据库性能指标上报接口 (Database Metrics Reporting)
+    
+    收集数据库连接数、查询性能、存储使用等关键指标，自动触发告警检查。
+    
+    Args:
+        body: 数据库指标数据（连接数、慢查询、QPS、存储等）
+        agent_token: 通过Token认证的Agent令牌对象
+        db: 数据库会话依赖注入
+    Returns:
+        dict: 包含状态、数据库ID和指标记录ID
+    Raises:
+        HTTPException 400: 缺少必需的host_id或db_name参数
+    流程：
+        1. 根据host_id+db_name查找或创建MonitoredDatabase记录
+        2. 创建DbMetric记录保存指标详情
+        3. 检查是否触发数据库指标告警规则
+        4. 返回数据库ID和指标记录ID
+    """
     now = datetime.now(timezone.utc)
     host_id = body.get("host_id")
     db_name = body.get("db_name", "")
@@ -300,7 +421,21 @@ async def report_db_metrics(
 
 
 async def _check_db_metric_alerts(database_id: int, body: dict, db: AsyncSession):
-    """检查数据库指标是否触发告警规则。"""
+    """
+    数据库指标告警检查 (Database Metric Alert Check)
+    
+    对比数据库指标值与已配置的告警规则，自动创建告警记录。
+    
+    Args:
+        database_id: 数据库记录ID
+        body: 数据库指标数据字典
+        db: 数据库会话对象
+    流程：
+        1. 查询所有启用的db_metric类型告警规则
+        2. 遍历规则，检查指标值是否超过阈值
+        3. 支持>, >=, <, <=, ==, != 比较操作符
+        4. 触发条件时创建Alert记录
+    """
     from app.models.alert import AlertRule, Alert
     import operator as op_module
 
@@ -346,7 +481,23 @@ async def ingest_logs(
     agent_token: AgentToken = Depends(verify_agent_token),
     db: AsyncSession = Depends(get_db),
 ):
-    """批量写入日志条目，同时广播到 WebSocket 订阅者并检查日志关键字告警。"""
+    """
+    批量日志采集接口 (Bulk Log Ingestion)
+    
+    接收Agent批量上传的日志数据，支持实时推送和告警检测。
+    
+    Args:
+        body: 批量日志请求（包含日志条目列表）
+        agent_token: 通过Token认证的Agent令牌对象
+        db: 数据库会话依赖注入
+    Returns:
+        LogBatchResponse: 包含接收日志数量的响应
+    流程：
+        1. 批量插入日志条目到PostgreSQL
+        2. 广播到WebSocket订阅者实现实时日志流
+        3. 检查日志内容是否匹配关键字告警规则
+        4. 返回成功接收的日志条目数量
+    """
     from sqlalchemy.dialects.postgresql import insert
     from app.routers.logs import log_broadcaster
 
@@ -375,7 +526,20 @@ async def ingest_logs(
 
 
 async def _check_log_keyword_alerts(logs: list, db: AsyncSession):
-    """匹配日志内容与日志关键字告警规则，触发告警。"""
+    """
+    日志关键字告警检查 (Log Keyword Alert Check)
+    
+    扫描日志内容，匹配关键字告警规则，自动创建告警记录。
+    
+    Args:
+        logs: 日志条目对象列表
+        db: 数据库会话对象
+    流程：
+        1. 查询所有启用的log_keyword类型告警规则
+        2. 遍历日志条目，检查message字段是否包含关键字
+        3. 支持按日志级别和服务名过滤匹配范围
+        4. 匹配成功时创建Alert记录，截取前200字符
+    """
     from app.models.alert import AlertRule, Alert
 
     result = await db.execute(

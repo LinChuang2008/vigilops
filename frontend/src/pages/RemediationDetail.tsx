@@ -1,6 +1,20 @@
 /**
- * 修复详情页
- * 展示 AI 诊断结果、命令执行日志、审批操作
+ * 自动修复详情页 (Remediation Detail Page)
+ *
+ * 功能：展示单个修复任务的完整信息，包括 AI 诊断结果、命令执行日志、审批操作
+ * 数据源：GET /api/v1/remediations/:id
+ * 路由参数：id - 修复任务ID
+ *
+ * 页面结构：
+ *   1. 基本信息卡片 - 告警名称、主机、状态、风险级别、Runbook、审批人等
+ *   2. AI 诊断结果 - 展示 AI 引擎对告警的分析和修复建议（monospace 格式）
+ *   3. 命令执行日志 - Timeline 形式展示每条命令的执行状态、输出（终端风格渲染）
+ *   4. 操作按钮 - pending 状态显示审批/拒绝，failed 状态显示重试
+ *
+ * 交互操作：
+ *   - approve: 审批通过 → 触发自动执行修复命令
+ *   - reject: 拒绝修复
+ *   - retry: 失败后重新执行
  */
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';

@@ -1,7 +1,16 @@
-"""通知渠道管理路由模块。
+"""
+通知渠道管理路由模块 (Notification Channel Management Router)
 
-提供通知渠道（邮件、Webhook 等）的增删改查接口，
-以及通知发送日志的查询功能。
+功能说明：提供多渠道通知配置管理和发送日志查询功能
+核心职责：
+  - 通知渠道CRUD操作（支持邮件、钉钉、飞书、企微、Webhook）
+  - 通知发送日志查询和审计
+  - 渠道配置的安全存储和管理
+  - 支持告警通知的多渠道分发
+依赖关系：依赖SQLAlchemy、JWT认证、审计服务
+API端点：GET /logs, GET /notification-channels, POST /notification-channels, PUT /notification-channels/{id}, DELETE /notification-channels/{id}
+
+Author: VigilOps Team
 """
 
 from typing import Optional, List
@@ -33,7 +42,11 @@ async def list_notification_logs(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    """查询通知发送日志，可按告警 ID 筛选。"""
+    """
+    通知发送日志查询接口 (Notification Sending Logs Query)
+    
+    查询通知发送历史记录，支持按告警ID筛选，用于通知审计。
+    """
     q = select(NotificationLog).order_by(NotificationLog.sent_at.desc())
     if alert_id:
         q = q.where(NotificationLog.alert_id == alert_id)
@@ -47,7 +60,11 @@ async def list_channels(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    """获取所有通知渠道列表。"""
+    """
+    通知渠道列表查询接口 (Notification Channels List Query)
+    
+    获取所有配置的通知渠道（邮件、钉钉、飞书、企微、Webhook）。
+    """
     result = await db.execute(select(NotificationChannel).order_by(NotificationChannel.id))
     return result.scalars().all()
 

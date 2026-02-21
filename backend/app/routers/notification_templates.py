@@ -1,7 +1,16 @@
 """
-通知模板路由
+通知模板路由模块 (Notification Template Router)
 
-提供通知模板的 CRUD API 接口。
+功能说明：提供通知模板的完整生命周期管理，支持模板化通知内容
+核心职责：
+  - 通知模板CRUD操作（创建、查询、更新、删除）
+  - 支持动态变量替换的模板系统
+  - 管理员权限保护的模板配置
+  - 为不同通知渠道提供统一模板管理
+依赖关系：依赖SQLAlchemy、管理员权限验证
+API端点：GET /notification-templates, POST /notification-templates, GET /notification-templates/{id}, PUT /notification-templates/{id}, DELETE /notification-templates/{id}
+
+Author: VigilOps Team
 """
 from typing import List
 
