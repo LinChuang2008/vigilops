@@ -9,7 +9,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[Demo](https://vigilops.dev) · [Docs](https://docs.vigilops.dev) · [Discord](https://discord.gg/vigilops) · [中文](#-中文简介)
+[Live Demo](http://139.196.210.68:3001) · [Docs](#-documentation) · [中文](#-中文简介)
 
 </div>
 
@@ -93,10 +93,12 @@ cd vigilops
 docker compose up -d
 
 # Open the dashboard
-open http://localhost:3000
+open http://localhost:3001
 ```
 
-Default credentials: `admin` / `vigilops`
+Default admin credentials: `admin` / `vigilops`
+
+**🎯 Try the live demo:** [http://139.196.210.68:3001](http://139.196.210.68:3001) — Login with `demo@vigilops.io` / `demo123` (read-only)
 
 That's it. No complex configuration needed.
 
@@ -201,7 +203,9 @@ git clone https://github.com/LinChuang2008/vigilops.git
 cd vigilops && docker compose up -d
 ```
 
-访问 `http://localhost:3000`，默认账号 `admin` / `vigilops`。
+访问 `http://localhost:3001`，默认账号 `admin` / `vigilops`。
+
+**🎯 在线体验：** [http://139.196.210.68:3001](http://139.196.210.68:3001) — 体验账号 `demo@vigilops.io` / `demo123`（只读）
 
 欢迎 Star ⭐ 和贡献代码！
 
