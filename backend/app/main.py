@@ -24,6 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.core.config import settings as app_settings
+from app.core.exceptions import register_exception_handlers
 from app.core.database import engine, Base
 from app.core.redis import get_redis, close_redis
 # 导入所有模型以确保 SQLAlchemy 表注册 (Import all models to ensure SQLAlchemy table registration)
@@ -142,6 +143,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# 注册全局异常处理器 (Register global exception handlers)
+register_exception_handlers(app)
 
 # 配置 CORS 中间件，允许前端跨域访问 (Configure CORS middleware for frontend cross-origin access)
 app.add_middleware(

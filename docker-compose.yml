@@ -56,6 +56,11 @@ services:
       - backend
     restart: unless-stopped
 
+# 备份说明 (Backup Instructions):
+# 手动备份: bash scripts/backup.sh
+# 定时备份 (cron): 0 2 * * * cd /path/to/vigilops && bash scripts/backup.sh >> logs/backup.log 2>&1
+# 恢复: bash scripts/restore.sh backups/vigilops_YYYYMMDD_HHMMSS.sql.gz
+
 volumes:
   pgdata:
   redisdata:

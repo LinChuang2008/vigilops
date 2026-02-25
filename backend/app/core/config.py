@@ -8,7 +8,12 @@ Uses Pydantic Settings to manage all configuration items for the VigilOps platfo
 supporting reading from .env files and environment variables. Provides configuration
 management for database connections, Redis cache, AI services, JWT authentication, and other modules.
 """
+import logging
+import secrets
+
 from pydantic_settings import BaseSettings
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -56,7 +61,9 @@ class Settings(BaseSettings):
     agent_notify_on_failure: bool = True  # 修复失败/升级时发送通知 (Notify on Failed/Escalated Remediation)
 
     # JWT 认证配置 (JWT Authentication Configuration)
-    jwt_secret_key: str = "change-me-in-production"  # JWT 签名密钥（生产环境必须修改） (JWT Secret Key)
+    # ⚠️ 生产环境必须通过环境变量 JWT_SECRET_KEY 设置！未设置时自动生成随机密钥（每次重启会变化）
+    # ⚠️ MUST set JWT_SECRET_KEY env var in production! Auto-generated random key changes on every restart.
+    jwt_secret_key: str = ""  # JWT 签名密钥 (JWT Secret Key)
     jwt_algorithm: str = "HS256"  # JWT 算法 (JWT Algorithm)
     jwt_access_token_expire_minutes: int = 120  # 访问令牌过期时间（分钟） (Access Token Expiry Minutes)
     jwt_refresh_token_expire_days: int = 7  # 刷新令牌过期时间（天） (Refresh Token Expiry Days)
@@ -95,3 +102,14 @@ class Settings(BaseSettings):
 
 # 全局配置实例 (Global Configuration Instance)
 settings = Settings()
+
+# JWT 密钥安全检查：未设置时生成随机密钥并警告
+if not settings.jwt_secret_key or settings.jwt_secret_key == "change-me-in-production":
+    settings.jwt_secret_key = secrets.token_urlsafe(64)
+    logger.warning(
+        "JWT_SECRET_KEY 未设置，已自动生成随机密钥。此密钥在每次重启后会变化，所有已签发的 token 将失效。"
+        "生产环境请务必设置环境变量 JWT_SECRET_KEY！"
+        " | JWT_SECRET_KEY not set, using auto-generated random key. "
+        "All issued tokens will be invalidated on restart. "
+        "Set JWT_SECRET_KEY environment variable in production!"
+    )
