@@ -13,12 +13,12 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Row, Col, Card, Statistic, Typography, Tag, Table, Spin, Button,
-  Dropdown, Progress, Tooltip, Space,
+  Dropdown, Progress, Tooltip, Space, Empty,
 } from 'antd';
 import {
   DownloadOutlined, CloudServerOutlined, ApiOutlined, AlertOutlined,
   CheckCircleOutlined, CloseCircleOutlined, DatabaseOutlined,
-  DesktopOutlined, ArrowRightOutlined,
+  DesktopOutlined, ArrowRightOutlined, PlusOutlined,
 } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import api from '../services/api';
@@ -190,6 +190,18 @@ export default function Dashboard() {
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
 
   const d = data || { hosts: { total: 0, online: 0, offline: 0, items: [] }, services: { total: 0, healthy: 0, unhealthy: 0 }, alerts: { total: 0, firing: 0, items: [] } };
+
+  if (d.hosts.total === 0 && d.services.total === 0) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <Empty description="暂无监控数据">
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/hosts')}>
+            添加你的第一台服务器
+          </Button>
+        </Empty>
+      </div>
+    );
+  }
 
   const hostTotal = wsData?.hosts.total ?? d.hosts.total;
   const hostOnline = wsData?.hosts.online ?? d.hosts.online;
@@ -448,22 +460,22 @@ export default function Dashboard() {
       {trends.length > 0 && (
         <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
           <Col xs={24} sm={12} md={6}>
-            <Card bodyStyle={{ padding: '12px' }}>
+            <Card styles={{ body: { padding: '12px' } }}>
               <ReactECharts option={sparklineOption(cpuTrend, '#1677ff', 'CPU 趋势 (24h)')} style={{ height: 80 }} />
             </Card>
           </Col>
           <Col xs={24} sm={12} md={6}>
-            <Card bodyStyle={{ padding: '12px' }}>
+            <Card styles={{ body: { padding: '12px' } }}>
               <ReactECharts option={sparklineOption(memTrend, '#52c41a', '内存趋势 (24h)')} style={{ height: 80 }} />
             </Card>
           </Col>
           <Col xs={24} sm={12} md={6}>
-            <Card bodyStyle={{ padding: '12px' }}>
+            <Card styles={{ body: { padding: '12px' } }}>
               <ReactECharts option={sparklineOption(alertTrend, '#faad14', '告警趋势 (24h)')} style={{ height: 80 }} />
             </Card>
           </Col>
           <Col xs={24} sm={12} md={6}>
-            <Card bodyStyle={{ padding: '12px' }}>
+            <Card styles={{ body: { padding: '12px' } }}>
               <ReactECharts option={sparklineOption(errorTrend, '#ff4d4f', '错误日志 (24h)')} style={{ height: 80 }} />
             </Card>
           </Col>

@@ -6,8 +6,8 @@
  */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Form, Input, Button, Card, Typography, message, Tabs } from 'antd';
-import { UserOutlined, LockOutlined, MailOutlined, RocketOutlined } from '@ant-design/icons';
+import { Form, Input, Button, Card, Typography, message, Tabs, Row, Col, Space } from 'antd';
+import { UserOutlined, LockOutlined, MailOutlined, RocketOutlined, RobotOutlined, ThunderboltOutlined, DashboardOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { authService } from '../services/auth';
 
 const { Title } = Typography;
@@ -71,16 +71,51 @@ export default function Login() {
     <div style={{
       minHeight: '100vh',
       display: 'flex',
+      flexDirection: 'column' as const,
       alignItems: 'center',
       justifyContent: 'center',
       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     }}>
       {contextHolder}
-      <Card style={{ width: 420, boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}>
-        <Title level={2} style={{ textAlign: 'center', marginBottom: 8 }}>VigilOps</Title>
-        <Typography.Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 24 }}>
-          AI 智能运维监控平台
-        </Typography.Text>
+      <Card style={{ width: 860, maxWidth: '95vw', boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}>
+        <Row gutter={32}>
+          {/* 左侧产品特性 */}
+          <Col xs={0} md={12} style={{ borderRight: '1px solid #f0f0f0', display: 'flex', alignItems: 'center' }}>
+            <div style={{ padding: '24px 16px' }}>
+              <Title level={2} style={{ marginBottom: 8 }}>VigilOps</Title>
+              <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 32, fontSize: 15 }}>
+                AI 智能运维监控平台
+              </Typography.Text>
+              <Space direction="vertical" size={24} style={{ width: '100%' }}>
+                {[
+                  { icon: <RobotOutlined style={{ fontSize: 28, color: '#667eea' }} />, title: 'AI 智能分析', desc: '基于 AI 的根因分析与运维洞察' },
+                  { icon: <ThunderboltOutlined style={{ fontSize: 28, color: '#faad14' }} />, title: '自动修复', desc: '内置 Runbook，告警触发自动修复' },
+                  { icon: <DashboardOutlined style={{ fontSize: 28, color: '#52c41a' }} />, title: '实时监控', desc: 'WebSocket 实时推送，秒级感知' },
+                  { icon: <SafetyCertificateOutlined style={{ fontSize: 28, color: '#1677ff' }} />, title: 'SLA 管理', desc: '可用性追踪与错误预算管理' },
+                ].map((item, i) => (
+                  <Space key={i} align="start" size={12}>
+                    <div style={{ width: 48, height: 48, borderRadius: 12, background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {item.icon}
+                    </div>
+                    <div>
+                      <Typography.Text strong>{item.title}</Typography.Text>
+                      <br />
+                      <Typography.Text type="secondary" style={{ fontSize: 13 }}>{item.desc}</Typography.Text>
+                    </div>
+                  </Space>
+                ))}
+              </Space>
+            </div>
+          </Col>
+          {/* 右侧登录表单 */}
+          <Col xs={24} md={12}>
+            <div style={{ padding: '24px 8px' }}>
+              <Title level={3} style={{ textAlign: 'center', marginBottom: 8, display: 'none' }}>VigilOps</Title>
+              {/* Mobile-only title */}
+              <div className="login-mobile-title" style={{ textAlign: 'center', marginBottom: 16 }}>
+                <Title level={3} style={{ margin: 0 }}>VigilOps</Title>
+                <Typography.Text type="secondary">AI 智能运维监控平台</Typography.Text>
+              </div>
         <Tabs activeKey={activeTab} onChange={setActiveTab} centered items={[
           {
             key: 'login',
@@ -132,6 +167,9 @@ export default function Login() {
             ),
           },
         ]} />
+            </div>
+          </Col>
+        </Row>
       </Card>
       <div style={{ marginTop: 24, textAlign: 'center', color: 'rgba(255,255,255,0.6)', fontSize: 12, lineHeight: 1.8 }}>
         <div>琳创科技（LinChuang Technology）</div>

@@ -33,6 +33,7 @@ import ServiceGroupsPage from './pages/topology/ServiceGroupsPage';
 import SLA from './pages/SLA';
 import RemediationList from './pages/Remediation';
 import RemediationDetail from './pages/RemediationDetail';
+import ErrorBoundary from './components/ErrorBoundary';
 
 /** 路由权限守卫：根据角色限制可访问的页面 */
 const viewerAllowedPrefixes = ['/', '/hosts', '/services', '/topology', '/logs', '/databases', '/alerts', '/ai-analysis'];
@@ -62,6 +63,7 @@ export default function App() {
       }}
     >
       <AntApp>
+        <ErrorBoundary>
         <BrowserRouter>
           <Routes>
             {/* 登录页（无需认证） */}
@@ -105,6 +107,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
+        </ErrorBoundary>
       </AntApp>
     </ConfigProvider>
   );

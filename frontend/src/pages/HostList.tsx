@@ -5,8 +5,8 @@
  */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Card, Tag, Input, Select, Row, Col, Progress, Typography, Space, Button, Segmented } from 'antd';
-import { CloudServerOutlined, AppstoreOutlined, UnorderedListOutlined } from '@ant-design/icons';
+import { Table, Card, Tag, Input, Select, Row, Col, Progress, Typography, Space, Button, Segmented, Empty } from 'antd';
+import { CloudServerOutlined, AppstoreOutlined, UnorderedListOutlined, PlusOutlined } from '@ant-design/icons';
 import { hostService } from '../services/hosts';
 import type { Host } from '../services/hosts';
 
@@ -51,7 +51,7 @@ export default function HostList() {
    * 监听分页(page/pageSize)和状态筛选变化，自动重新加载数据
    * 搜索功能通过手动触发 fetchHosts，不在依赖数组中
    */
-  useEffect(() => { fetchHosts(); }, [page, pageSize, statusFilter]);
+  useEffect(() => { fetchHosts(); }, [page, pageSize, statusFilter, search]);
 
   /** 表格列配置定义 (Table columns configuration)
    * 包含主机基本信息、资源使用率进度条、标签展示等
@@ -143,7 +143,7 @@ export default function HostList() {
         <Col>
           <Space>
             {/* 主机名搜索：立即触发查询并重置分页 */}
-            <Search placeholder="搜索主机名" onSearch={v => { setSearch(v); setPage(1); fetchHosts(); }} style={{ width: 200 }} allowClear />
+            <Search placeholder="搜索主机名" onSearch={v => { setSearch(v); setPage(1); }} style={{ width: 200 }} allowClear />
             {/* 状态筛选：改变时重置到第一页，触发 useEffect 自动查询 */}
             <Select placeholder="状态" allowClear style={{ width: 120 }} onChange={v => { setStatusFilter(v || ''); setPage(1); }}
               options={[{ label: '在线', value: 'online' }, { label: '离线', value: 'offline' }]} />
@@ -154,7 +154,13 @@ export default function HostList() {
           </Space>
         </Col>
       </Row>
-      {viewMode === 'table' ? (
+      {!loading && hosts.length === 0 && !search && !statusFilter ? (
+        <Card>
+          <Empty description="暂无服务器，点击添加">
+            <Button type="primary" icon={<PlusOutlined />}>添加服务器</Button>
+          </Empty>
+        </Card>
+      ) : viewMode === 'table' ? (
         <Table
           dataSource={hosts}
           columns={columns}
