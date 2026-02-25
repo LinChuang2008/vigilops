@@ -54,6 +54,8 @@ from app.routers import sla
 from app.routers import remediation
 from app.routers import servers
 from app.routers import server_groups
+from app.routers import on_call
+from app.routers import alert_escalation
 from app.api.v1 import data_retention
 from app.api.v1 import alert_deduplication
 
@@ -272,6 +274,8 @@ app.include_router(remediation.router)  # 自动修复 (Auto-remediation)
 app.include_router(remediation.trigger_router)  # 修复触发器 (Remediation triggers)
 app.include_router(servers.router)  # 服务器管理 (Server management)
 app.include_router(server_groups.router)  # 服务器分组 (Server grouping)
+app.include_router(on_call.router)  # 值班排期管理 (On-call schedule management)
+app.include_router(alert_escalation.router)  # 告警升级管理 (Alert escalation management)
 app.include_router(data_retention.router, prefix="/api/v1/data-retention", tags=["数据保留策略"])  # 数据保留策略 (Data retention policy)
 app.include_router(alert_deduplication.router, prefix="/api/v1/alert-deduplication", tags=["告警去重"])  # 告警去重和聚合 (Alert deduplication and aggregation)
 

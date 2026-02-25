@@ -33,6 +33,8 @@ import ServiceGroupsPage from './pages/topology/ServiceGroupsPage';
 import SLA from './pages/SLA';
 import RemediationList from './pages/Remediation';
 import RemediationDetail from './pages/RemediationDetail';
+import AlertEscalation from './pages/AlertEscalation';
+import OnCall from './pages/OnCall';
 import ErrorBoundary from './components/ErrorBoundary';
 
 /** 路由权限守卫：根据角色限制可访问的页面 */
@@ -101,6 +103,8 @@ export default function App() {
               <Route path="/notification-logs" element={<NotificationLogs />} />
               <Route path="/users" element={<Users />} />
               <Route path="/audit-logs" element={<AuditLogs />} />
+              <Route path="/alert-escalation" element={<AlertEscalation />} />
+              <Route path="/on-call" element={<OnCall />} />
               <Route path="/settings" element={<Settings />} />
             </Route>
             {/* 未匹配路由重定向到首页 */}

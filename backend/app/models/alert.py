@@ -91,6 +91,10 @@ class Alert(Base):
     resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)  # 告警解决时间 (Alert Resolved Time)
     acknowledged_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)  # 告警确认时间 (Alert Acknowledged Time)
     acknowledged_by: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 确认人用户 ID (Acknowledged by User ID)
+    # 告警升级字段 (Alert Escalation Fields)
+    escalation_level: Mapped[int] = mapped_column(Integer, default=0)  # 当前升级级别 (Current Escalation Level)
+    last_escalated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)  # 最后升级时间 (Last Escalated Time)
+    next_escalation_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)  # 下次升级时间 (Next Escalation Time)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )  # 创建时间 (Creation Time)
