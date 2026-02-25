@@ -6,7 +6,7 @@
  * 2. 告警规则 - 管理告警规则（指标告警、日志关键字告警、数据库告警），支持增删改及静默时段设置
  */
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+// import { useNavigate } from 'react-router-dom';
 import { Table, Card, Tag, Typography, Select, Space, Button, Drawer, Descriptions, Tabs, Modal, Form, Input, InputNumber, Switch, Row, Col, message, TimePicker, Spin, Empty } from 'antd';
 import { ExclamationCircleOutlined, RobotOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -48,7 +48,7 @@ export default function AlertList() {
   const [dbList, setDbList] = useState<DatabaseItem[]>([]);
   const [form] = Form.useForm();
   const [messageApi, contextHolder] = message.useMessage();
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
 
   // ========== AI 根因分析弹窗 ==========
   const [rcModalOpen, setRcModalOpen] = useState(false);

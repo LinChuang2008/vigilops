@@ -5,9 +5,8 @@
 #   2. cp .env.example .env && 编辑 .env
 #   3. docker compose -f docker-compose.quickstart.yml up -d
 #
-# 注意: backend/frontend 镜像需要先推送到 GHCR
-# 当前状态: 镜像尚未发布，请使用主仓库的 docker-compose.yml (需源码 build)
-# TODO: 镜像发布后取消下方 image 行的注释
+# 镜像托管在 GitHub Container Registry (ghcr.io)
+# 首次拉取可能需要: docker login ghcr.io
 
 services:
   postgres:
@@ -42,9 +41,7 @@ services:
     restart: unless-stopped
 
   backend:
-    # TODO: 镜像发布后启用
-    # image: ghcr.io/linchuang2008/vigilops-backend:latest
-    build: ./backend
+    image: ghcr.io/linchuang2008/vigilops-backend:latest
     ports:
       - "${BACKEND_PORT:-8001}:8000"
     env_file: .env
@@ -56,9 +53,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    # TODO: 镜像发布后启用
-    # image: ghcr.io/linchuang2008/vigilops-frontend:latest
-    build: ./frontend
+    image: ghcr.io/linchuang2008/vigilops-frontend:latest
     ports:
       - "${FRONTEND_PORT:-3001}:80"
     depends_on:

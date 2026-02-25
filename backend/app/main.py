@@ -147,13 +147,40 @@ app = FastAPI(
 # 注册全局异常处理器 (Register global exception handlers)
 register_exception_handlers(app)
 
-# 配置 CORS 中间件，允许前端跨域访问 (Configure CORS middleware for frontend cross-origin access)
+# 导入安全和限流中间件 (Import security and rate limiting middleware)
+from app.core.rate_limiting import RateLimitMiddleware
+from app.core.security_middleware import SecurityMiddleware, RequestSizeMiddleware
+
+# 配置安全中间件 (Configure security middleware)
+# 注意：中间件的注册顺序很重要，安全检查应该在业务逻辑之前
+# Note: Middleware registration order is important, security checks should be before business logic
+
+# 1. 请求大小限制中间件 (Request size limiting middleware)
+app.add_middleware(RequestSizeMiddleware)
+
+# 2. 安全头中间件 (Security headers middleware)  
+app.add_middleware(SecurityMiddleware)
+
+# 3. API 限流中间件 (API rate limiting middleware)
+app.add_middleware(RateLimitMiddleware)
+
+# 4. 配置 CORS 中间件，允许前端跨域访问 (Configure CORS middleware for frontend cross-origin access)
+# 生产环境下的 CORS 配置更加严格 (Stricter CORS configuration in production)
+import os
+is_production = os.getenv("ENVIRONMENT", "development").lower() == "production"
+allowed_origins = ["*"] if not is_production else [
+    "http://localhost:3001",
+    "https://localhost:3001", 
+    os.getenv("FRONTEND_URL", "http://localhost:3001")
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 开发环境允许所有来源，生产环境应限制具体域名 (Allow all origins in dev, restrict in production)
+    allow_origins=allowed_origins,  # 生产环境限制具体域名 (Restrict specific domains in production)
     allow_credentials=True,  # 允许携带认证信息 (Allow credentials)
-    allow_methods=["*"],  # 允许所有 HTTP 方法 (Allow all HTTP methods)
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],  # 明确允许的方法 (Explicitly allowed methods)
     allow_headers=["*"],  # 允许所有请求头 (Allow all headers)
+    expose_headers=["X-Total-Count", "X-Rate-Limit-*"],  # 暴露的响应头 (Exposed response headers)
 )
 
 # 注册所有 API 路由模块 (Register all API router modules)

@@ -67,6 +67,14 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"  # JWT 算法 (JWT Algorithm)
     jwt_access_token_expire_minutes: int = 120  # 访问令牌过期时间（分钟） (Access Token Expiry Minutes)
     jwt_refresh_token_expire_days: int = 7  # 刷新令牌过期时间（天） (Refresh Token Expiry Days)
+    
+    # 安全和限流配置 (Security and Rate Limiting Configuration)
+    enable_rate_limiting: bool = True  # 是否启用 API 限流 (Enable API Rate Limiting)
+    enable_security_headers: bool = True  # 是否启用安全响应头 (Enable Security Headers)
+    max_request_size: int = 10 * 1024 * 1024  # 最大请求体大小（字节） (Max Request Body Size in Bytes)
+    environment: str = "development"  # 运行环境：development/production (Runtime Environment)
+    frontend_url: str = "http://localhost:3001"  # 前端 URL (Frontend URL)
+    api_domain: str = "localhost:8001"  # API 域名 (API Domain)
 
     @property
     def database_url(self) -> str:
