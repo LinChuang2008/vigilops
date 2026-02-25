@@ -45,7 +45,7 @@
 | 4 | API 限流 + 安全加固 | 1天 | ✅ commit d14338a |
 | 5 | 监控数据保留策略（自动清理旧数据） | 1天 | ✅ commit c711a39 |
 | 6 | 告警去重/聚合 | 1天 | ✅ commit 6b5852e |
-| 7 | MCP Server 接入（FastMCP，暴露核心运维工具给 AI Agent） | 0.5天 | ⏳ 待做 |
+| 7 | MCP Server 接入（FastMCP，暴露核心运维工具给 AI Agent） | 0.5天 | ✅ commit 1a67479 |
 
 ## 🟡 P1 应该做（P0 完成后）
 

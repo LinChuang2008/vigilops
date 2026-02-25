@@ -38,21 +38,251 @@ router = APIRouter(prefix="/api/v1/notification-channels", tags=["notifications"
 @router.get("/logs", response_model=List[NotificationLogResponse])
 async def list_notification_logs(
     alert_id: Optional[int] = None,
-    limit: int = Query(50, ge=1, le=200),
+    channel_id: Optional[int] = None,
+    status: Optional[str] = None,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
     """
     通知发送日志查询接口 (Notification Sending Logs Query)
     
-    查询通知发送历史记录，支持按告警ID筛选，用于通知审计。
+    查询通知发送历史记录，支持多维度筛选和分页查询。
+    
+    Args:
+        alert_id: 告警ID筛选
+        channel_id: 通知渠道ID筛选  
+        status: 发送状态筛选 (sent/failed)
+        start_time: 开始时间 (ISO format)
+        end_time: 结束时间 (ISO format)
+        page: 页码 (从1开始)
+        page_size: 每页条数
     """
+    from datetime import datetime
+    
     q = select(NotificationLog).order_by(NotificationLog.sent_at.desc())
+    
+    # 多维度过滤
     if alert_id:
         q = q.where(NotificationLog.alert_id == alert_id)
-    q = q.limit(limit)
+    if channel_id:
+        q = q.where(NotificationLog.channel_id == channel_id)
+    if status:
+        q = q.where(NotificationLog.status == status)
+    if start_time:
+        try:
+            start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+            q = q.where(NotificationLog.sent_at >= start_dt)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid start_time format")
+    if end_time:
+        try:
+            end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+            q = q.where(NotificationLog.sent_at <= end_dt)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid end_time format")
+    
+    # 分页
+    offset = (page - 1) * page_size
+    q = q.offset(offset).limit(page_size)
+    
     result = await db.execute(q)
     return result.scalars().all()
+
+
+@router.get("/logs/stats")
+async def get_notification_logs_stats(
+    days: int = Query(7, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    """
+    通知日志统计接口 (Notification Logs Statistics)
+    
+    获取指定天数内的通知发送统计信息。
+    
+    Args:
+        days: 统计天数 (1-365)
+    """
+    from datetime import datetime, timedelta
+    from sqlalchemy import func, and_
+    
+    # 时间范围
+    end_time = datetime.utcnow()
+    start_time = end_time - timedelta(days=days)
+    
+    # 总体统计
+    total_query = select(func.count(NotificationLog.id)).where(
+        NotificationLog.sent_at >= start_time
+    )
+    total_result = await db.execute(total_query)
+    total_notifications = total_result.scalar() or 0
+    
+    # 成功/失败统计
+    success_query = select(func.count(NotificationLog.id)).where(
+        and_(
+            NotificationLog.sent_at >= start_time,
+            NotificationLog.status == "sent"
+        )
+    )
+    success_result = await db.execute(success_query)
+    success_count = success_result.scalar() or 0
+    
+    failed_query = select(func.count(NotificationLog.id)).where(
+        and_(
+            NotificationLog.sent_at >= start_time,
+            NotificationLog.status == "failed"
+        )
+    )
+    failed_result = await db.execute(failed_query)
+    failed_count = failed_result.scalar() or 0
+    
+    # 按渠道统计
+    channel_stats_query = select(
+        NotificationChannel.name,
+        NotificationChannel.type,
+        func.count(NotificationLog.id).label("count"),
+        func.sum(
+            func.case(
+                (NotificationLog.status == "sent", 1),
+                else_=0
+            )
+        ).label("success_count")
+    ).select_from(
+        NotificationLog.__table__.join(
+            NotificationChannel.__table__,
+            NotificationLog.channel_id == NotificationChannel.id
+        )
+    ).where(
+        NotificationLog.sent_at >= start_time
+    ).group_by(
+        NotificationChannel.id, NotificationChannel.name, NotificationChannel.type
+    )
+    
+    channel_result = await db.execute(channel_stats_query)
+    channel_stats = [
+        {
+            "channel_name": row.name,
+            "channel_type": row.type,
+            "total_count": row.count,
+            "success_count": row.success_count,
+            "success_rate": round((row.success_count / row.count * 100) if row.count > 0 else 0, 2)
+        }
+        for row in channel_result
+    ]
+    
+    # 成功率
+    success_rate = round((success_count / total_notifications * 100) if total_notifications > 0 else 0, 2)
+    
+    return {
+        "period_days": days,
+        "start_time": start_time.isoformat(),
+        "end_time": end_time.isoformat(),
+        "total_notifications": total_notifications,
+        "success_count": success_count,
+        "failed_count": failed_count,
+        "success_rate": success_rate,
+        "channel_statistics": channel_stats
+    }
+
+
+@router.post("/logs/{log_id}/retry")
+async def retry_notification(
+    log_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    重试失败的通知发送 (Retry Failed Notification)
+    
+    重新发送失败的通知，更新重试次数和状态。
+    
+    Args:
+        log_id: 通知日志ID
+    """
+    # 查找通知日志
+    log_query = select(NotificationLog).where(NotificationLog.id == log_id)
+    log_result = await db.execute(log_query)
+    notification_log = log_result.scalar_one_or_none()
+    
+    if not notification_log:
+        raise HTTPException(status_code=404, detail="Notification log not found")
+    
+    if notification_log.status == "sent":
+        raise HTTPException(status_code=400, detail="Cannot retry successful notification")
+    
+    # 检查重试次数限制
+    if notification_log.retries >= 3:
+        raise HTTPException(status_code=400, detail="Maximum retry attempts reached")
+    
+    try:
+        # 获取告警和渠道信息
+        from app.models.alert import Alert
+        alert_query = select(Alert).where(Alert.id == notification_log.alert_id)
+        alert_result = await db.execute(alert_query)
+        alert = alert_result.scalar_one_or_none()
+        
+        if not alert:
+            raise HTTPException(status_code=404, detail="Associated alert not found")
+        
+        channel_query = select(NotificationChannel).where(NotificationChannel.id == notification_log.channel_id)
+        channel_result = await db.execute(channel_query)
+        channel = channel_result.scalar_one_or_none()
+        
+        if not channel:
+            raise HTTPException(status_code=404, detail="Associated channel not found")
+        
+        # 重新发送通知
+        from app.services.notifier import send_alert_notification_to_channel
+        success = await send_alert_notification_to_channel(alert, channel)
+        
+        # 更新重试记录
+        notification_log.retries += 1
+        if success:
+            notification_log.status = "sent"
+            notification_log.error = None
+            notification_log.response_code = 200
+        else:
+            notification_log.error = "Retry failed"
+            notification_log.response_code = 500
+        
+        notification_log.sent_at = datetime.utcnow()
+        await db.commit()
+        
+        # 记录审计日志
+        from app.services.audit import log_audit
+        await log_audit(
+            db,
+            current_user.id,
+            "retry_notification",
+            "notification_log",
+            log_id,
+            f"Retried notification (attempt {notification_log.retries})"
+        )
+        
+        return {
+            "success": True,
+            "message": f"Notification retry {'successful' if success else 'failed'}",
+            "retry_count": notification_log.retries,
+            "status": notification_log.status
+        }
+        
+    except Exception as e:
+        notification_log.retries += 1
+        notification_log.error = str(e)
+        notification_log.response_code = 500
+        await db.commit()
+        
+        logger.error(f"Failed to retry notification {log_id}: {e}")
+        return {
+            "success": False,
+            "message": f"Retry failed: {str(e)}",
+            "retry_count": notification_log.retries,
+            "status": notification_log.status
+        }
 
 
 @router.get("", response_model=List[NotificationChannelResponse])
