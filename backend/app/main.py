@@ -29,6 +29,7 @@ from app.core.database import engine, Base
 from app.core.redis import get_redis, close_redis
 # 导入所有模型以确保 SQLAlchemy 表注册 (Import all models to ensure SQLAlchemy table registration)
 from app.models import User, AgentToken, Host, HostMetric, Service, ServiceCheck, Alert, AlertRule, NotificationChannel, NotificationLog, NotificationTemplate, LogEntry, MonitoredDatabase, DbMetric, AIInsight, AuditLog, Report, ServiceDependency, SLARule, SLAViolation  # noqa: F401
+from app.models.alert_group import AlertGroup, AlertDeduplication  # noqa: F401
 # 导入所有路由模块 (Import all router modules)
 from app.routers import auth
 from app.routers import agent_tokens
@@ -54,6 +55,7 @@ from app.routers import remediation
 from app.routers import servers
 from app.routers import server_groups
 from app.api.v1 import data_retention
+from app.api.v1 import alert_deduplication
 
 
 @asynccontextmanager
@@ -75,6 +77,7 @@ async def lifespan(app: FastAPI):
     from app.tasks.log_cleanup import log_cleanup_loop
     from app.tasks.db_metric_cleanup import db_metric_cleanup_loop
     from app.tasks.data_retention_task import data_retention_task
+    from app.tasks.alert_deduplication_cleanup import alert_deduplication_cleanup_loop
     from app.services.alert_seed import seed_builtin_rules
     from app.core.database import async_session
 
@@ -132,6 +135,9 @@ async def lifespan(app: FastAPI):
     
     # 新的统一数据保留策略任务 (New unified data retention policy task)
     data_retention_task_instance = asyncio.create_task(data_retention_task())
+    
+    # 告警去重和聚合清理任务 (Alert deduplication and aggregation cleanup task)
+    alert_dedup_cleanup_task = asyncio.create_task(alert_deduplication_cleanup_loop())
 
     # 启动 AI 异常扫描后台任务 (Start AI anomaly scanning background task)
     from app.services.anomaly_scanner import anomaly_scanner_loop
@@ -158,6 +164,7 @@ async def lifespan(app: FastAPI):
     log_cleanup_task.cancel()
     db_cleanup_task.cancel()
     data_retention_task_instance.cancel()
+    alert_dedup_cleanup_task.cancel()
     anomaly_task.cancel()
     report_task.cancel()
     if remediation_task is not None:
@@ -242,6 +249,7 @@ app.include_router(remediation.trigger_router)  # 修复触发器 (Remediation t
 app.include_router(servers.router)  # 服务器管理 (Server management)
 app.include_router(server_groups.router)  # 服务器分组 (Server grouping)
 app.include_router(data_retention.router, prefix="/api/v1/data-retention", tags=["数据保留策略"])  # 数据保留策略 (Data retention policy)
+app.include_router(alert_deduplication.router, prefix="/api/v1/alert-deduplication", tags=["告警去重"])  # 告警去重和聚合 (Alert deduplication and aggregation)
 
 
 @app.get("/health")

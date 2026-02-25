@@ -3,6 +3,7 @@
 
 后台定时评估所有已启用的告警规则，将最新主机指标与规则阈值进行比对，
 触发或恢复告警，并通过通知服务发送告警通知。
+支持智能去重和聚合，防止告警风暴。
 """
 import asyncio
 import json
@@ -12,10 +13,11 @@ from datetime import datetime, timezone, timedelta
 
 from sqlalchemy import select, and_
 
-from app.core.database import async_session
+from app.core.database import async_session, SessionLocal
 from app.core.redis import get_redis
 from app.models.alert import Alert, AlertRule
 from app.models.host import Host
+from app.services.alert_deduplication import AlertDeduplicationService
 
 logger = logging.getLogger(__name__)
 
@@ -127,13 +129,32 @@ async def _evaluate_rule(db, redis, rule: AlertRule, host: Host, metrics: dict):
             # 持续时间已满，清理跟踪键
             await redis.delete(redis_key)
 
+        # 告警去重和聚合检查
+        alert_title = f"{rule.name} - {host.hostname}"
+        
+        # 使用同步数据库会话进行去重检查（因为 AlertDeduplicationService 需要同步 Session）
+        sync_db = SessionLocal()
+        try:
+            dedup_service = AlertDeduplicationService(sync_db)
+            should_create_alert, dedup_info = dedup_service.process_alert_deduplication(
+                rule, host.id, None, float(current_value), alert_title
+            )
+            
+            if not should_create_alert:
+                logger.info(f"Alert suppressed by deduplication: {alert_title} - {dedup_info}")
+                return  # 不创建告警，直接返回
+                
+            logger.info(f"Alert will be created: {alert_title} - {dedup_info}")
+        finally:
+            sync_db.close()
+
         # 创建新告警
         alert = Alert(
             rule_id=rule.id,
             host_id=host.id,
             severity=rule.severity,
             status="firing",
-            title=f"{rule.name} - {host.hostname}",
+            title=alert_title,
             message=f"{rule.metric} = {current_value} {rule.operator} {rule.threshold}",
             metric_value=float(current_value),
             threshold=rule.threshold,
