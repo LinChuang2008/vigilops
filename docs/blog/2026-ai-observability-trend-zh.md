@@ -122,7 +122,7 @@ curl -fsSL https://raw.githubusercontent.com/LinChuang2008/vigilops/main/agent/i
 VigilOps 完全开源（MIT），同时提供**AI 运维托管服务**：
 
 - **免费版**：开源自部署，社区支持
-- **标准服务**：我们帮你部署 + 配置告警规则 + 7×12 响应
+- **标准服务**：我们帮你部署 + 配置告警规则 + 工单支持
 - **专业服务**：全托管运维 + 自定义 Runbook + 专属 AI 模型调优
 
 > 开源版够用就用开源版。想省心，交给我们。

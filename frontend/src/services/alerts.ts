@@ -91,18 +91,20 @@ export interface NotificationChannel {
 /** 通知发送记录 */
 export interface NotificationLog {
   id: number;
-  /** 关联告警规则 ID */
-  alert_rule_id: number | null;
+  /** 关联告警 ID */
+  alert_id: number;
   /** 关联通知渠道 ID */
-  channel_id: number | null;
+  channel_id: number;
   /** 发送状态（success / failed） */
   status: string;
-  /** 通知内容 */
-  message: string;
+  /** HTTP 响应码 */
+  response_code?: number;
+  /** 错误信息 */
+  error?: string;
+  /** 重试次数 */
+  retries: number;
   /** 发送时间 */
   sent_at: string;
-  /** 关联规则名称（接口补充） */
-  rule_name?: string;
   /** 关联渠道名称（接口补充） */
   channel_name?: string;
 }

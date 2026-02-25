@@ -11,7 +11,7 @@ permission management, and account management functions for the system.
 from datetime import datetime, timezone
 
 from sqlalchemy import String, Boolean, DateTime, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -41,3 +41,6 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )  # 账户更新时间 (Account Update Time)
+
+    # 关联关系 (Relationships)
+    dashboard_layouts = relationship("DashboardLayout", back_populates="user", cascade="all, delete-orphan")

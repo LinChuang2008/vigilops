@@ -42,7 +42,7 @@ docker compose up -d
 
 Four containers come up: backend (FastAPI), frontend (React), PostgreSQL, Redis.
 
-Open `http://your-server:3001` → Login with `admin` / `admin123`.
+Open `http://your-server:3001` → Login with `admin@vigilops.ai` / `admin@123`.
 
 ## Step 2: Install Agent (1 minute)
 

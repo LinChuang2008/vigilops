@@ -57,8 +57,8 @@ docker compose ps
 
 ### 默认账号
 
-- 用户名：`admin`
-- 密码：`admin123`
+- 用户名：`admin@vigilops.ai`
+- 密码：`admin@123`
 
 > ⚠️ 生产环境请立即修改密码！
 

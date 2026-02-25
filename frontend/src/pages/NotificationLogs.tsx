@@ -30,7 +30,7 @@ import {
 } from 'antd';
 import {
   ReloadOutlined,
-  RetryOutlined,
+  RestOutlined,
   EyeOutlined,
   ExclamationCircleOutlined,
   CheckCircleOutlined,
@@ -85,7 +85,7 @@ export default function NotificationLogs() {
   });
   
   // 分页信息
-  const [pagination, setPagination] = useState({
+  const [pagination] = useState({
     current: 1,
     pageSize: 20,
     total: 0,
@@ -295,7 +295,7 @@ export default function NotificationLogs() {
       title: '操作',
       key: 'action',
       width: 150,
-      render: (_, record: NotificationLog) => (
+      render: (_: unknown, record: NotificationLog) => (
         <Space size="small">
           <Tooltip title="查看详情">
             <Button
@@ -309,7 +309,7 @@ export default function NotificationLogs() {
             <Tooltip title="重试发送">
               <Button
                 type="link"
-                icon={<RetryOutlined />}
+                icon={<RestOutlined />}
                 onClick={() => retryNotification(record.id)}
                 size="small"
               />

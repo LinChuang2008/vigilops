@@ -13,7 +13,7 @@ from datetime import datetime, timezone, timedelta
 
 from sqlalchemy import select, and_
 
-from app.core.database import async_session, SessionLocal
+from app.core.database import async_session
 from app.core.redis import get_redis
 from app.models.alert import Alert, AlertRule
 from app.models.host import Host
