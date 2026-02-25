@@ -1,7 +1,7 @@
 # VigilOps Consensus
 
 ## Last Updated
-2026-02-25 15:57
+2026-02-25 20:50
 
 ## Current Phase
 P0 技术债清偿 → P1 功能完善 → Cycle 9 收尾
@@ -42,9 +42,10 @@ P0 技术债清偿 → P1 功能完善 → Cycle 9 收尾
 | 1 | 全局错误处理中间件 | 0.5天 | ✅ commit 3974010 |
 | 2 | JWT 密钥安全加固 | 0.5天 | ✅ commit 3974010 |
 | 3 | 备份/恢复脚本 | 0.5天 | ✅ commit 3974010 |
-| 4 | API 限流 + 安全加固 | 1天 | ⏳ 待做 |
+| 4 | API 限流 + 安全加固 | 1天 | ✅ commit d14338a |
 | 5 | 监控数据保留策略（自动清理旧数据） | 1天 | ⏳ 待做 |
 | 6 | 告警去重/聚合 | 1天 | ⏳ 待做 |
+| 7 | MCP Server 接入（FastMCP，暴露核心运维工具给 AI Agent） | 0.5天 | ⏳ 待做 |
 
 ## 🟡 P1 应该做（P0 完成后）
 
@@ -92,7 +93,22 @@ P0 技术债清偿 → P1 功能完善 → Cycle 9 收尾
 - 获客文章正式发布（董事长审核中）
 - ECS SSH 白名单（加当前 IP）
 
+## MCP Server 接入方案（P0-7）
+- **技术方案**: FastMCP (Python) 原生集成，独立模块 `backend/app/mcp/`
+- **代码量**: ~150-200 行，1 轮 Coder
+- **CEO 评估**: 可行性 9/10，战略价值 10/10
+- **核心 Tools（第一版）**:
+  1. `get_servers_health` — 服务器健康状态+关键指标
+  2. `get_alerts` — 告警列表，支持严重程度过滤
+  3. `search_logs` — 日志搜索，支持关键词+时间范围
+  4. `analyze_incident` — AI 根因分析（差异化杀手锏）
+  5. `get_topology` — 服务拓扑数据
+- **P1 扩展**: `trigger_remediation`(自动修复), `get_sla_status`, `generate_report`
+- **竞品**: Grafana 有官方 MCP，Zabbix 仅社区版，Prometheus 无。VigilOps 可打"首个原生支持 MCP 的开源运维平台+AI分析"
+- **约束**: Python 3.9 兼容，`pip install fastmcp`，不引入重量级依赖
+
 ## 决策日志
+- **2026-02-25 20:50**: 董事长批准 MCP Server 接入方案，排入 P0-7。CEO 评估：可行性 9/10，战略价值 10/10，0.5 天工作量。
 - **2026-02-25 16:20**: AI 公司 cron 模型从 opus 切换为 sonnet（省配额、避免 timeout）。CEO 层用 sonnet，遇到复杂架构任务可用 opus 派子 Agent。
 - **2026-02-25 15:57**: 董事长确认按 CTO 评估的 P0→P1→P2 清单排期推进，AI 公司 cron 自动执行。
 - **2026-02-25 15:55**: P0 第一批完成（JWT/错误处理/备份），commit 3974010。

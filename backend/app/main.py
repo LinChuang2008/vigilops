@@ -53,6 +53,7 @@ from app.routers import sla
 from app.routers import remediation
 from app.routers import servers
 from app.routers import server_groups
+from app.api.v1 import data_retention
 
 
 @asynccontextmanager
@@ -73,6 +74,7 @@ async def lifespan(app: FastAPI):
     from app.tasks.alert_engine import alert_engine_loop
     from app.tasks.log_cleanup import log_cleanup_loop
     from app.tasks.db_metric_cleanup import db_metric_cleanup_loop
+    from app.tasks.data_retention_task import data_retention_task
     from app.services.alert_seed import seed_builtin_rules
     from app.core.database import async_session
 
@@ -85,6 +87,32 @@ async def lifespan(app: FastAPI):
     # 初始化内置告警规则（CPU、内存、磁盘等默认规则） (Initialize built-in alert rules)
     async with async_session() as session:
         await seed_builtin_rules(session)
+    
+    # 初始化默认数据保留策略设置 (Initialize default data retention policy settings)
+    from app.services.data_retention import DataRetentionService
+    from app.core.database import SessionLocal
+    try:
+        db = SessionLocal()
+        retention_service = DataRetentionService(db)
+        # 设置默认保留期（如果设置不存在）
+        for data_type, default_days in {
+            "host_metrics": 30,
+            "db_metrics": 30, 
+            "log_entries": 7,
+            "ai_insights": 90,
+            "audit_logs": 365
+        }.items():
+            if retention_service.get_retention_days(data_type) == default_days:
+                # 只有当返回的是默认值时，才设置到数据库中（避免覆盖用户配置）
+                from app.models.setting import Setting
+                existing = db.query(Setting).filter(Setting.key == f"retention_days_{data_type}").first()
+                if not existing:
+                    retention_service.set_retention_days(data_type, default_days)
+        db.close()
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Failed to initialize data retention settings: {e}")
 
     # 启动后台定时任务 (Start background scheduled tasks)
     
@@ -101,6 +129,9 @@ async def lifespan(app: FastAPI):
     # 数据库指标清理任务 (Database metric cleanup task)
     db_retention = int(os.environ.get("DB_METRIC_RETENTION_DAYS", "30"))
     db_cleanup_task = asyncio.create_task(db_metric_cleanup_loop(db_retention))
+    
+    # 新的统一数据保留策略任务 (New unified data retention policy task)
+    data_retention_task_instance = asyncio.create_task(data_retention_task())
 
     # 启动 AI 异常扫描后台任务 (Start AI anomaly scanning background task)
     from app.services.anomaly_scanner import anomaly_scanner_loop
@@ -126,6 +157,7 @@ async def lifespan(app: FastAPI):
     alert_task.cancel()
     log_cleanup_task.cancel()
     db_cleanup_task.cancel()
+    data_retention_task_instance.cancel()
     anomaly_task.cancel()
     report_task.cancel()
     if remediation_task is not None:
@@ -209,6 +241,7 @@ app.include_router(remediation.router)  # 自动修复 (Auto-remediation)
 app.include_router(remediation.trigger_router)  # 修复触发器 (Remediation triggers)
 app.include_router(servers.router)  # 服务器管理 (Server management)
 app.include_router(server_groups.router)  # 服务器分组 (Server grouping)
+app.include_router(data_retention.router, prefix="/api/v1/data-retention", tags=["数据保留策略"])  # 数据保留策略 (Data retention policy)
 
 
 @app.get("/health")
