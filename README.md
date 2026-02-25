@@ -182,6 +182,11 @@ The agent collects CPU, memory, disk, network metrics and reports to the VigilOp
 | [常见问题](docs/faq.md) | FAQ |
 | [贡献指南](docs/contributing.md) | 开发环境 + 代码规范 |
 
+## 💬 Community
+
+- [GitHub Discussions](https://github.com/LinChuang2008/vigilops/discussions) — Ask questions, share ideas
+- [Report a Bug](https://github.com/LinChuang2008/vigilops/issues/new)
+
 ## 🤝 Contributing
 
 We love contributions! Whether it's bug reports, feature requests, or pull requests — every bit helps.
