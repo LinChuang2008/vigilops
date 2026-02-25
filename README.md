@@ -6,7 +6,8 @@
 
 [![Stars](https://img.shields.io/github/stars/LinChuang2008/vigilops?style=social)](https://github.com/LinChuang2008/vigilops)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/)
+[![Version](https://img.shields.io/badge/version-v0.9.0-blue)](https://github.com/LinChuang2008/vigilops/releases)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://github.com/LinChuang2008/vigilops)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 [Live Demo](http://139.196.210.68:3001) · [Docs](#-documentation) · [中文](#-中文简介)
@@ -114,6 +115,22 @@ curl -sSL https://raw.githubusercontent.com/LinChuang2008/vigilops/main/install.
 
 **🎯 Try the live demo:** [http://139.196.210.68:3001](http://139.196.210.68:3001) — Login with `demo@vigilops.io` / `demo123` (read-only)
 
+> ⚠️ Demo server may be unstable. For production evaluation, we recommend self-hosting.
+
+### 📡 Install Monitoring Agent
+
+After deploying VigilOps, install the agent on each monitored host:
+
+```bash
+# On the VigilOps server, generate an agent token first (Settings → Agent Tokens)
+# Then on the target host:
+curl -sSL https://raw.githubusercontent.com/LinChuang2008/vigilops/main/scripts/install-agent.sh | sudo bash -s -- \
+  --server http://YOUR_VIGILOPS_SERVER:8001 \
+  --token YOUR_AGENT_TOKEN
+```
+
+The agent collects CPU, memory, disk, network metrics and reports to the VigilOps backend via HTTP. Managed by systemd.
+
 ## 🏗️ Architecture
 
 ```
@@ -215,9 +232,11 @@ git clone https://github.com/LinChuang2008/vigilops.git
 cd vigilops && docker compose up -d
 ```
 
-访问 `http://localhost:3001`，默认账号 `admin` / `vigilops`。
+访问 `http://localhost:3001`，默认账号 `admin` / `admin123`。
 
 **🎯 在线体验：** [http://139.196.210.68:3001](http://139.196.210.68:3001) — 体验账号 `demo@vigilops.io` / `demo123`（只读）
+
+> ⚠️ 演示服务器可能不稳定，建议自行部署体验完整功能。
 
 欢迎 Star ⭐ 和贡献代码！
 
@@ -226,7 +245,7 @@ cd vigilops && docker compose up -d
 <div align="center">
 
 🏢 **Need managed AI operations (Agentic SRE)?** We offer professional monitoring & auto-remediation services.<br>
-📧 [support@lchuang.net](mailto:support@lchuang.net) · [Service Plans](docs/commercial/)
+📧 [support@lchuang.net](mailto:support@lchuang.net)
 
 <sub>Built with ❤️ by the VigilOps community · Keywords: observability, monitoring, AIOps, Agentic SRE, self-healing infrastructure, open-source</sub>
 
