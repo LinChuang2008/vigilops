@@ -51,8 +51,8 @@
 
 | # | 任务 |
 |---|------|
-| 1 | NotificationLogs 完善（当前仅 57 行半成品） |
-| 2 | 告警升级 + 值班排期 |
+| 1 | NotificationLogs 完善（当前仅 57 行半成品） | ✅ commit 277a227 |
+| 2 | 告警升级 + 值班排期 | ✅ commit 66daf80 |
 | 3 | Dashboard 可定制 |
 | 4 | AI 反馈闭环 |
 | 5 | 暗色主题 |
@@ -70,11 +70,11 @@
 | 4 | OAuth/LDAP |
 | 5 | 国际化 i18n |
 
-## ECS 连通性（2026-02-25 20:10 测试）
-- ✅ 前端 :3001 → HTTP 200（可访问）
-- ❌ 后端 :8001 → 直接访问超时（通过 nginx 反代正常）
-- ❌ SSH :22 → 超时（阿里云安全组白名单限制）
-- **结论**: 服务器正常运行，SSH 需要加 IP 白名单
+## ECS 访问策略（董事长决定 2026-02-25）
+- **安全策略**: 所有 ECS 只允许从当前环境（Mac 本机/内网）访问，不对外开放 SSH
+- ✅ 前端 :3001 → HTTP 200（公网可访问）
+- ❌ SSH :22 → 仅限白名单 IP
+- **部署方式**: 本地打包 → tar 上传（在允许的网络环境下操作）
 
 ## Cycle 9 收尾（P0/P1 完成后）
 
@@ -104,17 +104,64 @@
 
 | # | 任务 | 代码量 | 状态 |
 |---|------|--------|------|
-| E1 | pgvector 语义搜索（migration + embedding 生成 + 混合检索） | ~800 行 | ⏳ 下一轮执行 |
-| E2 | 置信度时间衰减（confidence 字段 + 衰减公式 + 访问 boost） | ~300 行 | ⏳ 待做 |
-| E3 | 记忆去重合并（embedding 相似度检测 + 自动标记） | ~500 行 | ⏳ 待做 |
+| E1 | 记忆清洗 + 置信度衰减（confidence 字段 + 指数衰减 + 分层清洗 API） | ~400 行 | ✅ 完成 |
+| E2 | pgvector 语义搜索（pgvector/pgvector:pg16 + embedder.py + 混合检索 + backfill） | ~800 行 | ✅ 完成（需配 embedding API） |
+| E3 | 智能去重（基于 embedding cosine similarity > 0.95） | ~300 行 | ✅ 完成 commit 419b8e5 |
 
-### 执行指南
-1. 先读 `ROADMAP.md` 了解完整方案
-2. 读现有代码（app/models.py, app/routes/, app/services/）了解架构
-3. migration 用 raw SQL 文件放 `migrations/` 目录
-4. **Python 3.9 兼容**，用 `Optional[X]` 不用 `X | None`
-5. pgvector embedding 用 DeepSeek embedding API 或预留接口
+### ⚠️ 代码审查关键发现（小强 2026-02-25 21:21）
+- **91,494 条 fact，平均访问 0 次** — 绝大部分存了就没用过
+- consolidator.py **已有** decay_importance() 和 merge_duplicates()，但机制粗糙
+- postgres:16-alpine **没有 pgvector 扩展**，E2 需要换镜像为 `pgvector/pgvector:pg16`
+- DeepSeek **没有 embedding API**，只有 chat/reasoner
+
+### E1 执行指南（记忆清洗 + 置信度衰减）
+1. 先读现有代码：`app/models/memcell.py`, `app/services/consolidator.py`, `app/services/retriever.py`
+2. **migration 003_confidence.sql**:
+   - `ALTER TABLE memcells ADD COLUMN confidence FLOAT DEFAULT 1.0;`
+   - `ALTER TABLE memcells ADD COLUMN last_decayed_at TIMESTAMPTZ;`
+   - 初始化: `UPDATE memcells SET confidence = importance / 10.0;`
+3. **改造 consolidator.py decay_importance()**:
+   - 指数衰减: `confidence = confidence * exp(-decay_rate * days_since_last_access)`
+   - 不同类型不同衰减率: fact=0.01/天, episode=0.02/天, lesson=0.005/天
+   - 被访问时 boost: `confidence = min(1.0, confidence + 0.15)`
+   - confidence < 0.1 的自动标记 is_active=false
+4. **新增清洗 API**: `POST /api/v1/memory/cleanup`
+   - 批量清洗: access_count=0 + importance<=5 + 创建超过30天 → is_active=false
+   - 返回清洗统计
+5. **更新 retriever.py 排序公式**: 把 importance/10 替换为 confidence
 6. 改完后 `docker compose restart engram-api` 验证
+7. 调一次 cleanup API 看清洗效果
+
+### E2 执行指南（pgvector 语义搜索）
+1. **docker-compose.yml**: 把 `postgres:16-alpine` 换成 `pgvector/pgvector:pg16`
+2. 重建容器: `docker compose down postgres && docker compose up -d postgres`（volume 数据不丢）
+3. **migration 004_pgvector.sql**:
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS vector;
+   ALTER TABLE memcells ADD COLUMN embedding vector(1024);
+   CREATE INDEX idx_memcells_embedding ON memcells USING hnsw (embedding vector_cosine_ops);
+   ```
+4. **Embedding 模型选型（按优先级）**:
+   - 方案 A: 硅基流动 SiliconFlow API（国内、便宜、BAAI/bge-m3 1024维）
+   - 方案 B: 本地 sentence-transformers（paraphrase-multilingual-MiniLM-L12-v2, 384维）
+   - 方案 C: config.py 加 `embedding_provider` 配置，支持多后端切换
+   - **推荐方案 C**，先实现接口，默认用 SiliconFlow 或 DeepSeek 兼容 API
+5. **config.py 新增**:
+   ```python
+   embedding_api_base: str = ""  # embedding API 地址，空则禁用语义搜索
+   embedding_api_key: str = ""
+   embedding_model: str = "BAAI/bge-m3"
+   embedding_dim: int = 1024
+   ```
+6. **新增 app/services/embedder.py**: 生成 embedding 的服务
+7. **改造 retriever.py**: keyword_score * 0.4 + semantic_score * 0.4 + confidence * 0.2
+8. **批量回填**: 新增 `POST /api/v1/memory/backfill-embeddings`（分批处理，每批100条）
+
+### 约束
+- **Python 3.9 兼容**，用 `Optional[X]` 不用 `X | None`
+- migration 用 raw SQL 文件放 `migrations/` 目录
+- .env 不 commit
+- 不改现有 API 接口签名（向后兼容）
 
 ---
 
@@ -133,6 +180,8 @@
 - **约束**: Python 3.9 兼容，`pip install fastmcp`，不引入重量级依赖
 
 ## 决策日志
+- **2026-02-25 23:00**: E1+E2 完成。E1: confidence列+指数衰减+分层清洗(aggressive/standard/conservative)+Decimal bug修复+retriever SQL alias修复。E2: Docker镜像换pgvector/pgvector:pg16, pgvector 0.8.1, embedder.py(OpenAI兼容), retriever混合检索(kw*0.4+sem*0.4+conf*0.2), store异步embedding, backfill端点。待配embedding API(.env EMBEDDING_API_BASE/KEY)。推荐SiliconFlow BAAI/bge-m3。
+- **2026-02-25 21:25**: Engram 方案技术审查完成。发现：91K fact 访问 0 次、已有粗糙衰减/去重、pgvector 未安装、DeepSeek 无 embedding API。调整优先级为 E1 清洗→E2 pgvector→E3 去重。Embedding 用多后端架构（SiliconFlow/本地/OpenAI 兼容）。
 - **2026-02-25 21:18**: 董事长指示优先处理 Engram 记忆系统升级（pgvector 语义搜索 → 置信度衰减 → 去重合并），排在 VigilOps P0 剩余任务之前。
 - **2026-02-25 20:50**: 董事长批准 MCP Server 接入方案，排入 P0-7。CEO 评估：可行性 9/10，战略价值 10/10，0.5 天工作量。
 - **2026-02-25 16:20**: AI 公司 cron 模型从 opus 切换为 sonnet（省配额、避免 timeout）。CEO 层用 sonnet，遇到复杂架构任务可用 opus 派子 Agent。
