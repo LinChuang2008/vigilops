@@ -1,10 +1,10 @@
 # VigilOps Consensus
 
 ## Last Updated
-2026-02-25 20:50
+2026-02-25 21:18
 
 ## Current Phase
-P0 技术债清偿 → P1 功能完善 → Cycle 9 收尾
+**Engram P0 优先** → VigilOps P0 收尾 → P1 功能完善 → Cycle 9 收尾
 
 ## 记忆系统
 - **API**: `http://localhost:8002`
@@ -44,7 +44,7 @@ P0 技术债清偿 → P1 功能完善 → Cycle 9 收尾
 | 3 | 备份/恢复脚本 | 0.5天 | ✅ commit 3974010 |
 | 4 | API 限流 + 安全加固 | 1天 | ✅ commit d14338a |
 | 5 | 监控数据保留策略（自动清理旧数据） | 1天 | ✅ commit c711a39 |
-| 6 | 告警去重/聚合 | 1天 | ⏳ 待做 |
+| 6 | 告警去重/聚合 | 1天 | ✅ commit 6b5852e |
 | 7 | MCP Server 接入（FastMCP，暴露核心运维工具给 AI Agent） | 0.5天 | ⏳ 待做 |
 
 ## 🟡 P1 应该做（P0 完成后）
@@ -93,6 +93,31 @@ P0 技术债清偿 → P1 功能完善 → Cycle 9 收尾
 - 获客文章正式发布（董事长审核中）
 - ECS SSH 白名单（加当前 IP）
 
+## 🧠 Engram 记忆系统升级（最高优先级）
+
+> 董事长指示：优先处理 Engram 改进，VigilOps P0 剩余任务之后做。
+> Engram 路径：`/Volumes/Data/project/gitlab_data/lchuangnet/engram/`
+> ROADMAP：`/Volumes/Data/project/gitlab_data/lchuangnet/engram/ROADMAP.md`
+> Docker: postgres:5434, redis:6381, api:8002
+
+### Engram P0 任务（按顺序执行）
+
+| # | 任务 | 代码量 | 状态 |
+|---|------|--------|------|
+| E1 | pgvector 语义搜索（migration + embedding 生成 + 混合检索） | ~800 行 | ⏳ 下一轮执行 |
+| E2 | 置信度时间衰减（confidence 字段 + 衰减公式 + 访问 boost） | ~300 行 | ⏳ 待做 |
+| E3 | 记忆去重合并（embedding 相似度检测 + 自动标记） | ~500 行 | ⏳ 待做 |
+
+### 执行指南
+1. 先读 `ROADMAP.md` 了解完整方案
+2. 读现有代码（app/models.py, app/routes/, app/services/）了解架构
+3. migration 用 raw SQL 文件放 `migrations/` 目录
+4. **Python 3.9 兼容**，用 `Optional[X]` 不用 `X | None`
+5. pgvector embedding 用 DeepSeek embedding API 或预留接口
+6. 改完后 `docker compose restart engram-api` 验证
+
+---
+
 ## MCP Server 接入方案（P0-7）
 - **技术方案**: FastMCP (Python) 原生集成，独立模块 `backend/app/mcp/`
 - **代码量**: ~150-200 行，1 轮 Coder
@@ -108,6 +133,7 @@ P0 技术债清偿 → P1 功能完善 → Cycle 9 收尾
 - **约束**: Python 3.9 兼容，`pip install fastmcp`，不引入重量级依赖
 
 ## 决策日志
+- **2026-02-25 21:18**: 董事长指示优先处理 Engram 记忆系统升级（pgvector 语义搜索 → 置信度衰减 → 去重合并），排在 VigilOps P0 剩余任务之前。
 - **2026-02-25 20:50**: 董事长批准 MCP Server 接入方案，排入 P0-7。CEO 评估：可行性 9/10，战略价值 10/10，0.5 天工作量。
 - **2026-02-25 16:20**: AI 公司 cron 模型从 opus 切换为 sonnet（省配额、避免 timeout）。CEO 层用 sonnet，遇到复杂架构任务可用 opus 派子 Agent。
 - **2026-02-25 15:57**: 董事长确认按 CTO 评估的 P0→P1→P2 清单排期推进，AI 公司 cron 自动执行。

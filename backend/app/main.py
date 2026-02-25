@@ -138,6 +138,28 @@ async def lifespan(app: FastAPI):
     
     # 告警去重和聚合清理任务 (Alert deduplication and aggregation cleanup task)
     alert_dedup_cleanup_task = asyncio.create_task(alert_deduplication_cleanup_loop())
+    
+    # MCP Server 启动（可选，根据环境变量控制） (MCP Server startup, optional based on env var)
+    mcp_task = None
+    if os.environ.get("VIGILOPS_MCP_ENABLED", "false").lower() == "true":
+        from app.mcp.server import mcp_server
+        import uvicorn
+        mcp_host = os.environ.get("VIGILOPS_MCP_HOST", "127.0.0.1")
+        mcp_port = int(os.environ.get("VIGILOPS_MCP_PORT", "8003"))
+        
+        async def run_mcp_server():
+            """Run MCP server in the background"""
+            config = uvicorn.Config(
+                app=mcp_server.app,
+                host=mcp_host,
+                port=mcp_port,
+                log_level="info"
+            )
+            server = uvicorn.Server(config)
+            await server.serve()
+        
+        mcp_task = asyncio.create_task(run_mcp_server())
+        logger.info(f"MCP Server started on {mcp_host}:{mcp_port}")
 
     # 启动 AI 异常扫描后台任务 (Start AI anomaly scanning background task)
     from app.services.anomaly_scanner import anomaly_scanner_loop
@@ -169,6 +191,8 @@ async def lifespan(app: FastAPI):
     report_task.cancel()
     if remediation_task is not None:
         remediation_task.cancel()
+    if mcp_task is not None:
+        mcp_task.cancel()
     
     # 关闭连接池和资源 (Close connection pools and resources)
     await close_redis()
