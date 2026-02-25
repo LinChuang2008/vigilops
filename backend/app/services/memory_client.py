@@ -2,7 +2,7 @@
 运维记忆系统客户端 (Operations Memory System Client)
 
 功能描述 (Description):
-    VigilOps与xiaoqiang-memory系统的集成客户端，实现运维经验的持久化存储和智能召回。
+    VigilOps与Engram系统的集成客户端，实现运维经验的持久化存储和智能召回。
     为AI引擎提供历史经验支持，增强分析准确性和决策质量。
     
 核心功能 (Core Features):
@@ -37,7 +37,7 @@ class MemoryClient:
     运维记忆系统客户端类 (Operations Memory System Client Class)
     
     功能描述:
-        封装与xiaoqiang-memory系统的HTTP API交互，提供统一的记忆操作接口。
+        封装与Engram系统的HTTP API交互，提供统一的记忆操作接口。
         设计为轻量级客户端，专注于数据传输和错误处理。
         
     主要方法:
@@ -57,7 +57,7 @@ class MemoryClient:
         记忆系统API基地址获取器 (Memory System API Base URL Getter)
         
         功能描述:
-            从全局配置获取xiaoqiang-memory系统的API基础URL。
+            从全局配置获取Engram系统的API基础URL。
             支持运行时配置更新。
             
         Returns:
@@ -120,7 +120,7 @@ class MemoryClient:
                 data = resp.json()
                 
                 # 3. 响应格式兼容处理 (Response Format Compatibility)
-                # 适配不同版本的xiaoqiang-memory API返回格式
+                # 适配不同版本的Engram API返回格式
                 if isinstance(data, list):
                     return data  # 直接返回列表格式
                 # 尝试从嵌套对象中提取记忆列表

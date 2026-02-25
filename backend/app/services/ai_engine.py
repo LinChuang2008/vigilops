@@ -8,7 +8,7 @@ AI引擎服务 (AI Engine Service)
     2. 自然语言运维问答 (NLP Operations Q&A) - 基于系统数据的智能问答
     3. 告警根因分析 (Alert Root Cause Analysis) - 关联多源数据推断告警根因
     
-    集成xiaoqiang-memory记忆系统，利用历史运维经验增强分析准确性。
+    集成Engram记忆系统，利用历史运维经验增强分析准确性。
 
 主要组件 (Main Components):
     - AIEngine类：统一的AI分析能力入口
@@ -415,7 +415,7 @@ class AIEngine:
         context_text = "\n\n".join(context_parts) if context_parts else "当前没有可用的系统数据。"
 
         # 2. 运维记忆召回 (Operations Memory Recall)
-        # 基于用户问题从xiaoqiang-memory系统召回相关历史经验
+        # 基于用户问题从Engram系统召回相关历史经验
         memories = await memory_client.recall(question)
         memory_context: List[Dict[str, Any]] = []
         memory_prompt = ""

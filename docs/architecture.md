@@ -71,7 +71,7 @@ graph TB
     REM --> PG
 
     AI -->|DeepSeek API| EXT[外部 AI 服务]
-    AI -->|xiaoqiang-memory| MEM[运维记忆服务]
+    AI -->|Engram| MEM[运维记忆服务]
     AE -->|钉钉/飞书/企微/邮件/Webhook| NOTIFY[通知渠道]
 ```
 
@@ -390,7 +390,7 @@ flowchart TB
 
     subgraph 外部服务
         DS[DeepSeek API<br/>OpenAI 兼容接口]
-        MM[xiaoqiang-memory<br/>运维记忆服务]
+        MM[Engram<br/>运维记忆服务]
     end
 
     A & B & C -->|API 调用| DS
@@ -409,7 +409,7 @@ flowchart TB
 
 ### 记忆系统集成
 
-通过 `memory_client` 调用 xiaoqiang-memory API，实现：
+通过 `memory_client` 调用 Engram API，实现：
 - **经验召回**：根据当前问题检索历史相似案例
 - **经验沉淀**：将分析结果和修复方案存入记忆库
 - **知识积累**：随着运维事件积累，AI 分析越来越精准

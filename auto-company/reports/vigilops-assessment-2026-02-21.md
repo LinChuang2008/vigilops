@@ -80,7 +80,7 @@
 
 4. **AI 集成有深度**
    - 3 套专业化 system prompt（日志分析/问答/根因分析）
-   - 记忆系统集成（xiaoqiang-memory 的 recall/store）
+   - 记忆系统集成（Engram 的 recall/store）
    - 异步记忆存储不阻塞主流程
    - JSON 响应解析有 markdown 代码块容错
 

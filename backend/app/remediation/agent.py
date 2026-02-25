@@ -467,8 +467,8 @@ class RemediationAgent:
     ) -> None:
         """存储修复经验到长期记忆系统 (Store Remediation Experience to Long-term Memory System)
         
-        将每次修复的关键信息存储到 xiaoqiang-memory 系统中，用于：
-        Store key information from each remediation to xiaoqiang-memory system for:
+        将每次修复的关键信息存储到 Engram 系统中，用于：
+        Store key information from each remediation to Engram system for:
         
         1. 积累修复模式和最佳实践 (Accumulate remediation patterns and best practices)
         2. 训练和优化 AI 诊断模型 (Train and optimize AI diagnosis models)  

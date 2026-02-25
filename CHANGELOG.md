@@ -32,7 +32,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.7.0] - 2026-02-18
 
 ### Added
-- **AI Memory Integration**: VigilOps AI engine connected to xiaoqiang-memory for fault history recall
+- **AI Memory Integration**: VigilOps AI engine connected to Engram for fault history recall
 - AI analysis recalls past incidents for better root cause diagnosis
 - Resolved incidents auto-stored as operational knowledge
 - GitHub open-source materials: CONTRIBUTING.md, issue templates, PR template
