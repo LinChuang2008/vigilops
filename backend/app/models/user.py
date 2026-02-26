@@ -44,3 +44,4 @@ class User(Base):
 
     # 关联关系 (Relationships)
     dashboard_layouts = relationship("DashboardLayout", back_populates="user", cascade="all, delete-orphan")
+    ai_feedback = relationship("AIFeedback", back_populates="user", cascade="all, delete-orphan")

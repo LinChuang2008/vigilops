@@ -57,6 +57,7 @@ from app.routers import server_groups
 from app.routers import on_call
 from app.routers import alert_escalation
 from app.routers import dashboard_config
+from app.routers import ai_feedback
 from app.api.v1 import data_retention
 from app.api.v1 import alert_deduplication
 
@@ -96,25 +97,25 @@ async def lifespan(app: FastAPI):
     
     # 初始化默认数据保留策略设置 (Initialize default data retention policy settings)
     from app.services.data_retention import DataRetentionService
-    from app.core.database import SessionLocal
     try:
-        db = SessionLocal()
-        retention_service = DataRetentionService(db)
-        # 设置默认保留期（如果设置不存在）
-        for data_type, default_days in {
-            "host_metrics": 30,
-            "db_metrics": 30, 
-            "log_entries": 7,
-            "ai_insights": 90,
-            "audit_logs": 365
-        }.items():
-            if retention_service.get_retention_days(data_type) == default_days:
-                # 只有当返回的是默认值时，才设置到数据库中（避免覆盖用户配置）
-                from app.models.setting import Setting
-                existing = db.query(Setting).filter(Setting.key == f"retention_days_{data_type}").first()
-                if not existing:
-                    retention_service.set_retention_days(data_type, default_days)
-        db.close()
+        async with async_session() as db:
+            retention_service = DataRetentionService(db)
+            # 设置默认保留期（如果设置不存在）
+            for data_type, default_days in {
+                "host_metrics": 30,
+                "db_metrics": 30, 
+                "log_entries": 7,
+                "ai_insights": 90,
+                "audit_logs": 365
+            }.items():
+                if retention_service.get_retention_days(data_type) == default_days:
+                    # 只有当返回的是默认值时，才设置到数据库中（避免覆盖用户配置）
+                    from app.models.setting import Setting
+                    from sqlalchemy import select
+                    result = await db.execute(select(Setting).where(Setting.key == f"retention_days_{data_type}"))
+                    existing = result.scalar_one_or_none()
+                    if not existing:
+                        retention_service.set_retention_days(data_type, default_days)
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)
@@ -263,6 +264,7 @@ app.include_router(logs.router)  # 日志管理 (Log management)
 app.include_router(logs.ws_router)  # WebSocket 日志流 (WebSocket log streaming)
 app.include_router(databases.router)  # 数据库监控 (Database monitoring)
 app.include_router(ai_analysis.router)  # AI 分析 (AI analysis)
+app.include_router(ai_feedback.router)  # AI 反馈 (AI feedback)
 app.include_router(users.router)  # 用户管理 (User management)
 app.include_router(audit_logs.router)  # 审计日志 (Audit logs)
 app.include_router(reports.router)  # 运维报告 (Operations reports)

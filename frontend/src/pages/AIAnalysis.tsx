@@ -7,7 +7,7 @@
  * 3. AI 洞察列表 - 展示 AI 自动分析产生的异常检测、根因分析等结果
  */
 import { useEffect, useState, useRef } from 'react';
-import { Row, Col, Card, Statistic, Typography, Tag, Table, Button, Input, Space, Select, Progress, Collapse, Spin, message } from 'antd';
+import { Row, Col, Card, Statistic, Typography, Tag, Table, Button, Input, Space, Select, Progress, Collapse, Spin, message, Tooltip, Rate } from 'antd';
 import {
   CloudServerOutlined,
   ApiOutlined,
@@ -17,9 +17,12 @@ import {
   RobotOutlined,
   UserOutlined,
   ThunderboltOutlined,
+  LikeOutlined,
+  DislikeOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import api from '../services/api';
+import { aiFeedbackService } from '../services/aiFeedback';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -53,12 +56,14 @@ interface SystemSummary {
 
 /** 聊天消息结构 */
 interface ChatMessage {
+  id: string; // 消息唯一ID
   role: 'user' | 'ai';
   content: string;
   /** AI 回答的参考来源 */
   sources?: Array<{ type: string; summary: string }>;
   /** 引用的历史运维记忆 */
   memory_context?: Array<Record<string, any>>;
+  timestamp: number; // 消息时间戳
 }
 
 /** AI 洞察条目 */
@@ -99,6 +104,62 @@ export default function AIAnalysis() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+
+  // ========== AI 反馈 ==========
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [messageFeedback, setMessageFeedback] = useState<Record<string, { rating?: number; helpful?: boolean }>>({}); // 消息反馈状态
+  
+  /** 快速反馈处理（👍👎） */
+  const handleQuickFeedback = async (messageId: string, message: ChatMessage, isHelpful: boolean) => {
+    if (message.role !== 'ai') return;
+    
+    setFeedbackLoading(true);
+    try {
+      await aiFeedbackService.quickFeedback({
+        ai_response: message.content,
+        rating: isHelpful ? 4 : 2, // 👍=4分，👎=2分
+        is_helpful: isHelpful
+      });
+      
+      // 更新本地反馈状态
+      setMessageFeedback(prev => ({
+        ...prev,
+        [messageId]: { helpful: isHelpful }
+      }));
+      
+      messageApi.success('反馈已提交，谢谢！');
+    } catch (error) {
+      messageApi.error('反馈提交失败，请稍后重试');
+    } finally {
+      setFeedbackLoading(false);
+    }
+  };
+
+  /** 评分反馈处理（1-5星） */
+  const handleRatingFeedback = async (messageId: string, message: ChatMessage, rating: number) => {
+    if (message.role !== 'ai' || rating === 0) return;
+    
+    setFeedbackLoading(true);
+    try {
+      await aiFeedbackService.quickFeedback({
+        ai_response: message.content,
+        rating: rating,
+        is_helpful: rating >= 3 // 3星及以上认为有用
+      });
+      
+      // 更新本地反馈状态
+      setMessageFeedback(prev => ({
+        ...prev,
+        [messageId]: { rating: rating, helpful: rating >= 3 }
+      }));
+      
+      messageApi.success('评分已提交，谢谢！');
+    } catch (error) {
+      messageApi.error('评分提交失败，请稍后重试');
+    } finally {
+      setFeedbackLoading(false);
+    }
+  };
   /** 聊天区域底部锚点，用于自动滚动 */
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -173,13 +234,33 @@ export default function AIAnalysis() {
     if (!question.trim()) return;
     const q = question.trim();
     setChatInput('');
-    setMessages(prev => [...prev, { role: 'user', content: q }]);
+    const userMessage: ChatMessage = {
+      id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      role: 'user',
+      content: q,
+      timestamp: Date.now()
+    };
+    setMessages(prev => [...prev, userMessage]);
     setChatLoading(true);
     try {
       const { data } = await api.post('/ai/chat', { question: q });
-      setMessages(prev => [...prev, { role: 'ai', content: data.answer, sources: data.sources, memory_context: data.memory_context }]);
+      const aiMessage: ChatMessage = {
+        id: `ai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        role: 'ai',
+        content: data.answer,
+        sources: data.sources,
+        memory_context: data.memory_context,
+        timestamp: Date.now()
+      };
+      setMessages(prev => [...prev, aiMessage]);
     } catch {
-      setMessages(prev => [...prev, { role: 'ai', content: '抱歉，AI 分析暂时不可用，请稍后再试。' }]);
+      const errorMessage: ChatMessage = {
+        id: `ai_error_${Date.now()}`,
+        role: 'ai',
+        content: '抱歉，AI 分析暂时不可用，请稍后再试。',
+        timestamp: Date.now()
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally { setChatLoading(false); }
   };
 
@@ -285,8 +366,8 @@ export default function AIAnalysis() {
               <div>向 AI 提问，了解系统运行状况</div>
             </div>
           )}
-          {messages.map((msg, i) => (
-            <div key={i} style={{
+          {messages.map((msg) => (
+            <div key={msg.id} style={{
               display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: 12,
             }}>
               <div style={{
@@ -330,6 +411,54 @@ export default function AIAnalysis() {
                       </div>
                     )),
                   }]} />
+                )}
+                
+                {/* AI 反馈组件 - 只在AI回答中显示 */}
+                {msg.role === 'ai' && !msg.content.includes('抱歉，AI 分析暂时不可用') && (
+                  <div style={{ 
+                    marginTop: 8, 
+                    paddingTop: 8, 
+                    borderTop: '1px solid #f0f0f0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: 12
+                  }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>这个回答对你有帮助吗？</Text>
+                    <Space size="small">
+                      <Tooltip title="有用">
+                        <Button 
+                          size="small" 
+                          type={messageFeedback[msg.id]?.helpful === true ? 'primary' : 'text'}
+                          icon={<LikeOutlined />}
+                          onClick={() => handleQuickFeedback(msg.id, msg, true)}
+                          loading={feedbackLoading}
+                          disabled={messageFeedback[msg.id]?.helpful !== undefined}
+                        >
+                          有用
+                        </Button>
+                      </Tooltip>
+                      <Tooltip title="无用">
+                        <Button 
+                          size="small"
+                          type={messageFeedback[msg.id]?.helpful === false ? 'primary' : 'text'} 
+                          icon={<DislikeOutlined />}
+                          onClick={() => handleQuickFeedback(msg.id, msg, false)}
+                          loading={feedbackLoading}
+                          disabled={messageFeedback[msg.id]?.helpful !== undefined}
+                        >
+                          无用
+                        </Button>
+                      </Tooltip>
+                      <Rate 
+                        size="small" 
+                        value={messageFeedback[msg.id]?.rating || 0}
+                        onChange={(rating) => handleRatingFeedback(msg.id, msg, rating)}
+                        disabled={messageFeedback[msg.id]?.rating !== undefined || feedbackLoading}
+                        style={{ fontSize: 14 }}
+                      />
+                    </Space>
+                  </div>
                 )}
               </div>
             </div>

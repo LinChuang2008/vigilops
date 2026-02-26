@@ -29,6 +29,7 @@ from app.models.service_group import ServiceGroup
 from app.models.server_service import ServerService
 from app.models.nginx_upstream import NginxUpstream
 from app.models.dashboard_config import DashboardLayout, DashboardComponent
+from app.models.ai_feedback import AIFeedback, AIFeedbackSummary
 
 # 导出所有模型类供外部模块使用 (Export all model classes for external modules)
 __all__ = [
@@ -37,5 +38,5 @@ __all__ = [
     "NotificationTemplate", "Setting", "LogEntry", "MonitoredDatabase",
     "DbMetric", "AIInsight", "AuditLog", "Report", "ServiceDependency",
     "SLARule", "SLAViolation", "Server", "ServiceGroup", "ServerService",
-    "NginxUpstream", "DashboardLayout", "DashboardComponent",
+    "NginxUpstream", "DashboardLayout", "DashboardComponent", "AIFeedback", "AIFeedbackSummary",
 ]

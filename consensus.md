@@ -53,7 +53,7 @@
 |---|------|
 | 1 | NotificationLogs 完善（当前仅 57 行半成品） | ✅ commit 277a227 |
 | 2 | 告警升级 + 值班排期 | ✅ commit 66daf80 |
-| 3 | Dashboard 可定制 |
+| 3 | Dashboard 可定制 | ✅ commit d39209c |
 | 4 | AI 反馈闭环 |
 | 5 | 暗色主题 |
 | 6 | HTTPS 支持 |

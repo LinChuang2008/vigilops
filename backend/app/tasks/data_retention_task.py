@@ -12,9 +12,9 @@ import logging
 from datetime import datetime, time
 from typing import Optional
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import SessionLocal
+from app.core.database import async_session
 from app.services.data_retention import DataRetentionService
 
 logger = logging.getLogger(__name__)
@@ -93,35 +93,30 @@ async def _execute_data_cleanup():
     logger.info("Starting scheduled data cleanup")
     
     start_time = datetime.now()
-    db: Optional[Session] = None
     
     try:
-        # 获取数据库会话
-        db = SessionLocal()
-        
-        # 创建数据保留服务实例
-        service = DataRetentionService(db)
-        
-        # 执行数据清理
-        cleanup_stats = service.cleanup_expired_data()
-        
-        # 记录清理结果
-        end_time = datetime.now()
-        duration = (end_time - start_time).total_seconds()
-        total_cleaned = sum(cleanup_stats.values())
-        
-        logger.info(
-            f"Data cleanup completed successfully. "
-            f"Duration: {duration:.2f}s, Total records cleaned: {total_cleaned}, "
-            f"Details: {cleanup_stats}"
-        )
+        # 获取异步数据库会话
+        async with async_session() as db:
+            # 创建数据保留服务实例
+            service = DataRetentionService(db)
+            
+            # 执行数据清理
+            cleanup_stats = service.cleanup_expired_data()
+            
+            # 记录清理结果
+            end_time = datetime.now()
+            duration = (end_time - start_time).total_seconds()
+            total_cleaned = sum(cleanup_stats.values())
+            
+            logger.info(
+                f"Data cleanup completed successfully. "
+                f"Duration: {duration:.2f}s, Total records cleaned: {total_cleaned}, "
+                f"Details: {cleanup_stats}"
+            )
         
     except Exception as e:
         logger.error(f"Data cleanup failed: {e}", exc_info=True)
         raise
-    finally:
-        if db:
-            db.close()
 
 
 async def stop_data_retention_task():
@@ -164,18 +159,14 @@ async def execute_immediate_cleanup() -> dict:
     """
     logger.info("Starting immediate data cleanup")
     
-    db: Optional[Session] = None
     try:
-        db = SessionLocal()
-        service = DataRetentionService(db)
-        cleanup_stats = service.cleanup_expired_data()
-        
-        logger.info(f"Immediate data cleanup completed: {cleanup_stats}")
-        return cleanup_stats
+        async with async_session() as db:
+            service = DataRetentionService(db)
+            cleanup_stats = service.cleanup_expired_data()
+            
+            logger.info(f"Immediate data cleanup completed: {cleanup_stats}")
+            return cleanup_stats
         
     except Exception as e:
         logger.error(f"Immediate data cleanup failed: {e}", exc_info=True)
         raise
-    finally:
-        if db:
-            db.close()

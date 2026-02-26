@@ -10,7 +10,7 @@ Dashboard 配置模型
 from sqlalchemy import Column, String, Integer, Boolean, Text, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from ..database import Base
+from app.core.database import Base
 
 
 class DashboardLayout(Base):
