@@ -7,7 +7,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Form, Input, Button, Card, Typography, message, Tabs, Row, Col, Space } from 'antd';
-import { UserOutlined, LockOutlined, MailOutlined, RocketOutlined, RobotOutlined, ThunderboltOutlined, DashboardOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, MailOutlined, RocketOutlined, RobotOutlined, ThunderboltOutlined, DashboardOutlined, SafetyCertificateOutlined, GlobalOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 import { authService } from '../services/auth';
 
 const { Title } = Typography;
@@ -71,6 +72,14 @@ export default function Login() {
   const [messageApi, contextHolder] = message.useMessage();
   const [authProviders, setAuthProviders] = useState<any>(null);
   const [ldapEnabled, setLdapEnabled] = useState(false);
+  const { t, i18n } = useTranslation();
+
+  /** 切换语言 */
+  const toggleLanguage = () => {
+    const newLang = i18n.language === 'zh' ? 'en' : 'zh';
+    i18n.changeLanguage(newLang);
+    localStorage.setItem('language', newLang);
+  };
 
   // 监听窗口大小变化
   useEffect(() => {
@@ -108,11 +117,11 @@ export default function Login() {
       const { data: user } = await authService.me();
       localStorage.setItem('user_name', user.name);
       localStorage.setItem('user_role', user.role);
-      messageApi.success('登录成功');
+      messageApi.success(t('login.loginSuccess'));
       navigate('/');
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } } };
-      messageApi.error(err.response?.data?.detail || '登录失败');
+      messageApi.error(err.response?.data?.detail || t('login.loginFailed'));
     } finally {
       setLoading(false);
     }
@@ -128,11 +137,11 @@ export default function Login() {
       const { data: user } = await authService.me();
       localStorage.setItem('user_name', user.name);
       localStorage.setItem('user_role', user.role);
-      messageApi.success('注册成功');
+      messageApi.success(t('login.registerSuccess'));
       navigate('/');
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } } };
-      messageApi.error(err.response?.data?.detail || '注册失败');
+      messageApi.error(err.response?.data?.detail || t('login.registerFailed'));
     } finally {
       setLoading(false);
     }
@@ -145,7 +154,7 @@ export default function Login() {
       const { redirect_url } = await response.json();
       window.location.href = redirect_url;
     } catch (error) {
-      messageApi.error(`OAuth登录失败: ${provider}`);
+      messageApi.error(`${t('login.oauthFailed')}: ${provider}`);
     }
   };
 
@@ -172,10 +181,10 @@ export default function Login() {
       const { data: user } = await authService.me();
       localStorage.setItem('user_name', user.name);
       localStorage.setItem('user_role', user.role);
-      messageApi.success('LDAP登录成功');
+      messageApi.success(t('login.ldapLoginSuccess'));
       navigate('/');
     } catch (e: any) {
-      messageApi.error(e.message || 'LDAP登录失败');
+      messageApi.error(e.message || t('login.ldapLoginFailed'));
     } finally {
       setLoading(false);
     }
@@ -270,8 +279,19 @@ export default function Login() {
           marginTop: 8,
           textShadow: '0 1px 4px rgba(0,0,0,0.3)'
         }}>
-          AI 智能运维监控平台
+          {t('login.subtitle')}
         </Typography.Text>
+      </div>
+      {/* Language toggle */}
+      <div style={{ position: 'absolute', top: 20, right: 20, zIndex: 10 }}>
+        <Button
+          type="text"
+          icon={<GlobalOutlined />}
+          onClick={toggleLanguage}
+          style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14 }}
+        >
+          {i18n.language === 'zh' ? 'EN' : '中文'}
+        </Button>
       </div>
       <Card style={{ 
         width: 900, 
@@ -310,33 +330,33 @@ export default function Login() {
                   <svg width="20" height="20" viewBox="0 0 64 64" fill="none">
                     <path d="M32 4L8 16v16c0 14.4 10.24 27.84 24 32 13.76-4.16 24-17.6 24-32V16L32 4z" fill="currentColor"/>
                   </svg>
-                  为中小企业而生
+                  {t('login.features.tagline')}
                 </div>
               </div>
               <Space direction="vertical" size={20} style={{ width: '100%' }}>
                 {[
                   { 
                     icon: <RobotOutlined style={{ fontSize: 24 }} />, 
-                    title: 'AI 智能分析', 
-                    desc: '基于 AI 的根因分析与运维洞察',
+                    title: t('login.features.aiAnalysis'), 
+                    desc: t('login.features.aiAnalysisDesc'),
                     gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
                   },
                   { 
                     icon: <ThunderboltOutlined style={{ fontSize: 24 }} />, 
-                    title: '自动修复', 
-                    desc: '内置 Runbook，告警触发自动修复',
+                    title: t('login.features.autoRemediation'), 
+                    desc: t('login.features.autoRemediationDesc'),
                     gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
                   },
                   { 
                     icon: <DashboardOutlined style={{ fontSize: 24 }} />, 
-                    title: '实时监控', 
-                    desc: 'WebSocket 实时推送，秒级感知',
+                    title: t('login.features.realTimeMonitoring'), 
+                    desc: t('login.features.realTimeMonitoringDesc'),
                     gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
                   },
                   { 
                     icon: <SafetyCertificateOutlined style={{ fontSize: 24 }} />, 
-                    title: 'SLA 管理', 
-                    desc: '可用性追踪与错误预算管理',
+                    title: t('login.features.slaManagement'), 
+                    desc: t('login.features.slaManagementDesc'),
                     gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
                   },
                 ].map((item, i) => (
@@ -386,7 +406,7 @@ export default function Login() {
                 display: isMobile ? 'block' : 'none'
               }}>
                 <Title level={3} style={{ margin: 0, color: '#1677ff' }}>VigilOps</Title>
-                <Typography.Text type="secondary" style={{ fontSize: 14 }}>AI 智能运维监控平台</Typography.Text>
+                <Typography.Text type="secondary" style={{ fontSize: 14 }}>{t('login.subtitle')}</Typography.Text>
               </div>
         <Tabs 
           activeKey={activeTab} 
@@ -397,14 +417,14 @@ export default function Login() {
           items={[
           {
             key: 'login',
-            label: <span style={{ fontSize: 16, fontWeight: 500 }}>登录</span>,
+            label: <span style={{ fontSize: 16, fontWeight: 500 }}>{t('login.loginTab')}</span>,
             children: (
               <Form form={loginForm} onFinish={handleLogin} size="large">
-                <Form.Item name="email" rules={[{ required: true, message: '请输入邮箱' }, { type: 'email', message: '邮箱格式不正确' }]}>
-                  <Input prefix={<MailOutlined />} placeholder="邮箱" />
+                <Form.Item name="email" rules={[{ required: true, message: t('login.validation.emailRequired') }, { type: 'email', message: t('login.validation.emailInvalid') }]}>
+                  <Input prefix={<MailOutlined />} placeholder={t('login.emailPlaceholder')} />
                 </Form.Item>
-                <Form.Item name="password" rules={[{ required: true, message: '请输入密码' }]}>
-                  <Input.Password prefix={<LockOutlined />} placeholder="密码" />
+                <Form.Item name="password" rules={[{ required: true, message: t('login.validation.passwordRequired') }]}>
+                  <Input.Password prefix={<LockOutlined />} placeholder={t('login.passwordPlaceholder')} />
                 </Form.Item>
                 <Form.Item>
                   <Button 
@@ -423,7 +443,7 @@ export default function Login() {
                       boxShadow: '0 4px 16px rgba(22,119,255,0.3)'
                     }}
                   >
-                    登录
+                    {t('login.loginButton')}
                   </Button>
                 </Form.Item>
                 <div style={{ textAlign: 'center', marginTop: 16 }}>
@@ -443,7 +463,7 @@ export default function Login() {
                       loginForm.submit();
                     }}
                   >
-                    🚀 Demo 体验（只读账号，无需注册）
+                    {t('login.demoButton')}
                   </Button>
                 </div>
 
@@ -451,7 +471,7 @@ export default function Login() {
                 {authProviders && (
                   <div style={{ marginTop: 24 }}>
                     <div style={{ textAlign: 'center', marginBottom: 16, color: '#666' }}>
-                      <span>或使用第三方账号登录</span>
+                      <span>{t('login.oauthTitle')}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       {Object.entries(authProviders).map(([key, provider]: [string, any]) => {
@@ -493,14 +513,14 @@ export default function Login() {
           },
           {
             key: 'ldap',
-            label: <span style={{ fontSize: 16, fontWeight: 500 }}>LDAP</span>,
+            label: <span style={{ fontSize: 16, fontWeight: 500 }}>{t('login.ldapTab')}</span>,
             children: ldapEnabled ? (
               <Form onFinish={handleLdapLogin} size="large">
-                <Form.Item name="email" rules={[{ required: true, message: '请输入用户名或邮箱' }]}>
-                  <Input prefix={<UserOutlined />} placeholder="用户名或邮箱" />
+                <Form.Item name="email" rules={[{ required: true, message: t('login.validation.usernameOrEmailRequired') }]}>
+                  <Input prefix={<UserOutlined />} placeholder={t('login.usernameOrEmail')} />
                 </Form.Item>
-                <Form.Item name="password" rules={[{ required: true, message: '请输入密码' }]}>
-                  <Input.Password prefix={<LockOutlined />} placeholder="密码" />
+                <Form.Item name="password" rules={[{ required: true, message: t('login.validation.passwordRequired') }]}>
+                  <Input.Password prefix={<LockOutlined />} placeholder={t('login.passwordPlaceholder')} />
                 </Form.Item>
                 <Form.Item>
                   <Button 
@@ -519,31 +539,31 @@ export default function Login() {
                       boxShadow: '0 4px 16px rgba(82,196,26,0.3)'
                     }}
                   >
-                    LDAP 登录
+                    {t('login.ldapLogin')}
                   </Button>
                 </Form.Item>
               </Form>
             ) : (
               <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
                 <Typography.Text type="secondary">
-                  LDAP 认证未配置或不可用
+                  {t('login.ldapNotAvailable')}
                 </Typography.Text>
               </div>
             ),
           },
           {
             key: 'register',
-            label: <span style={{ fontSize: 16, fontWeight: 500 }}>注册</span>,
+            label: <span style={{ fontSize: 16, fontWeight: 500 }}>{t('login.registerTab')}</span>,
             children: (
               <Form onFinish={handleRegister} size="large">
-                <Form.Item name="email" rules={[{ required: true, message: '请输入邮箱' }, { type: 'email', message: '邮箱格式不正确' }]}>
-                  <Input prefix={<MailOutlined />} placeholder="邮箱" />
+                <Form.Item name="email" rules={[{ required: true, message: t('login.validation.emailRequired') }, { type: 'email', message: t('login.validation.emailInvalid') }]}>
+                  <Input prefix={<MailOutlined />} placeholder={t('login.emailPlaceholder')} />
                 </Form.Item>
-                <Form.Item name="name" rules={[{ required: true, message: '请输入用户名' }]}>
-                  <Input prefix={<UserOutlined />} placeholder="用户名" />
+                <Form.Item name="name" rules={[{ required: true, message: t('login.validation.usernameRequired') }]}>
+                  <Input prefix={<UserOutlined />} placeholder={t('login.usernamePlaceholder')} />
                 </Form.Item>
-                <Form.Item name="password" rules={[{ required: true, min: 6, message: '密码至少6位' }]}>
-                  <Input.Password prefix={<LockOutlined />} placeholder="密码" />
+                <Form.Item name="password" rules={[{ required: true, min: 6, message: t('login.validation.passwordMin') }]}>
+                  <Input.Password prefix={<LockOutlined />} placeholder={t('login.passwordPlaceholder')} />
                 </Form.Item>
                 <Form.Item>
                   <Button 
@@ -562,7 +582,7 @@ export default function Login() {
                       boxShadow: '0 4px 16px rgba(114,46,209,0.3)'
                     }}
                   >
-                    注册
+                    {t('login.registerButton')}
                   </Button>
                 </Form.Item>
               </Form>
@@ -582,7 +602,7 @@ export default function Login() {
         zIndex: 1,
         position: 'relative'
       }}>
-        <div style={{ fontWeight: 500, marginBottom: 4 }}>琳创科技（LinChuang Technology）</div>
+        <div style={{ fontWeight: 500, marginBottom: 4 }}>{t('login.footer.company')}</div>
         <div>
           <a href="mailto:contact@lchuangnet.com" style={{ 
             color: 'rgba(255,255,255,0.8)', 

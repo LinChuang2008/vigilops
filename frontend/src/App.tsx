@@ -6,6 +6,8 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ConfigProvider, App as AntApp, theme as antTheme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
+import enUS from 'antd/locale/en_US';
+import { useTranslation } from 'react-i18next';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import AppLayout from './components/AppLayout';
 import AuthGuard from './components/AuthGuard';
@@ -54,11 +56,15 @@ function RoleGuard({ children }: { children: React.ReactElement }) {
   return children;
 }
 
+const antdLocaleMap: Record<string, typeof zhCN> = { zh: zhCN, en: enUS };
+
 function AppInner() {
   const { isDark } = useTheme();
+  const { i18n } = useTranslation();
+  const antdLocale = antdLocaleMap[i18n.language] || zhCN;
   return (
     <ConfigProvider
-      locale={zhCN}
+      locale={antdLocale}
       theme={{
         algorithm: isDark ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
         token: {

@@ -1,0 +1,392 @@
+/**
+ * English Language Pack
+ */
+const en = {
+  // ========== Common ==========
+  common: {
+    confirm: 'Confirm',
+    cancel: 'Cancel',
+    save: 'Save',
+    delete: 'Delete',
+    edit: 'Edit',
+    create: 'Create',
+    search: 'Search',
+    reset: 'Reset',
+    refresh: 'Refresh',
+    loading: 'Loading...',
+    noData: 'No Data',
+    success: 'Success',
+    failed: 'Failed',
+    back: 'Back',
+    export: 'Export',
+    import: 'Import',
+    enable: 'Enable',
+    disable: 'Disable',
+    status: 'Status',
+    actions: 'Actions',
+    name: 'Name',
+    description: 'Description',
+    type: 'Type',
+    time: 'Time',
+    detail: 'Detail',
+    all: 'All',
+    yes: 'Yes',
+    no: 'No',
+    total: '{{count}} items',
+    close: 'Close',
+    submit: 'Submit',
+    view: 'View',
+    copy: 'Copy',
+    copied: 'Copied',
+  },
+
+  // ========== Login ==========
+  login: {
+    title: 'VigilOps',
+    subtitle: 'AI-Powered Operations Monitoring Platform',
+    loginTab: 'Login',
+    registerTab: 'Register',
+    ldapTab: 'LDAP',
+    email: 'Email',
+    emailPlaceholder: 'Email',
+    password: 'Password',
+    passwordPlaceholder: 'Password',
+    username: 'Username',
+    usernamePlaceholder: 'Username',
+    usernameOrEmail: 'Username or Email',
+    loginButton: 'Login',
+    registerButton: 'Register',
+    ldapLogin: 'LDAP Login',
+    demoButton: '🚀 Try Demo (Read-only, No Registration Required)',
+    loginSuccess: 'Login successful',
+    loginFailed: 'Login failed',
+    registerSuccess: 'Registration successful',
+    registerFailed: 'Registration failed',
+    ldapLoginSuccess: 'LDAP login successful',
+    ldapLoginFailed: 'LDAP login failed',
+    oauthFailed: 'OAuth login failed',
+    oauthTitle: 'Or sign in with',
+    ldapNotAvailable: 'LDAP authentication is not configured or unavailable',
+    validation: {
+      emailRequired: 'Please enter your email',
+      emailInvalid: 'Invalid email format',
+      passwordRequired: 'Please enter your password',
+      passwordMin: 'Password must be at least 6 characters',
+      usernameRequired: 'Please enter your username',
+      usernameOrEmailRequired: 'Please enter username or email',
+    },
+    features: {
+      tagline: 'Built for SMBs',
+      aiAnalysis: 'AI Analysis',
+      aiAnalysisDesc: 'AI-powered root cause analysis & operational insights',
+      autoRemediation: 'Auto Remediation',
+      autoRemediationDesc: 'Built-in Runbooks, auto-fix on alert trigger',
+      realTimeMonitoring: 'Real-time Monitoring',
+      realTimeMonitoringDesc: 'WebSocket real-time push, second-level awareness',
+      slaManagement: 'SLA Management',
+      slaManagementDesc: 'Availability tracking & error budget management',
+    },
+    footer: {
+      company: 'LinChuang Technology',
+    },
+  },
+
+  // ========== Sidebar Menu ==========
+  menu: {
+    dashboard: 'Dashboard',
+    hosts: 'Servers',
+    services: 'Services',
+    topology: 'Topology',
+    topologyService: 'Service Topology',
+    topologyServers: 'Multi-Server',
+    topologyServiceGroups: 'Service Groups',
+    logs: 'Logs',
+    databases: 'Databases',
+    alerts: 'Alerts',
+    alertEscalation: 'Alert Escalation',
+    onCall: 'On-Call',
+    remediation: 'Remediation',
+    sla: 'SLA',
+    aiAnalysis: 'AI Analysis',
+    reports: 'Reports',
+    notificationChannels: 'Notification Channels',
+    notificationTemplates: 'Notification Templates',
+    notificationLogs: 'Notification Logs',
+    users: 'Users',
+    auditLogs: 'Audit Logs',
+    settings: 'Settings',
+  },
+
+  // ========== Header ==========
+  header: {
+    lightMode: 'Switch to Light Mode',
+    darkMode: 'Switch to Dark Mode',
+    logout: 'Logout',
+    language: 'Language',
+  },
+
+  // ========== Dashboard ==========
+  dashboard: {
+    title: 'Dashboard',
+    totalHosts: 'Total Servers',
+    onlineHosts: 'Online Servers',
+    totalAlerts: 'Total Alerts',
+    firingAlerts: 'Active Alerts',
+    avgCpu: 'Avg CPU',
+    avgMemory: 'Avg Memory',
+    healthScore: 'Health Score',
+    recentAlerts: 'Recent Alerts',
+    resourceUsage: 'Resource Usage',
+    trend: 'Trend',
+    customize: 'Customize Layout',
+    resetLayout: 'Reset Layout',
+    exportLayout: 'Export Layout',
+    importLayout: 'Import Layout',
+    settings: 'Dashboard Settings',
+    logStats: 'Log Statistics',
+    serverOverview: 'Server Overview',
+  },
+
+  // ========== Alerts ==========
+  alerts: {
+    title: 'Alert Center',
+    alertList: 'Alert List',
+    alertRules: 'Alert Rules',
+    severity: 'Severity',
+    status: 'Status',
+    source: 'Source',
+    message: 'Message',
+    triggeredAt: 'Triggered At',
+    resolvedAt: 'Resolved At',
+    acknowledged: 'Acknowledged',
+    acknowledge: 'Acknowledge',
+    rootCause: 'AI Root Cause',
+    rootCauseTitle: 'AI Root Cause Analysis',
+    analyzing: 'Analyzing...',
+    confidence: 'Confidence',
+    evidence: 'Evidence',
+    recommendations: 'Recommendations',
+    analysisFailed: 'AI analysis failed',
+    severityLevels: {
+      critical: 'Critical',
+      warning: 'Warning',
+      info: 'Info',
+    },
+    statusTypes: {
+      firing: 'Firing',
+      resolved: 'Resolved',
+      acknowledged: 'Acknowledged',
+    },
+    rules: {
+      name: 'Rule Name',
+      type: 'Rule Type',
+      metric: 'Metric Alert',
+      logKeyword: 'Log Keyword Alert',
+      database: 'Database Alert',
+      condition: 'Condition',
+      threshold: 'Threshold',
+      enabled: 'Enabled',
+      disabled: 'Disabled',
+      create: 'Create Rule',
+      edit: 'Edit Rule',
+      delete: 'Delete Rule',
+      silencePeriod: 'Silence Period',
+    },
+  },
+
+  // ========== Hosts ==========
+  hosts: {
+    title: 'Server List',
+    hostname: 'Hostname',
+    ip: 'IP Address',
+    os: 'Operating System',
+    cpu: 'CPU Usage',
+    memory: 'Memory Usage',
+    disk: 'Disk Usage',
+    status: 'Status',
+    uptime: 'Uptime',
+    lastSeen: 'Last Seen',
+    online: 'Online',
+    offline: 'Offline',
+    detail: 'Server Detail',
+    metrics: 'Metrics',
+    processes: 'Processes',
+  },
+
+  // ========== Services ==========
+  services: {
+    title: 'Service Monitoring',
+    serviceName: 'Service Name',
+    url: 'Monitor URL',
+    method: 'Method',
+    interval: 'Check Interval',
+    timeout: 'Timeout',
+    status: 'Status',
+    responseTime: 'Response Time',
+    uptime: 'Uptime',
+    healthy: 'Healthy',
+    unhealthy: 'Unhealthy',
+    create: 'Add Service',
+  },
+
+  // ========== Logs ==========
+  logs: {
+    title: 'Log Management',
+    search: 'Search Logs',
+    level: 'Level',
+    source: 'Source',
+    timestamp: 'Timestamp',
+    message: 'Message',
+    filter: 'Filter',
+    realtime: 'Real-time',
+    levels: {
+      error: 'Error',
+      warn: 'Warning',
+      info: 'Info',
+      debug: 'Debug',
+    },
+  },
+
+  // ========== Databases ==========
+  databases: {
+    title: 'Database Monitoring',
+    name: 'Database Name',
+    type: 'Type',
+    host: 'Host',
+    port: 'Port',
+    status: 'Status',
+    connections: 'Connections',
+    slowQueries: 'Slow Queries',
+    size: 'Size',
+    detail: 'Database Detail',
+  },
+
+  // ========== SLA ==========
+  sla: {
+    title: 'SLA Management',
+    serviceName: 'Service Name',
+    target: 'Target SLA',
+    current: 'Current SLA',
+    errorBudget: 'Error Budget',
+    remaining: 'Remaining',
+    consumed: 'Consumed',
+    period: 'Period',
+  },
+
+  // ========== Remediation ==========
+  remediation: {
+    title: 'Auto Remediation',
+    runbook: 'Runbook',
+    trigger: 'Trigger',
+    lastRun: 'Last Run',
+    status: 'Status',
+    result: 'Result',
+    history: 'History',
+    running: 'Running',
+    success: 'Success',
+    failed: 'Failed',
+    pending: 'Pending',
+  },
+
+  // ========== AI Analysis ==========
+  aiAnalysis: {
+    title: 'AI Analysis',
+    analyze: 'Analyze',
+    result: 'Result',
+    history: 'History',
+    prompt: 'Prompt',
+  },
+
+  // ========== Reports ==========
+  reports: {
+    title: 'Operations Reports',
+    generate: 'Generate Report',
+    period: 'Report Period',
+    daily: 'Daily',
+    weekly: 'Weekly',
+    monthly: 'Monthly',
+  },
+
+  // ========== Notifications ==========
+  notifications: {
+    channels: 'Notification Channels',
+    templates: 'Notification Templates',
+    logs: 'Notification Logs',
+    channelName: 'Channel Name',
+    channelType: 'Channel Type',
+    template: 'Template',
+    sent: 'Sent',
+    failed: 'Failed',
+    pending: 'Pending',
+  },
+
+  // ========== Users ==========
+  users: {
+    title: 'User Management',
+    username: 'Username',
+    email: 'Email',
+    role: 'Role',
+    status: 'Status',
+    createdAt: 'Created At',
+    lastLogin: 'Last Login',
+    roles: {
+      admin: 'Admin',
+      member: 'Member',
+      viewer: 'Viewer',
+    },
+  },
+
+  // ========== Audit Logs ==========
+  auditLogs: {
+    title: 'Audit Logs',
+    user: 'User',
+    action: 'Action',
+    resource: 'Resource',
+    timestamp: 'Timestamp',
+    detail: 'Details',
+  },
+
+  // ========== Alert Escalation ==========
+  alertEscalation: {
+    title: 'Alert Escalation',
+    policy: 'Escalation Policy',
+    level: 'Level',
+    timeout: 'Timeout',
+    notifyTo: 'Notify To',
+  },
+
+  // ========== On-Call ==========
+  onCall: {
+    title: 'On-Call Schedule',
+    schedule: 'Schedule',
+    oncallPerson: 'On-Call Person',
+    startTime: 'Start Time',
+    endTime: 'End Time',
+    rotation: 'Rotation',
+  },
+
+  // ========== Settings ==========
+  settings: {
+    title: 'System Settings',
+    general: 'General',
+    agentTokens: 'Agent Tokens',
+    tokenName: 'Token Name',
+    tokenValue: 'Token Value',
+    createToken: 'Create Token',
+    revokeToken: 'Revoke Token',
+    active: 'Active',
+    revoked: 'Revoked',
+    saveSuccess: 'Settings saved successfully',
+    saveFailed: 'Failed to save settings',
+  },
+
+  // ========== Topology ==========
+  topology: {
+    title: 'Topology',
+    serviceTopology: 'Service Topology',
+    multiServer: 'Multi-Server',
+    serviceGroups: 'Service Groups',
+  },
+};
+
+export default en;

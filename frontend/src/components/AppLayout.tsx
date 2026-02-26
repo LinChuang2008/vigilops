@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Layout, Menu, Button, theme, Avatar, Dropdown, Drawer } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 import {
   DashboardOutlined,
@@ -35,6 +36,7 @@ import {
   ThunderboltOutlined,
   ScheduleOutlined,
   RiseOutlined,
+  GlobalOutlined,
 } from '@ant-design/icons';
 
 const { Header, Sider, Content } = Layout;
@@ -45,7 +47,7 @@ const viewerKeys = new Set(['/', '/hosts', '/services', 'topology-group', '/topo
 const memberHiddenKeys = new Set(['/users', '/settings']);
 
 /** 根据角色过滤菜单 */
-function filterMenuByRole(items: typeof allMenuItems, role: string) {
+function filterMenuByRole(items: ReturnType<typeof buildMenuItems>, role: string) {
   if (role === 'admin') return items;
   return items
     .filter((item) => {
@@ -61,34 +63,36 @@ function filterMenuByRole(items: typeof allMenuItems, role: string) {
     });
 }
 
-/** 侧边栏菜单项配置，key 对应路由路径 */
-const allMenuItems = [
-  { key: '/', icon: <DashboardOutlined />, label: '仪表盘' },
-  { key: '/hosts', icon: <CloudServerOutlined />, label: '服务器' },
-  { key: '/services', icon: <ApiOutlined />, label: '服务监控' },
-  { key: 'topology-group', icon: <DeploymentUnitOutlined />, label: '拓扑图',
-    children: [
-      { key: '/topology', label: '服务拓扑' },
-      { key: '/topology/servers', label: '多服务器' },
-      { key: '/topology/service-groups', label: '服务组' },
-    ],
-  },
-  { key: '/logs', icon: <FileTextOutlined />, label: '日志管理' },
-  { key: '/databases', icon: <DatabaseOutlined />, label: '数据库监控' },
-  { key: '/alerts', icon: <AlertOutlined />, label: '告警中心' },
-  { key: '/alert-escalation', icon: <RiseOutlined />, label: '告警升级' },
-  { key: '/on-call', icon: <ScheduleOutlined />, label: '值班排期' },
-  { key: '/remediations', icon: <ThunderboltOutlined />, label: '自动修复' },
-  { key: '/sla', icon: <SafetyCertificateOutlined />, label: 'SLA 管理' },
-  { key: '/ai-analysis', icon: <RobotOutlined />, label: 'AI 分析' },
-  { key: '/reports', icon: <FileSearchOutlined />, label: '运维报告' },
-  { key: '/notification-channels', icon: <NotificationOutlined />, label: '通知渠道' },
-  { key: '/notification-templates', icon: <FormOutlined />, label: '通知模板' },
-  { key: '/notification-logs', icon: <UnorderedListOutlined />, label: '通知日志' },
-  { key: '/users', icon: <TeamOutlined />, label: '用户管理' },
-  { key: '/audit-logs', icon: <AuditOutlined />, label: '审计日志' },
-  { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
-];
+/** 生成侧边栏菜单项，使用 i18n 翻译 */
+function buildMenuItems(t: (key: string) => string) {
+  return [
+    { key: '/', icon: <DashboardOutlined />, label: t('menu.dashboard') },
+    { key: '/hosts', icon: <CloudServerOutlined />, label: t('menu.hosts') },
+    { key: '/services', icon: <ApiOutlined />, label: t('menu.services') },
+    { key: 'topology-group', icon: <DeploymentUnitOutlined />, label: t('menu.topology'),
+      children: [
+        { key: '/topology', label: t('menu.topologyService') },
+        { key: '/topology/servers', label: t('menu.topologyServers') },
+        { key: '/topology/service-groups', label: t('menu.topologyServiceGroups') },
+      ],
+    },
+    { key: '/logs', icon: <FileTextOutlined />, label: t('menu.logs') },
+    { key: '/databases', icon: <DatabaseOutlined />, label: t('menu.databases') },
+    { key: '/alerts', icon: <AlertOutlined />, label: t('menu.alerts') },
+    { key: '/alert-escalation', icon: <RiseOutlined />, label: t('menu.alertEscalation') },
+    { key: '/on-call', icon: <ScheduleOutlined />, label: t('menu.onCall') },
+    { key: '/remediations', icon: <ThunderboltOutlined />, label: t('menu.remediation') },
+    { key: '/sla', icon: <SafetyCertificateOutlined />, label: t('menu.sla') },
+    { key: '/ai-analysis', icon: <RobotOutlined />, label: t('menu.aiAnalysis') },
+    { key: '/reports', icon: <FileSearchOutlined />, label: t('menu.reports') },
+    { key: '/notification-channels', icon: <NotificationOutlined />, label: t('menu.notificationChannels') },
+    { key: '/notification-templates', icon: <FormOutlined />, label: t('menu.notificationTemplates') },
+    { key: '/notification-logs', icon: <UnorderedListOutlined />, label: t('menu.notificationLogs') },
+    { key: '/users', icon: <TeamOutlined />, label: t('menu.users') },
+    { key: '/audit-logs', icon: <AuditOutlined />, label: t('menu.auditLogs') },
+    { key: '/settings', icon: <SettingOutlined />, label: t('menu.settings') },
+  ];
+}
 
 /**
  * 应用主布局组件
@@ -108,6 +112,16 @@ export default function AppLayout() {
   const location = useLocation();
   const { token: { colorBgContainer, borderRadiusLG, colorBgLayout } } = theme.useToken();
   const { isDark, toggleTheme } = useTheme();
+  const { t, i18n } = useTranslation();
+
+  /** 动态生成菜单 */
+  const allMenuItems = buildMenuItems(t);
+
+  /** 切换语言 */
+  const changeLanguage = (lang: string) => {
+    i18n.changeLanguage(lang);
+    localStorage.setItem('language', lang);
+  };
 
   /** 检测屏幕大小变化 */
   useEffect(() => {
@@ -247,15 +261,26 @@ export default function AppLayout() {
           />
           {/* 右侧操作区：主题切换 + 用户菜单 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Dropdown menu={{
+              items: [
+                { key: 'zh', label: '🇨🇳 中文', onClick: () => changeLanguage('zh') },
+                { key: 'en', label: '🇺🇸 English', onClick: () => changeLanguage('en') },
+              ],
+              selectedKeys: [i18n.language],
+            }}>
+              <Button type="text" icon={<GlobalOutlined />} title={t('header.language')}>
+                {i18n.language === 'zh' ? '中文' : 'EN'}
+              </Button>
+            </Dropdown>
             <Button
               type="text"
               icon={isDark ? <SunOutlined /> : <MoonOutlined />}
               onClick={toggleTheme}
-              title={isDark ? '切换亮色模式' : '切换暗色模式'}
+              title={isDark ? t('header.lightMode') : t('header.darkMode')}
             />
             <Dropdown menu={{
               items: [
-                { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', onClick: handleLogout },
+                { key: 'logout', icon: <LogoutOutlined />, label: t('header.logout'), onClick: handleLogout },
               ],
             }}>
               <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
