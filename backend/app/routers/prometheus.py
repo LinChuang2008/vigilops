@@ -25,7 +25,7 @@ from app.core.redis import get_redis
 from app.models.host import Host
 from app.models.host_metric import HostMetric
 from app.models.service import Service
-from app.models.service_check import ServiceCheck
+from app.models.service import ServiceCheck
 from app.models.alert import Alert
 
 router = APIRouter(prefix="/api/v1", tags=["prometheus"])
