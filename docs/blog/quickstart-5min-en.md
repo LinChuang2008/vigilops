@@ -1,4 +1,4 @@
-# Deploy AI-Powered Server Monitoring in 5 Minutes with VigilOps
+# Deploy AI-Powered Server Monitoring in 10 Minutes with VigilOps
 
 > Target: Hacker News, Reddit r/selfhosted r/devops, Dev.to
 > Keywords: open source monitoring, AI ops, self-hosted, auto-remediation, server monitoring, observability
@@ -24,14 +24,14 @@ That's VigilOps.
 - **AI Root Cause Analysis** — not just "CPU is high", but "Process X has a memory leak causing GC pressure"
 - **6 Auto-Remediation Runbooks** — disk cleanup, service restart, memory pressure relief, log rotation, zombie process killer, connection reset
 - **5 Notification Channels** — DingTalk, Feishu, WeCom, Email, Webhook
-- **22 Dashboard Pages** — servers, services, databases, topology maps, SLA tracking
+- **24 Dashboard Pages** — servers, services, databases, topology maps, SLA tracking
 - **Ops Memory System** — AI remembers past incidents and references them for future diagnosis
 
 All open source. Apache 2.0. Self-hosted. Your data never leaves your servers.
 
 ---
 
-## Step 1: Deploy (2 minutes)
+## Step 1: Deploy (5 minutes)
 
 ```bash
 git clone https://github.com/LinChuang2008/vigilops.git
@@ -42,18 +42,19 @@ docker compose up -d
 
 Four containers come up: backend (FastAPI), frontend (React), PostgreSQL, Redis.
 
-Open `http://your-server:3001` → Login with `admin@vigilops.ai` / `admin@123`.
+Open `http://your-server:3001` → Login with `demo@vigilops.io` / `demo123`.
 
-## Step 2: Install Agent (1 minute)
+## Step 2: Install Agent (5 minutes)
 
 On each server you want to monitor:
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/LinChuang2008/vigilops/main/agent/install.sh | \
-  bash -s -- --server http://vigilops-host:8001 --token YOUR_TOKEN
-```
+1. Download agent binary from GitHub Releases
+2. Copy `agent.example.yaml` and configure server URL + token
+3. Set up systemd service
 
 The agent runs as a systemd service, reporting metrics every 30 seconds. Lightweight (~20MB RAM).
+
+See `docs/agent-install.md` for detailed instructions.
 
 ## Step 3: Configure Alerts (1 minute)
 
@@ -88,7 +89,7 @@ The built-in runbooks handle the most common incidents automatically, with safet
                                  │               └──────────┘
                           ┌──────┴───────┐
                           │  React UI    │
-                          │  22 pages    │
+                          │  24 pages    │
                           └──────────────┘
 ```
 
@@ -96,7 +97,7 @@ The built-in runbooks handle the most common incidents automatically, with safet
 
 | | VigilOps | Zabbix | Prom+Grafana | Datadog |
 |---|---|---|---|---|
-| Setup time | ~2 min | Hours | Hours | Minutes |
+| Setup time | ~10 min | Hours | Hours | Minutes |
 | AI analysis | ✅ Built-in | ❌ | ❌ | 💰 Add-on |
 | Auto-remediation | ✅ 6 runbooks | ❌ | ❌ | 💰 Enterprise |
 | Self-hosted | ✅ | ✅ | ✅ | ❌ |

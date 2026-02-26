@@ -1,4 +1,4 @@
-# 5 分钟搭建 AI 运维监控：VigilOps 快速上手教程
+# 10 分钟搭建 AI 运维监控：VigilOps 快速上手教程
 
 > 发布平台：知乎专栏 / 掘金 / CSDN / SegmentFault
 > 关键词：运维监控、AI 运维、开源监控、Docker 部署、AIOps、服务器监控、自动修复
@@ -15,7 +15,7 @@
 - Prometheus + Grafana + AlertManager 配了一天，还没接上告警通知
 - 想用 Datadog，一看价格——算了算了
 
-**VigilOps 解决的就是这些问题**：开源免费、Docker 一键部署、AI 自动分析根因、内置 6 个自动修复脚本。从部署到收到第一条智能告警，真的只要 5 分钟。
+**VigilOps 解决的就是这些问题**：开源免费、Docker 一键部署、AI 自动分析根因、内置 6 个自动修复脚本。从部署到收到第一条智能告警，在已有 Docker 环境下 10 分钟即可完成。
 
 ---
 
@@ -57,31 +57,26 @@ docker compose ps
 
 ### 默认账号
 
-- 用户名：`admin@vigilops.ai`
-- 密码：`admin@123`
+- 用户名：`demo@vigilops.io`
+- 密码：`demo123`
 
-> ⚠️ 生产环境请立即修改密码！
+> ⚠️ 生产环境请创建新的管理员账号并删除 demo 账号！
 
 ---
 
 ## 第 2 步：安装 Agent 到被监控服务器（1 分钟）
 
-VigilOps 通过轻量 Agent 采集服务器指标。在**需要监控的服务器**上执行：
+VigilOps 通过轻量 Agent 采集服务器指标。在**需要监控的服务器**上安装 Agent：
 
-```bash
-# 一键安装（替换为你的 VigilOps 地址和 Token）
-curl -fsSL https://raw.githubusercontent.com/LinChuang2008/vigilops/main/agent/install.sh | \
-  bash -s -- --server http://你的VigilOps地址:8001 --token 你的AgentToken
-```
+1. **下载 Agent**：从 GitHub Releases 下载对应平台的 Agent 二进制文件
+2. **创建配置**：复制 `agent/agent.example.yaml` 并修改服务器地址和 Token
+3. **启动 Agent**：使用 systemd 或直接运行
 
 Agent Token 在 VigilOps 后台 **设置 → Agent Token 管理** 中创建。
 
-安装完成后，Agent 会自动以 systemd 服务运行，每 30 秒上报一次指标数据。
+安装完成后，Agent 会自动以服务形式运行，每 30 秒上报一次指标数据。
 
-> 💡 **内网/离线环境？** 支持离线安装模式：
-> ```bash
-> bash install.sh --server http://内网地址:8001 --token TOKEN --local
-> ```
+> 💡 **详细安装步骤** 请参考项目 `docs/agent-install.md` 文档
 
 ---
 
@@ -162,7 +157,7 @@ VigilOps 还有独特的**运维记忆功能**：
                              │
                       ┌──────┴───────┐
                       │   前端 UI    │
-                      │  22 个页面   │
+                      │  24 个页面   │
                       └──────────────┘
 ```
 
@@ -172,7 +167,7 @@ VigilOps 还有独特的**运维记忆功能**：
 
 | | VigilOps | Zabbix | Prometheus+Grafana | Datadog |
 |---|---|---|---|---|
-| **部署时间** | ~2 分钟 | 2-4 小时 | 1-2 小时 | 10 分钟 |
+| **部署时间** | ~10 分钟 | 2-4 小时 | 1-2 小时 | 10 分钟 |
 | **AI 分析** | ✅ 内置 | ❌ | ❌ | 💰 付费插件 |
 | **自动修复** | ✅ 6 个 Runbook | ❌ | ❌ | 💰 企业版 |
 | **通知渠道** | 5 种（钉飞企邮 Hook） | 需配置 | 需额外组件 | ✅ |

@@ -5,15 +5,15 @@
 
 ---
 
-## The 3 AM Problem
+## The Weekend Interrupt Problem
 
-Your phone buzzes. Disk space alert on prod-server-03. You drag yourself out of bed, SSH in, clean up some logs, confirm it's fine, go back to bed. Can't sleep anymore.
+Your phone buzzes during weekend family time. Disk space alert on prod-server-03. You excuse yourself, find a quiet corner, SSH in, clean up some logs, confirm it's fine, return to the table. Everyone's looking at you.
 
 **This happens every week.** And it's 2026.
 
 ## What Changed in 2026
 
-IBM's latest observability trends report identifies three shifts:
+Industry observations show three major shifts in observability:
 
 1. **AI Agents doing the actual fixing** — not just dashboards and alerts
 2. **Cost-aware observability** — GPU costs are real, observability should help manage them
@@ -63,10 +63,11 @@ docker compose up -d
 4 containers. ~1GB RAM. Done.
 
 Install the agent on monitored servers:
-```bash
-curl -fsSL https://raw.githubusercontent.com/LinChuang2008/vigilops/main/agent/install.sh | bash -s -- \
-  --server http://your-vigilops:8001 --token YOUR_TOKEN
-```
+1. Download agent binary from GitHub Releases
+2. Copy `agent.example.yaml` and configure server URL + token
+3. Run as systemd service or standalone
+
+Check `docs/agent-install.md` for detailed instructions.
 
 ## What's Inside
 
@@ -80,7 +81,7 @@ curl -fsSL https://raw.githubusercontent.com/LinChuang2008/vigilops/main/agent/i
 ## Who It's For
 
 - Small teams (1-5 ops people) managing 5-50 servers
-- Teams tired of being woken up at 3 AM
+- Teams tired of being interrupted during off-hours
 - Anyone who wants AI-powered ops without Datadog pricing
 
 ## Open Source (MIT)

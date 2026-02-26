@@ -18,7 +18,10 @@ The monitoring conversation in 2026 is fundamentally different:
 | **Setup** | One-line Docker | Multi-component | Assembly required | SaaS |
 | **AI Analysis** | ✅ Built-in (DeepSeek) | ❌ | ❌ | ⚠️ Premium tier |
 | **Auto-Remediation** | ✅ 6 built-in runbooks | ❌ Script triggers only | ❌ | ⚠️ Workflow (paid) |
+| **Kubernetes Support** | ❌ Roadmap | ⚠️ Limited | ✅ Cloud-native | ✅ Full support |
+| **APM Tracing** | ❌ Not supported | ❌ | ⚠️ Needs Tempo | ✅ Built-in |
 | **Alert Noise Reduction** | ✅ Cooldown + silence + AI | ⚠️ Basic suppression | ⚠️ Alertmanager | ✅ ML-based |
+| **Community Size** | ❌ New project | ✅ 20+ years | ✅ CNCF standard | ✅ Enterprise |
 | **Log Management** | ✅ Built-in search + streaming | ⚠️ Limited | ❌ Needs Loki/ELK | ✅ Built-in |
 | **Database Monitoring** | ✅ PG/MySQL/Oracle | ✅ Rich templates | ⚠️ Needs exporters | ✅ Built-in |
 | **Service Topology** | ✅ Force-directed + AI suggestions | ⚠️ Manual config | ❌ | ✅ APM auto-discovery |
@@ -60,7 +63,7 @@ But there's a massive gap: **no open-source tool treats AI and auto-remediation 
 - Datadog's AI features are locked behind the most expensive SKU
 - Every "AI monitoring" startup is closed-source SaaS
 
-What ops teams actually need isn't another dashboard. It's an AI teammate that can fix your server at 3 AM.
+What ops teams actually need isn't another dashboard. It's an AI teammate that can fix your server during off-hours.
 
 That's VigilOps.
 
@@ -73,7 +76,7 @@ docker compose up -d
 # Open http://localhost:3001
 ```
 
-5 minutes to deploy. Free forever. Open source.
+10 minutes to deploy. Free forever. Open source.
 
 👉 [GitHub](https://github.com/LinChuang2008/vigilops) | [Quick Start Guide](quickstart-5min-en.md) | [Agentic SRE Deep Dive](agentic-sre-self-healing-en.md)
 

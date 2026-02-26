@@ -5,9 +5,9 @@
 
 ---
 
-## The 3 AM Problem
+## The Alert Fatigue Problem
 
-Every ops engineer knows the drill: alert fires at 3 AM, you SSH into the server, run the same commands you ran last week, fix the same issue, go back to sleep. Repeat.
+Every ops engineer knows the drill: alerts fire constantly, you SSH into servers, run the same debugging commands you ran last week, fix the same recurring issues, mark the ticket resolved. Repeat.
 
 In 2026, this shouldn't be happening anymore.
 
@@ -71,11 +71,14 @@ The AI remembers past incidents and solutions. Next time a similar issue occurs,
 | Open Source | ✅ | ✅ | ✅ | ❌ |
 | AI Root Cause | ✅ | ❌ | ❌ | ✅ |
 | Auto-Remediation | ✅ | ❌ | ❌ | 💰 Extra cost |
+| Kubernetes Native | ❌ Roadmap | ✅ | ✅ | ✅ |
+| APM Tracing | ❌ Not yet | ✅ | ⚠️ + Tempo | ✅ |
+| Community Size | ❌ Small/new | ⚠️ Growing | ✅ Large | ✅ Enterprise |
 | Safety Approvals | ✅ | ❌ | ❌ | ⚠️ |
 | Ops Memory | ✅ | ❌ | ❌ | ❌ |
 | One-command deploy | ✅ | ⚠️ | ⚠️ Multi-component | N/A |
 
-## Try It (5 minutes)
+## Try It (15 minutes)
 
 ```bash
 git clone https://github.com/LinChuang2008/vigilops.git
@@ -96,7 +99,7 @@ docker-compose up -d
 
 - **Small teams** without dedicated SRE staff
 - **Startups** scaling fast with growing infra headaches
-- **Solo developers** who don't want 3 AM wake-up calls
+- **Solo developers** who don't want off-hours interruptions
 - **Anyone** who thinks Datadog's pricing is insane
 
 ## What's Next
