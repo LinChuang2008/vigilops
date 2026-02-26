@@ -38,8 +38,11 @@ from app.services.log_service import get_log_service
 router = APIRouter(prefix="/api/v1/logs", tags=["logs"])
 
 
-# ── 内存级广播器，用于 WebSocket 实时日志推送 (F052) ──────────────────
-class LogBroadcaster:
+# ── 日志广播器从独立模块导入，避免循环导入 (F052) ──────────────────
+from app.services.log_broadcaster import log_broadcaster  # noqa: E402
+
+
+class _LogBroadcasterLegacy:
     """
     日志广播器 (Log Broadcaster)
     
@@ -100,7 +103,7 @@ class LogBroadcaster:
                     pass  # 消费者处理过慢，丢弃该条目避免阻塞整个广播流程
 
 
-log_broadcaster = LogBroadcaster()
+# log_broadcaster 已从 app.services.log_broadcaster 导入
 
 
 # ── 日志搜索与筛选 (F049 + F050) ─────────────────────────────────────

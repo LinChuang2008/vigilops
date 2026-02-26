@@ -29,7 +29,7 @@ from app.core.log_backend import (
 )
 from app.models.log_entry import LogEntry
 from app.models.host import Host
-from app.routers.logs import log_broadcaster
+from app.services.log_broadcaster import log_broadcaster
 
 logger = logging.getLogger(__name__)
 
