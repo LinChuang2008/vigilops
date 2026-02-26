@@ -4,6 +4,7 @@
  * 包含两个 Tab：
  * 1. 告警列表 - 展示所有告警，支持按状态和严重级别筛选，可查看详情、确认告警、触发 AI 根因分析
  * 2. 告警规则 - 管理告警规则（指标告警、日志关键字告警、数据库告警），支持增删改及静默时段设置
+ * 支持移动端响应式显示
  */
 import { useEffect, useState } from 'react';
 // import { useNavigate } from 'react-router-dom';
@@ -37,6 +38,8 @@ export default function AlertList() {
   const [severityFilter, setSeverityFilter] = useState<string>('');
   /** 当前选中的告警（用于侧边详情抽屉） */
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
+  /** 是否为移动端 */
+  const [isMobile, setIsMobile] = useState(false);
 
   // ========== 告警规则状态 ==========
   const [rules, setRules] = useState<AlertRule[]>([]);
@@ -116,6 +119,17 @@ export default function AlertList() {
   // 当分页或筛选条件变化时重新获取告警
   useEffect(() => { fetchAlerts(); }, [page, statusFilter, severityFilter]);
 
+  /** 检测屏幕大小变化 */
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   /** 确认告警 */
   const handleAck = async (id: string) => {
     try {
@@ -159,7 +173,7 @@ export default function AlertList() {
     });
   };
 
-  /** 告警列表表格列定义 */
+  /** 告警列表表格列定义（桌面端） */
   const alertColumns = [
     { title: '标题', dataIndex: 'title', key: 'title', ellipsis: true },
     { title: '严重级别', dataIndex: 'severity', render: (s: string) => <Tag color={severityColor[s]}>{s}</Tag> },
@@ -176,6 +190,37 @@ export default function AlertList() {
           <Button type="link" size="small" onClick={() => setSelectedAlert(record)}>详情</Button>
           {record.status === 'firing' && <Button type="link" size="small" onClick={() => handleAck(record.id)}>确认</Button>}
           <Button type="link" size="small" icon={<RobotOutlined />} onClick={() => handleRootCause(record.id)}>AI 分析</Button>
+        </Space>
+      ),
+    },
+  ];
+
+  /** 告警列表表格列定义（移动端简化） */
+  const mobileAlertColumns = [
+    { 
+      title: '告警信息', 
+      key: 'info',
+      render: (_: unknown, record: Alert) => (
+        <div>
+          <div style={{ fontWeight: 500, marginBottom: 4 }}>{record.title}</div>
+          <Space size="small" wrap>
+            <Tag color={severityColor[record.severity]}>{record.severity}</Tag>
+            <Tag color={statusColor[record.status]}>{record.status}</Tag>
+            <span style={{ fontSize: '12px', color: '#666' }}>
+              {new Date(record.fired_at).toLocaleString()}
+            </span>
+          </Space>
+        </div>
+      )
+    },
+    {
+      title: '操作', key: 'action', width: 80,
+      render: (_: unknown, record: Alert) => (
+        <Space direction="vertical" size="small">
+          <Button type="primary" size="small" onClick={() => setSelectedAlert(record)}>详情</Button>
+          {record.status === 'firing' && (
+            <Button size="small" onClick={() => handleAck(record.id)}>确认</Button>
+          )}
         </Space>
       ),
     },
@@ -236,12 +281,30 @@ export default function AlertList() {
             <>
               {/* 筛选条件 */}
               <Row style={{ marginBottom: 16 }}>
-                <Col>
-                  <Space>
-                    <Select placeholder="状态" allowClear style={{ width: 120 }} onChange={v => { setStatusFilter(v || ''); setPage(1); }}
-                      options={[{ label: '触发中', value: 'firing' }, { label: '已恢复', value: 'resolved' }, { label: '已确认', value: 'acknowledged' }]} />
-                    <Select placeholder="级别" allowClear style={{ width: 120 }} onChange={v => { setSeverityFilter(v || ''); setPage(1); }}
-                      options={[{ label: 'Critical', value: 'critical' }, { label: 'Warning', value: 'warning' }, { label: 'Info', value: 'info' }]} />
+                <Col span={24}>
+                  <Space wrap size="middle">
+                    <Select 
+                      placeholder="状态" 
+                      allowClear 
+                      style={{ width: isMobile ? '100%' : 120, minWidth: isMobile ? 140 : 120 }} 
+                      onChange={v => { setStatusFilter(v || ''); setPage(1); }}
+                      options={[
+                        { label: '触发中', value: 'firing' }, 
+                        { label: '已恢复', value: 'resolved' }, 
+                        { label: '已确认', value: 'acknowledged' }
+                      ]} 
+                    />
+                    <Select 
+                      placeholder="级别" 
+                      allowClear 
+                      style={{ width: isMobile ? '100%' : 120, minWidth: isMobile ? 140 : 120 }} 
+                      onChange={v => { setSeverityFilter(v || ''); setPage(1); }}
+                      options={[
+                        { label: 'Critical', value: 'critical' }, 
+                        { label: 'Warning', value: 'warning' }, 
+                        { label: 'Info', value: 'info' }
+                      ]} 
+                    />
                   </Space>
                 </Col>
               </Row>
@@ -249,8 +312,21 @@ export default function AlertList() {
                 {loadError ? (
                   <ErrorState error={loadError} onRetry={fetchAlerts} />
                 ) : (
-                  <Table dataSource={alerts} columns={alertColumns} rowKey="id" loading={loading}
-                    pagination={{ current: page, pageSize: 20, total, onChange: p => setPage(p) }}
+                  <Table 
+                    dataSource={alerts} 
+                    columns={isMobile ? mobileAlertColumns : alertColumns} 
+                    rowKey="id" 
+                    loading={loading}
+                    pagination={{ 
+                      current: page, 
+                      pageSize: 20, 
+                      total, 
+                      onChange: p => setPage(p),
+                      showSizeChanger: !isMobile, // 移动端隐藏页数选择器
+                      showQuickJumper: !isMobile, // 移动端隐藏快速跳转
+                      simple: isMobile, // 移动端使用简单分页
+                    }}
+                    scroll={isMobile ? { x: 'max-content' } : undefined}
                     locale={{ emptyText: (
                       <Empty description="暂无告警" image={Empty.PRESENTED_IMAGE_SIMPLE}>
                         <span style={{ color: '#52c41a', display: 'block', marginBottom: 8 }}>🎉 系统运行正常，当前没有告警</span>

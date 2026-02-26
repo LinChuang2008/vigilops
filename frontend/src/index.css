@@ -21,3 +21,118 @@ body {
   border-color: #303030 !important;
   color: rgba(255, 255, 255, 0.85) !important;
 }
+
+/* 移动端适配样式 */
+@media (max-width: 768px) {
+  /* 基础响应式调整 */
+  body {
+    overflow-x: hidden;
+  }
+  
+  /* 表格横向滚动 */
+  .ant-table-wrapper {
+    overflow-x: auto;
+  }
+  
+  .ant-table {
+    min-width: 600px;
+  }
+  
+  /* 卡片间距优化 */
+  .ant-card {
+    margin-bottom: 12px;
+  }
+  
+  /* 按钮组在移动端垂直排列 */
+  .ant-btn-group {
+    flex-direction: column;
+  }
+  
+  .ant-btn-group .ant-btn {
+    margin-bottom: 8px;
+  }
+  
+  /* 表单项在移动端全宽 */
+  .ant-form-item {
+    margin-bottom: 16px;
+  }
+  
+  /* 统计卡片适配 */
+  .ant-statistic {
+    text-align: center;
+  }
+  
+  /* 图表容器自适应 */
+  .chart-container {
+    height: 300px !important;
+    min-height: 250px;
+  }
+  
+  /* 触摸友好的按钮大小 */
+  .mobile-touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* 下拉菜单在移动端底部显示 */
+  .ant-dropdown {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+  }
+  
+  /* 模态框在移动端全屏显示 */
+  .ant-modal {
+    max-width: calc(100vw - 32px);
+    margin: 16px;
+  }
+  
+  .ant-modal-content {
+    border-radius: 12px;
+  }
+  
+  /* 抽屉样式优化 */
+  .ant-drawer-content-wrapper {
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+  }
+}
+
+/* 平板端适配 (768px - 1024px) */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .ant-layout-content {
+    padding: 20px !important;
+  }
+  
+  .ant-card {
+    margin-bottom: 16px;
+  }
+}
+
+/* 超小屏幕适配 (小于480px) */
+@media (max-width: 480px) {
+  .ant-layout-header {
+    padding: 0 12px !important;
+  }
+  
+  .ant-layout-content {
+    margin: 8px !important;
+    padding: 12px !important;
+  }
+  
+  /* 更小的卡片间距 */
+  .ant-card {
+    margin-bottom: 8px;
+  }
+  
+  /* 紧凑的表单 */
+  .ant-form-item {
+    margin-bottom: 12px;
+  }
+  
+  /* 图表在超小屏幕上更紧凑 */
+  .chart-container {
+    height: 250px !important;
+  }
+}

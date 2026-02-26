@@ -3,10 +3,11 @@
  *
  * 提供侧边栏导航、顶部栏（含用户菜单）和内容区域的整体页面框架。
  * 所有需要认证的页面均嵌套在此布局内，通过 React Router 的 <Outlet /> 渲染子路由。
+ * 支持移动端响应式设计，在小屏幕上使用抽屉式侧边栏。
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Button, theme, Avatar, Dropdown } from 'antd';
+import { Layout, Menu, Button, theme, Avatar, Dropdown, Drawer } from 'antd';
 import { useTheme } from '../contexts/ThemeContext';
 import {
   DashboardOutlined,
@@ -93,14 +94,35 @@ const allMenuItems = [
  * 应用主布局组件
  *
  * 包含可折叠侧边栏、顶部导航栏（用户头像与退出登录）、以及子路由内容区域。
+ * 在移动端使用抽屉式侧边栏以优化用户体验。
  */
 export default function AppLayout() {
   /** 侧边栏折叠状态 */
   const [collapsed, setCollapsed] = useState(false);
+  /** 移动端抽屉打开状态 */
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  /** 是否为移动端 */
+  const [isMobile, setIsMobile] = useState(false);
+  
   const navigate = useNavigate();
   const location = useLocation();
   const { token: { colorBgContainer, borderRadiusLG, colorBgLayout } } = theme.useToken();
   const { isDark, toggleTheme } = useTheme();
+
+  /** 检测屏幕大小变化 */
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile) {
+        setCollapsed(true); // 移动端默认折叠侧边栏
+      }
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   /** 从 localStorage 读取用户名和角色 */
   const userName = localStorage.getItem('user_name') || 'Admin';
@@ -114,6 +136,25 @@ export default function AppLayout() {
     localStorage.removeItem('user_name');
     localStorage.removeItem('user_role');
     navigate('/login');
+  };
+
+  /** 处理菜单点击 - 移动端自动关闭抽屉 */
+  const handleMenuClick = ({ key }: { key: string }) => {
+    if (!key.includes('-group')) {
+      navigate(key);
+      if (isMobile) {
+        setDrawerVisible(false); // 移动端点击菜单后关闭抽屉
+      }
+    }
+  };
+
+  /** 切换侧边栏/抽屉 */
+  const toggleSidebar = () => {
+    if (isMobile) {
+      setDrawerVisible(!drawerVisible);
+    } else {
+      setCollapsed(!collapsed);
+    }
   };
 
   /** 根据当前路径匹配侧边栏选中菜单项（支持嵌套子菜单） */
@@ -138,34 +179,60 @@ export default function AppLayout() {
     (item) => 'children' in item && (item as any).children?.some((c: any) => c.key === selectedKey)
   )?.key;
 
+  /** 渲染菜单内容 */
+  const renderMenuContent = (inDrawer = false) => (
+    <>
+      {/* 品牌标识区域 */}
+      <div style={{
+        height: 64,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: inDrawer ? 'inherit' : '#fff',
+        fontSize: (inDrawer || !collapsed) ? 20 : 16,
+        fontWeight: 'bold',
+        letterSpacing: 2,
+        borderBottom: inDrawer ? '1px solid #f0f0f0' : undefined,
+      }}>
+        {(inDrawer || !collapsed) ? 'VigilOps' : 'VO'}
+      </div>
+      <Menu
+        theme={inDrawer ? 'light' : 'dark'}
+        mode="inline"
+        selectedKeys={[selectedKey]}
+        defaultOpenKeys={openKey ? [openKey] : []}
+        items={menuItems}
+        onClick={handleMenuClick}
+      />
+    </>
+  );
+
   return (
     <Layout style={{ minHeight: '100vh', background: colorBgLayout }}>
-      <Sider trigger={null} collapsible collapsed={collapsed} theme="dark">
-        {/* 品牌标识区域，折叠时显示缩写 */}
-        <div style={{
-          height: 64,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#fff',
-          fontSize: collapsed ? 16 : 20,
-          fontWeight: 'bold',
-          letterSpacing: 2,
-        }}>
-          {collapsed ? 'VO' : 'VigilOps'}
-        </div>
-        <Menu
-          theme="dark"
-          mode="inline"
-          selectedKeys={[selectedKey]}
-          defaultOpenKeys={openKey ? [openKey] : []}
-          items={menuItems}
-          onClick={({ key }) => { if (!key.includes('-group')) navigate(key); }}
-        />
-      </Sider>
+      {/* 桌面端侧边栏 */}
+      {!isMobile && (
+        <Sider trigger={null} collapsible collapsed={collapsed} theme="dark">
+          {renderMenuContent()}
+        </Sider>
+      )}
+
+      {/* 移动端抽屉 */}
+      {isMobile && (
+        <Drawer
+          title={null}
+          placement="left"
+          closable={false}
+          onClose={() => setDrawerVisible(false)}
+          open={drawerVisible}
+          bodyStyle={{ padding: 0 }}
+          width={280}
+        >
+          {renderMenuContent(true)}
+        </Drawer>
+      )}
       <Layout>
         <Header style={{
-          padding: '0 24px',
+          padding: isMobile ? '0 16px' : '0 24px',
           background: colorBgContainer,
           display: 'flex',
           alignItems: 'center',
@@ -174,8 +241,9 @@ export default function AppLayout() {
           {/* 侧边栏折叠切换按钮 */}
           <Button
             type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={() => setCollapsed(!collapsed)}
+            icon={isMobile ? <MenuUnfoldOutlined /> : (collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />)}
+            onClick={toggleSidebar}
+            size={isMobile ? 'large' : 'middle'}
           />
           {/* 右侧操作区：主题切换 + 用户菜单 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -198,8 +266,8 @@ export default function AppLayout() {
           </div>
         </Header>
         <Content style={{
-          margin: 24,
-          padding: 24,
+          margin: isMobile ? 12 : 24,
+          padding: isMobile ? 16 : 24,
           background: colorBgContainer,
           borderRadius: borderRadiusLG,
           minHeight: 280,
