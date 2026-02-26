@@ -55,7 +55,7 @@
 | 2 | 告警升级 + 值班排期 | ✅ commit 66daf80 |
 | 3 | Dashboard 可定制 | ✅ commit d39209c |
 | 4 | AI 反馈闭环 | ✅ commit 0a618fc |
-| 5 | 暗色主题 |
+| 5 | 暗色主题 | ✅ commit 5208433 |
 | 6 | HTTPS 支持 |
 | 7 | 前端空状态/错误状态优化 |
 | 8 | Login 页面美化 |
