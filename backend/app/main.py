@@ -58,6 +58,7 @@ from app.routers import server_groups
 from app.routers import on_call
 from app.routers import alert_escalation
 from app.routers import dashboard_config
+from app.routers import prometheus
 from app.routers import ai_feedback
 from app.api.v1 import data_retention
 from app.api.v1 import alert_deduplication
@@ -284,6 +285,7 @@ app.include_router(alert_escalation.router)  # 告警升级管理 (Alert escalat
 app.include_router(dashboard_config.router)  # 仪表盘配置管理 (Dashboard configuration management)
 app.include_router(data_retention.router, prefix="/api/v1/data-retention", tags=["数据保留策略"])  # 数据保留策略 (Data retention policy)
 app.include_router(alert_deduplication.router, prefix="/api/v1/alert-deduplication", tags=["告警去重"])  # 告警去重和聚合 (Alert deduplication and aggregation)
+app.include_router(prometheus.router)  # Prometheus 兼容性 (Prometheus compatibility)
 
 
 @app.get("/health")
