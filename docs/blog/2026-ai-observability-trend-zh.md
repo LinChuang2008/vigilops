@@ -78,7 +78,7 @@
 第 N 次：还没满就预警 → 主动清理 → 告警都没触发
 ```
 
-## 五、15 分钟跑起来
+## 五、10 分钟跑起来
 
 ```bash
 # 1. 克隆项目
@@ -102,9 +102,13 @@ docker compose up -d
 ### 被监控服务器安装 Agent：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/LinChuang2008/vigilops/main/agent/install.sh | bash -s -- \
-  --server http://your-vigilops-server:8001 \
-  --token YOUR_AGENT_TOKEN
+# 下载 agent 配置模板
+cd vigilops/agent/
+cp agent.example.yaml agent.yaml
+
+# 编辑配置文件，设置服务器地址和 Token
+# 然后运行 agent
+python -m vigilops_agent
 ```
 
 60 秒后开始收到指标数据。
@@ -141,7 +145,7 @@ VigilOps 的思路很简单：
 - **解决问题** — 自动修复 Runbook
 - **预防问题** — 从经验中学习
 
-15 分钟部署，凌晨 3 点不用醒。试试？
+10 分钟部署，深夜故障自动修复。试试？
 
 🔗 GitHub: [github.com/LinChuang2008/vigilops](https://github.com/LinChuang2008/vigilops)
 

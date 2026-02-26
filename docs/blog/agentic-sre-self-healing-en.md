@@ -78,7 +78,7 @@ The AI remembers past incidents and solutions. Next time a similar issue occurs,
 | Ops Memory | ✅ | ❌ | ❌ | ❌ |
 | One-command deploy | ✅ | ⚠️ | ⚠️ Multi-component | N/A |
 
-## Try It (15 minutes)
+## Try It (10 minutes)
 
 ```bash
 git clone https://github.com/LinChuang2008/vigilops.git

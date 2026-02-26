@@ -51,7 +51,7 @@ Most monitoring tools treat every incident as new. VigilOps remembers:
 
 Over time, your monitoring system gets **smarter**, like having a senior SRE's brain built in.
 
-## Quick Start (15 minutes)
+## Quick Start (10 minutes)
 
 ```bash
 git clone https://github.com/LinChuang2008/vigilops.git
@@ -63,11 +63,11 @@ docker compose up -d
 4 containers. ~1GB RAM. Done.
 
 Install the agent on monitored servers:
-1. Download agent binary from GitHub Releases
-2. Copy `agent.example.yaml` and configure server URL + token
-3. Run as systemd service or standalone
+1. Copy `agent/agent.example.yaml` from the project and configure server URL + token
+2. Run `python -m vigilops_agent` or set up as systemd service
+3. Get agent token from VigilOps backend **Settings → Agent Token Management**
 
-Check `docs/agent-install.md` for detailed instructions.
+Check `agent/` directory for configuration examples.
 
 ## What's Inside
 

@@ -108,7 +108,7 @@ Agentic SRE 会告诉你：**CPU 高是因为某个 SQL 慢查询导致连接池
 | 中文支持 | ✅ 原生 | ❌ | ❌ | ❌ |
 | 一键部署 | ✅ Docker | ⚠️ | ⚠️ 多组件 | N/A |
 
-## 15 分钟体验 Agentic SRE
+## 10 分钟体验 Agentic SRE
 
 ```bash
 # 克隆项目

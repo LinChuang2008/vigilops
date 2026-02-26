@@ -31,7 +31,7 @@ All open source. Apache 2.0. Self-hosted. Your data never leaves your servers.
 
 ---
 
-## Step 1: Deploy (5 minutes)
+## Step 1: Deploy (2 minutes)
 
 ```bash
 git clone https://github.com/LinChuang2008/vigilops.git
@@ -44,17 +44,17 @@ Four containers come up: backend (FastAPI), frontend (React), PostgreSQL, Redis.
 
 Open `http://your-server:3001` → Login with `demo@vigilops.io` / `demo123`.
 
-## Step 2: Install Agent (5 minutes)
+## Step 2: Install Agent (3 minutes)
 
 On each server you want to monitor:
 
-1. Download agent binary from GitHub Releases
-2. Copy `agent.example.yaml` and configure server URL + token
-3. Set up systemd service
+1. Copy `agent/agent.example.yaml` from the project and configure server URL + token
+2. Run `python -m vigilops_agent` or set up as systemd service
+3. Agent token can be created in VigilOps backend **Settings → Agent Token Management**
 
-The agent runs as a systemd service, reporting metrics every 30 seconds. Lightweight (~20MB RAM).
+The agent reports metrics every 30 seconds. Lightweight (~20MB RAM).
 
-See `docs/agent-install.md` for detailed instructions.
+See `agent/` directory for configuration examples.
 
 ## Step 3: Configure Alerts (1 minute)
 
