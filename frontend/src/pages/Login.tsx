@@ -4,7 +4,7 @@
  * 提供邮箱密码登录和注册功能，通过 Tabs 切换两种模式。
  * 登录或注册成功后将 token 和用户信息存入 localStorage，并跳转到首页。
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Form, Input, Button, Card, Typography, message, Tabs, Row, Col, Space } from 'antd';
 import { UserOutlined, LockOutlined, MailOutlined, RocketOutlined, RobotOutlined, ThunderboltOutlined, DashboardOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
@@ -18,13 +18,67 @@ const { Title } = Typography;
  * 包含登录和注册两个 Tab，共用加载状态。登录/注册成功后自动获取用户信息并跳转。
  */
 export default function Login() {
+  // 添加动画样式
+  const animationStyles = `
+    @keyframes float {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-20px) rotate(5deg); }
+    }
+    @keyframes slideDown {
+      from { transform: translateY(-30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    @keyframes slideUp {
+      from { transform: translateY(30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    @keyframes fadeInLeft {
+      from { transform: translateX(-20px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    .login-feature-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1) !important;
+    }
+    .ant-input-affix-wrapper:focus,
+    .ant-input-affix-wrapper-focused {
+      border-color: #1677ff;
+      box-shadow: 0 0 0 2px rgba(22,119,255,0.1);
+    }
+    @media (max-width: 768px) {
+      .login-mobile-title { display: block !important; }
+    }
+  `;
+
+  // 将样式注入到 head
+  if (typeof document !== 'undefined') {
+    const styleElement = document.getElementById('login-animations');
+    if (!styleElement) {
+      const style = document.createElement('style');
+      style.id = 'login-animations';
+      style.textContent = animationStyles;
+      document.head.appendChild(style);
+    }
+  }
   /** 按钮加载状态（登录/注册共用） */
   const [loading, setLoading] = useState(false);
   /** 当前激活的 Tab（login | register） */
   const [activeTab, setActiveTab] = useState('login');
+  /** 是否移动端 */
+  const [isMobile, setIsMobile] = useState(false);
   const navigate = useNavigate();
   const [loginForm] = Form.useForm();
   const [messageApi, contextHolder] = message.useMessage();
+
+  // 监听窗口大小变化
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   /** 处理登录：调用登录接口，存储 token，获取用户信息后跳转首页 */
   const handleLogin = async (values: { email: string; password: string }) => {
@@ -74,52 +128,216 @@ export default function Login() {
       flexDirection: 'column' as const,
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      background: 'linear-gradient(135deg, #1677ff 0%, #722ed1 50%, #eb2f96 100%)',
+      backgroundAttachment: 'fixed',
+      position: 'relative' as const,
+      overflow: 'hidden',
     }}>
+      {/* 背景装饰圆圈 */}
+      <div style={{
+        position: 'absolute',
+        top: '-50px',
+        left: '-50px',
+        width: '200px',
+        height: '200px',
+        background: 'rgba(255,255,255,0.1)',
+        borderRadius: '50%',
+        animation: 'float 6s ease-in-out infinite',
+      }} />
+      <div style={{
+        position: 'absolute',
+        top: '20%',
+        right: '-100px',
+        width: '300px',
+        height: '300px',
+        background: 'rgba(255,255,255,0.05)',
+        borderRadius: '50%',
+        animation: 'float 8s ease-in-out infinite reverse',
+      }} />
+      <div style={{
+        position: 'absolute',
+        bottom: '-100px',
+        left: '30%',
+        width: '250px',
+        height: '250px',
+        background: 'rgba(255,255,255,0.08)',
+        borderRadius: '50%',
+        animation: 'float 7s ease-in-out infinite',
+      }} />
       {contextHolder}
-      <Card style={{ width: 860, maxWidth: '95vw', boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}>
+      {/* Logo */}
+      <div style={{ 
+        textAlign: 'center', 
+        marginBottom: 32,
+        animation: 'slideDown 0.6s ease-out',
+        zIndex: 1,
+        position: 'relative'
+      }}>
+        <div style={{
+          width: 80,
+          height: 80,
+          margin: '0 auto 16px',
+          background: 'rgba(255,255,255,0.95)',
+          borderRadius: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+          backdropFilter: 'blur(10px)',
+        }}>
+          {/* VigilOps Shield+Eye Logo */}
+          <svg width="48" height="48" viewBox="0 0 64 64" fill="none">
+            <path d="M32 4L8 16v16c0 14.4 10.24 27.84 24 32 13.76-4.16 24-17.6 24-32V16L32 4z" fill="#1677ff"/>
+            <path d="M32 8L12 18v14c0 12.6 8.96 24.36 20 28 11.04-3.64 20-15.4 20-28V18L32 8z" fill="#e6f4ff"/>
+            <ellipse cx="32" cy="34" rx="12" ry="8" fill="#1677ff"/>
+            <circle cx="32" cy="34" r="4" fill="#fff"/>
+            <circle cx="32" cy="34" r="2" fill="#0958d9"/>
+          </svg>
+        </div>
+        <Title level={2} style={{ 
+          color: 'white', 
+          margin: 0, 
+          textShadow: '0 2px 8px rgba(0,0,0,0.3)',
+          fontWeight: 600,
+          fontSize: '32px'
+        }}>
+          VigilOps
+        </Title>
+        <Typography.Text style={{ 
+          color: 'rgba(255,255,255,0.9)', 
+          fontSize: '16px',
+          display: 'block',
+          marginTop: 8,
+          textShadow: '0 1px 4px rgba(0,0,0,0.3)'
+        }}>
+          AI 智能运维监控平台
+        </Typography.Text>
+      </div>
+      <Card style={{ 
+        width: 900, 
+        maxWidth: '95vw', 
+        boxShadow: '0 24px 48px rgba(0,0,0,0.2)', 
+        borderRadius: '16px',
+        border: '1px solid rgba(255,255,255,0.1)',
+        backdropFilter: 'blur(20px)',
+        background: 'rgba(255,255,255,0.98)',
+        animation: 'slideUp 0.8s ease-out',
+        zIndex: 1,
+        position: 'relative'
+      }}>
         <Row gutter={32}>
           {/* 左侧产品特性 */}
-          <Col xs={0} md={12} style={{ borderRight: '1px solid #f0f0f0', display: 'flex', alignItems: 'center' }}>
-            <div style={{ padding: '24px 16px' }}>
-              <Title level={2} style={{ marginBottom: 8 }}>VigilOps</Title>
-              <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 32, fontSize: 15 }}>
-                AI 智能运维监控平台
-              </Typography.Text>
-              <Space direction="vertical" size={24} style={{ width: '100%' }}>
+          <Col xs={0} md={12} style={{ 
+            borderRight: '1px solid #f0f0f0', 
+            display: 'flex', 
+            alignItems: 'center',
+            background: 'linear-gradient(135deg, rgba(22,119,255,0.02) 0%, rgba(114,46,209,0.03) 100%)'
+          }}>
+            <div style={{ padding: '32px 24px' }}>
+              <div style={{ textAlign: 'center', marginBottom: 32 }}>
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '8px 16px',
+                  background: 'linear-gradient(135deg, #1677ff 0%, #722ed1 100%)',
+                  borderRadius: '24px',
+                  color: 'white',
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  boxShadow: '0 4px 16px rgba(22,119,255,0.3)'
+                }}>
+                  <svg width="20" height="20" viewBox="0 0 64 64" fill="none">
+                    <path d="M32 4L8 16v16c0 14.4 10.24 27.84 24 32 13.76-4.16 24-17.6 24-32V16L32 4z" fill="currentColor"/>
+                  </svg>
+                  为中小企业而生
+                </div>
+              </div>
+              <Space direction="vertical" size={20} style={{ width: '100%' }}>
                 {[
-                  { icon: <RobotOutlined style={{ fontSize: 28, color: '#667eea' }} />, title: 'AI 智能分析', desc: '基于 AI 的根因分析与运维洞察' },
-                  { icon: <ThunderboltOutlined style={{ fontSize: 28, color: '#faad14' }} />, title: '自动修复', desc: '内置 Runbook，告警触发自动修复' },
-                  { icon: <DashboardOutlined style={{ fontSize: 28, color: '#52c41a' }} />, title: '实时监控', desc: 'WebSocket 实时推送，秒级感知' },
-                  { icon: <SafetyCertificateOutlined style={{ fontSize: 28, color: '#1677ff' }} />, title: 'SLA 管理', desc: '可用性追踪与错误预算管理' },
+                  { 
+                    icon: <RobotOutlined style={{ fontSize: 24 }} />, 
+                    title: 'AI 智能分析', 
+                    desc: '基于 AI 的根因分析与运维洞察',
+                    gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                  },
+                  { 
+                    icon: <ThunderboltOutlined style={{ fontSize: 24 }} />, 
+                    title: '自动修复', 
+                    desc: '内置 Runbook，告警触发自动修复',
+                    gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
+                  },
+                  { 
+                    icon: <DashboardOutlined style={{ fontSize: 24 }} />, 
+                    title: '实时监控', 
+                    desc: 'WebSocket 实时推送，秒级感知',
+                    gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
+                  },
+                  { 
+                    icon: <SafetyCertificateOutlined style={{ fontSize: 24 }} />, 
+                    title: 'SLA 管理', 
+                    desc: '可用性追踪与错误预算管理',
+                    gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
+                  },
                 ].map((item, i) => (
-                  <Space key={i} align="start" size={12}>
-                    <div style={{ width: 48, height: 48, borderRadius: 12, background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div key={i} className="login-feature-card" style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '16px',
+                    padding: '16px',
+                    borderRadius: '12px',
+                    background: 'rgba(255,255,255,0.6)',
+                    border: '1px solid rgba(0,0,0,0.05)',
+                    transition: 'all 0.3s ease',
+                    cursor: 'pointer',
+                    animation: `fadeInLeft 0.6s ease-out ${i * 0.1}s both`,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+                  }}>
+                    <div style={{ 
+                      width: 48, 
+                      height: 48, 
+                      borderRadius: 12, 
+                      background: item.gradient, 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      color: 'white',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                    }}>
                       {item.icon}
                     </div>
                     <div>
-                      <Typography.Text strong>{item.title}</Typography.Text>
+                      <Typography.Text strong style={{ fontSize: 15 }}>{item.title}</Typography.Text>
                       <br />
-                      <Typography.Text type="secondary" style={{ fontSize: 13 }}>{item.desc}</Typography.Text>
+                      <Typography.Text type="secondary" style={{ fontSize: 13, lineHeight: 1.5 }}>{item.desc}</Typography.Text>
                     </div>
-                  </Space>
+                  </div>
                 ))}
               </Space>
             </div>
           </Col>
           {/* 右侧登录表单 */}
           <Col xs={24} md={12}>
-            <div style={{ padding: '24px 8px' }}>
-              <Title level={3} style={{ textAlign: 'center', marginBottom: 8, display: 'none' }}>VigilOps</Title>
+            <div style={{ padding: '32px 24px' }}>
               {/* Mobile-only title */}
-              <div className="login-mobile-title" style={{ textAlign: 'center', marginBottom: 16 }}>
-                <Title level={3} style={{ margin: 0 }}>VigilOps</Title>
-                <Typography.Text type="secondary">AI 智能运维监控平台</Typography.Text>
+              <div style={{ 
+                textAlign: 'center', 
+                marginBottom: 24,
+                display: isMobile ? 'block' : 'none'
+              }}>
+                <Title level={3} style={{ margin: 0, color: '#1677ff' }}>VigilOps</Title>
+                <Typography.Text type="secondary" style={{ fontSize: 14 }}>AI 智能运维监控平台</Typography.Text>
               </div>
-        <Tabs activeKey={activeTab} onChange={setActiveTab} centered items={[
+        <Tabs 
+          activeKey={activeTab} 
+          onChange={setActiveTab} 
+          centered 
+          size="large"
+          style={{ marginBottom: 24 }}
+          items={[
           {
             key: 'login',
-            label: '登录',
+            label: <span style={{ fontSize: 16, fontWeight: 500 }}>登录</span>,
             children: (
               <Form form={loginForm} onFinish={handleLogin} size="large">
                 <Form.Item name="email" rules={[{ required: true, message: '请输入邮箱' }, { type: 'email', message: '邮箱格式不正确' }]}>
@@ -129,12 +347,37 @@ export default function Login() {
                   <Input.Password prefix={<LockOutlined />} placeholder="密码" />
                 </Form.Item>
                 <Form.Item>
-                  <Button type="primary" htmlType="submit" loading={loading} block>登录</Button>
+                  <Button 
+                    type="primary" 
+                    htmlType="submit" 
+                    loading={loading} 
+                    block 
+                    size="large"
+                    style={{
+                      height: 48,
+                      borderRadius: 8,
+                      background: 'linear-gradient(135deg, #1677ff 0%, #722ed1 100%)',
+                      border: 'none',
+                      fontSize: 16,
+                      fontWeight: 500,
+                      boxShadow: '0 4px 16px rgba(22,119,255,0.3)'
+                    }}
+                  >
+                    登录
+                  </Button>
                 </Form.Item>
-                <div style={{ textAlign: 'center' }}>
+                <div style={{ textAlign: 'center', marginTop: 16 }}>
                   <Button
-                    type="link"
+                    type="default"
                     icon={<RocketOutlined />}
+                    size="large"
+                    style={{
+                      borderRadius: 8,
+                      border: '1px solid #d9d9d9',
+                      background: 'rgba(22,119,255,0.04)',
+                      color: '#1677ff',
+                      fontWeight: 500
+                    }}
                     onClick={() => {
                       loginForm.setFieldsValue({ email: 'demo@vigilops.io', password: 'demo123' });
                       loginForm.submit();
@@ -148,7 +391,7 @@ export default function Login() {
           },
           {
             key: 'register',
-            label: '注册',
+            label: <span style={{ fontSize: 16, fontWeight: 500 }}>注册</span>,
             children: (
               <Form onFinish={handleRegister} size="large">
                 <Form.Item name="email" rules={[{ required: true, message: '请输入邮箱' }, { type: 'email', message: '邮箱格式不正确' }]}>
@@ -161,7 +404,24 @@ export default function Login() {
                   <Input.Password prefix={<LockOutlined />} placeholder="密码" />
                 </Form.Item>
                 <Form.Item>
-                  <Button type="primary" htmlType="submit" loading={loading} block>注册</Button>
+                  <Button 
+                    type="primary" 
+                    htmlType="submit" 
+                    loading={loading} 
+                    block 
+                    size="large"
+                    style={{
+                      height: 48,
+                      borderRadius: 8,
+                      background: 'linear-gradient(135deg, #722ed1 0%, #eb2f96 100%)',
+                      border: 'none',
+                      fontSize: 16,
+                      fontWeight: 500,
+                      boxShadow: '0 4px 16px rgba(114,46,209,0.3)'
+                    }}
+                  >
+                    注册
+                  </Button>
                 </Form.Item>
               </Form>
             ),
@@ -171,9 +431,33 @@ export default function Login() {
           </Col>
         </Row>
       </Card>
-      <div style={{ marginTop: 24, textAlign: 'center', color: 'rgba(255,255,255,0.6)', fontSize: 12, lineHeight: 1.8 }}>
-        <div>琳创科技（LinChuang Technology）</div>
-        <div>contact@lchuangnet.com · <a href="https://lchuangnet.com" style={{ color: 'rgba(255,255,255,0.6)' }}>lchuangnet.com</a></div>
+      <div style={{ 
+        marginTop: 32, 
+        textAlign: 'center', 
+        color: 'rgba(255,255,255,0.8)', 
+        fontSize: 14, 
+        lineHeight: 1.6,
+        zIndex: 1,
+        position: 'relative'
+      }}>
+        <div style={{ fontWeight: 500, marginBottom: 4 }}>琳创科技（LinChuang Technology）</div>
+        <div>
+          <a href="mailto:contact@lchuangnet.com" style={{ 
+            color: 'rgba(255,255,255,0.8)', 
+            textDecoration: 'none',
+            marginRight: 16
+          }}>
+            contact@lchuangnet.com
+          </a>
+          ·
+          <a href="https://lchuangnet.com" style={{ 
+            color: 'rgba(255,255,255,0.8)', 
+            textDecoration: 'none',
+            marginLeft: 16
+          }}>
+            lchuangnet.com
+          </a>
+        </div>
       </div>
     </div>
   );
