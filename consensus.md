@@ -96,7 +96,7 @@
 | 2 | 移动端适配 | ✅ commit a60bebe |
 | 3 | Prometheus 兼容 | ✅ commit b036ed2 |
 | 4 | OAuth/LDAP | ✅ commit ddef752 |
-| 5 | 国际化 i18n | ⏳ |
+| 5 | 国际化 i18n | ✅ commit 87ccc6e |
 
 ## ECS 访问策略（董事长决定 2026-02-25）
 - **安全策略**: 所有 ECS 只允许从当前环境（Mac 本机/内网）访问，不对外开放 SSH
