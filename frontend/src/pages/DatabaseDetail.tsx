@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, Row, Col, Descriptions, Tag, Spin, Typography, Select, Space, Table } from 'antd';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../components/ThemedECharts';
 import { databaseService } from '../services/databases';
 import type { DatabaseItem, DatabaseMetric, SlowQuery } from '../services/databases';
 

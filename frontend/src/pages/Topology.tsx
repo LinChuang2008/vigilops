@@ -334,7 +334,10 @@ export default function Topology() {
   /** 渲染图表 */
   const renderChart = (data: TopologyData, mode: LayoutMode) => {
     if (!chartRef.current) return;
-    if (!chartInstance.current) chartInstance.current = echarts.init(chartRef.current);
+    if (!chartInstance.current) {
+      const savedTheme = localStorage.getItem('vigilops_theme');
+      chartInstance.current = echarts.init(chartRef.current, savedTheme === 'dark' ? 'dark' : undefined);
+    }
     const chart = chartInstance.current;
     const cw = chartRef.current.clientWidth || 1200;
     const ch = chartRef.current.clientHeight || 800;

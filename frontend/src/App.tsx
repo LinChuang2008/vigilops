@@ -4,8 +4,9 @@
  * 所有需要认证的页面由 AuthGuard 守卫保护，嵌套在 AppLayout 布局内
  */
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { ConfigProvider, App as AntApp } from 'antd';
+import { ConfigProvider, App as AntApp, theme as antTheme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
+import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import AppLayout from './components/AppLayout';
 import AuthGuard from './components/AuthGuard';
 import Login from './pages/Login';
@@ -53,11 +54,13 @@ function RoleGuard({ children }: { children: React.ReactElement }) {
   return children;
 }
 
-export default function App() {
+function AppInner() {
+  const { isDark } = useTheme();
   return (
     <ConfigProvider
       locale={zhCN}
       theme={{
+        algorithm: isDark ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
         token: {
           colorPrimary: '#1677ff',
           borderRadius: 6,
@@ -114,5 +117,13 @@ export default function App() {
         </ErrorBoundary>
       </AntApp>
     </ConfigProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppInner />
+    </ThemeProvider>
   );
 }

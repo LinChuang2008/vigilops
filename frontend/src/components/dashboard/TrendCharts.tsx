@@ -3,7 +3,7 @@
  * 显示 CPU、内存、告警、错误日志的24小时趋势
  */
 import { Row, Col, Card } from 'antd';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../ThemedECharts';
 
 interface TrendPoint {
   hour: string;

@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, Row, Col, Descriptions, Tag, Spin, Typography, Select, Space } from 'antd';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../components/ThemedECharts';
 import { hostService } from '../services/hosts';
 import type { Host, HostMetrics } from '../services/hosts';
 

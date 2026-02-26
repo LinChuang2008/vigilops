@@ -13,7 +13,7 @@ import {
 } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../components/ThemedECharts';
 import api from '../services/api';
 
 const { Title, Text } = Typography;

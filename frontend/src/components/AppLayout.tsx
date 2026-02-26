@@ -7,8 +7,11 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Layout, Menu, Button, theme, Avatar, Dropdown } from 'antd';
+import { useTheme } from '../contexts/ThemeContext';
 import {
   DashboardOutlined,
+  SunOutlined,
+  MoonOutlined,
   CloudServerOutlined,
   ApiOutlined,
   AlertOutlined,
@@ -96,7 +99,8 @@ export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { token: { colorBgContainer, borderRadiusLG } } = theme.useToken();
+  const { token: { colorBgContainer, borderRadiusLG, colorBgLayout } } = theme.useToken();
+  const { isDark, toggleTheme } = useTheme();
 
   /** 从 localStorage 读取用户名和角色 */
   const userName = localStorage.getItem('user_name') || 'Admin';
@@ -135,7 +139,7 @@ export default function AppLayout() {
   )?.key;
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ minHeight: '100vh', background: colorBgLayout }}>
       <Sider trigger={null} collapsible collapsed={collapsed} theme="dark">
         {/* 品牌标识区域，折叠时显示缩写 */}
         <div style={{
@@ -173,17 +177,25 @@ export default function AppLayout() {
             icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             onClick={() => setCollapsed(!collapsed)}
           />
-          {/* 用户下拉菜单 */}
-          <Dropdown menu={{
-            items: [
-              { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', onClick: handleLogout },
-            ],
-          }}>
-            <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Avatar icon={<UserOutlined />} size="small" />
-              <span>{userName}</span>
-            </div>
-          </Dropdown>
+          {/* 右侧操作区：主题切换 + 用户菜单 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Button
+              type="text"
+              icon={isDark ? <SunOutlined /> : <MoonOutlined />}
+              onClick={toggleTheme}
+              title={isDark ? '切换亮色模式' : '切换暗色模式'}
+            />
+            <Dropdown menu={{
+              items: [
+                { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', onClick: handleLogout },
+              ],
+            }}>
+              <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Avatar icon={<UserOutlined />} size="small" />
+                <span>{userName}</span>
+              </div>
+            </Dropdown>
+          </div>
         </Header>
         <Content style={{
           margin: 24,

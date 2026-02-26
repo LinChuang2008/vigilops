@@ -3,7 +3,7 @@
  * 显示多服务器资源使用率和网络带宽对比
  */
 import { Row, Col, Card, Typography } from 'antd';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../ThemedECharts';
 
 const { Text } = Typography;
 

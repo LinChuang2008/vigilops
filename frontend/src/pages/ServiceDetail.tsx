@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, Descriptions, Tag, Spin, Typography, Table, Row, Col } from 'antd';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../components/ThemedECharts';
 import { serviceService } from '../services/services';
 import type { Service, ServiceCheck } from '../services/services';
 

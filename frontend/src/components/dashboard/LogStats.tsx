@@ -3,7 +3,7 @@
  * 显示最近1小时的日志统计数据和分布图
  */
 import { Card, Row, Col, Statistic, Tag, Typography } from 'antd';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../ThemedECharts';
 import type { LogStats as LogStatsType } from '../../services/logs';
 
 const { Text } = Typography;
