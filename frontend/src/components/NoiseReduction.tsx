@@ -7,7 +7,7 @@
  * - 降噪趋势图 (ECharts)
  */
 import { useEffect, useState, useCallback } from 'react';
-import { Card, Row, Col, Statistic, Table, Tag, Typography, Collapse, Spin, Empty, Progress } from 'antd';
+import { Card, Row, Col, Statistic, Table, Tag, Typography, Spin, Empty, Progress } from 'antd';
 import { ThunderboltOutlined, CompressOutlined, TeamOutlined, FilterOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import api from '../services/api';
