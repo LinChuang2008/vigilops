@@ -16,7 +16,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Typography, Table, Tag, Card, Row, Col, Statistic, Space, Button, Input, message,
+  Typography, Table, Tag, Card, Row, Col, Statistic, Space, Button, Input,
 } from 'antd';
 import {
   CloudServerOutlined, CheckCircleOutlined, CloseCircleOutlined,
@@ -24,6 +24,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import api from '../../services/api';
+import { EmptyState, ErrorState } from '../../components/StateComponents';
 
 const { Title } = Typography;
 
@@ -51,17 +52,19 @@ const statusConfig: Record<string, { color: string; icon: React.ReactNode; text:
 
 export default function ServerListPage() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [servers, setServers] = useState<ServerSummary[]>([]);
   const [search, setSearch] = useState('');
+  const [error, setError] = useState<unknown>(null);
 
   const fetchServers = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const { data } = await api.get('/topology/servers');
       setServers(data);
-    } catch {
-      message.error('加载服务器列表失败');
+    } catch (err) {
+      setError(err);
     } finally {
       setLoading(false);
     }
@@ -185,18 +188,24 @@ export default function ServerListPage() {
         allowClear
       />
 
-      <Table
-        rowKey="id"
-        columns={columns}
-        dataSource={filtered}
-        loading={loading}
-        pagination={{ pageSize: 20, showSizeChanger: true, showTotal: t => `共 ${t} 台` }}
-        size="middle"
-        onRow={(record) => ({
-          onClick: () => navigate(`/topology/servers/${record.id}`),
-          style: { cursor: 'pointer' },
-        })}
-      />
+      {error ? (
+        <ErrorState error={error} onRetry={fetchServers} />
+      ) : !loading && servers.length === 0 ? (
+        <EmptyState scene="servers" onAction={() => navigate('/hosts')} />
+      ) : (
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={filtered}
+          loading={loading}
+          pagination={{ pageSize: 20, showSizeChanger: true, showTotal: t => `共 ${t} 台` }}
+          size="middle"
+          onRow={(record) => ({
+            onClick: () => navigate(`/topology/servers/${record.id}`),
+            style: { cursor: 'pointer' },
+          })}
+        />
+      )}
     </div>
   );
 }

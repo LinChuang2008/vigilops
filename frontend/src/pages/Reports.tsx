@@ -19,6 +19,7 @@ import {
   fetchReports, fetchReport, generateReport, deleteReport,
   type Report,
 } from '../services/reports';
+import { EmptyState, ErrorState, PageLoading } from '../components/StateComponents';
 
 const { Title, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
@@ -60,7 +61,8 @@ export default function Reports() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   /** 当前查看的报告详情（null 表示列表视图） */
   const [detail, setDetail] = useState<Report | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -73,12 +75,13 @@ export default function Reports() {
   /** 加载报告列表 */
   const loadReports = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await fetchReports(page, pageSize);
       setReports(res.data.items || []);
       setTotal(res.data.total || 0);
-    } catch {
-      message.error('获取报告列表失败');
+    } catch (err) {
+      setLoadError(err);
     } finally {
       setLoading(false);
     }
@@ -200,7 +203,7 @@ export default function Reports() {
           返回列表
         </Button>
         {detailLoading ? (
-          <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />
+          <PageLoading tip="加载报告详情..." />
         ) : detail && (
           <Card>
             <Title level={4}><FileTextOutlined /> {detail.title}</Title>
@@ -244,20 +247,27 @@ export default function Reports() {
         </Space>
       </div>
 
-      <Table
-        dataSource={reports}
-        columns={columns}
-        rowKey="id"
-        loading={loading}
-        pagination={{
-          current: page,
-          pageSize,
-          total,
-          showSizeChanger: true,
-          showTotal: (t) => `共 ${t} 条`,
-          onChange: (p, ps) => { setPage(p); setPageSize(ps); },
-        }}
-      />
+      {loadError ? (
+        <ErrorState error={loadError} onRetry={loadReports} />
+      ) : (
+        <Table
+          dataSource={reports}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            showSizeChanger: true,
+            showTotal: (t) => `共 ${t} 条`,
+            onChange: (p, ps) => { setPage(p); setPageSize(ps); },
+          }}
+          locale={{
+            emptyText: <EmptyState scene="reports" onAction={() => openGenerateModal('daily')} />,
+          }}
+        />
+      )}
 
       <Modal
         title={`生成${typeLabelMap[modalType]}`}

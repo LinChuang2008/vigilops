@@ -17,6 +17,7 @@ import {
   BulbOutlined, UnorderedListOutlined,
 } from '@ant-design/icons';
 import * as echarts from 'echarts';
+import { EmptyState, ErrorState } from '../components/StateComponents';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -144,7 +145,8 @@ const computePipelinePositions = (nodes: TopoNode[], w: number, h: number) => {
 export default function Topology() {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [layout, setLayout] = useState<LayoutMode>('grouped');
   const [stats, setStats] = useState({ nodes: 0, edges: 0 });
   const topoData = useRef<TopologyData | null>(null);
@@ -172,6 +174,7 @@ export default function Topology() {
    */
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await fetch('/api/v1/topology', {
         headers: { Authorization: `Bearer ${getToken()}` },
@@ -184,8 +187,8 @@ export default function Topology() {
       data.nodes.forEach(n => nameMap.set(n.id, n.name));
       nodeNameMap.current = nameMap;
       renderChart(data, layout);
-    } catch {
-      message.error('加载拓扑数据失败');
+    } catch (err) {
+      setLoadError(err);
     } finally { setLoading(false); }
   }, [layout]); // eslint-disable-line
 
@@ -495,12 +498,18 @@ export default function Topology() {
       </div>
 
       {/* 图表 */}
-      <Spin spinning={loading}>
-        <div ref={chartRef} style={{
-          width: '100%', height: 'calc(100vh - 230px)', minHeight: 550,
-          background: '#fafafa', borderRadius: 8, border: '1px solid #f0f0f0',
-        }} />
-      </Spin>
+      {loadError ? (
+        <ErrorState error={loadError} onRetry={fetchData} fullScreen />
+      ) : !loading && stats.nodes === 0 ? (
+        <EmptyState scene="topology" />
+      ) : (
+        <Spin spinning={loading}>
+          <div ref={chartRef} style={{
+            width: '100%', height: 'calc(100vh - 230px)', minHeight: 550,
+            background: '#fafafa', borderRadius: 8, border: '1px solid #f0f0f0',
+          }} />
+        </Spin>
+      )}
 
       {/* ===== 编辑面板 (Drawer) ===== */}
       <Drawer

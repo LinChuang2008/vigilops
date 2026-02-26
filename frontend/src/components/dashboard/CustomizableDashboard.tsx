@@ -5,11 +5,11 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Button, Space, Typography, Empty, Dropdown, message, 
-  Spin, Tooltip 
+  Button, Space, Typography, Dropdown, message, 
+  Tooltip 
 } from 'antd';
 import {
-  SettingOutlined, DownloadOutlined, PlusOutlined, 
+  SettingOutlined, DownloadOutlined,
   DragOutlined, LockOutlined, UnlockOutlined
 } from '@ant-design/icons';
 import { Responsive } from 'react-grid-layout';
@@ -30,6 +30,7 @@ import ResourceCharts from './ResourceCharts';
 import LogStatsWidget from './LogStats';
 import AlertsList from './AlertsList';
 import DashboardSettings from './DashboardSettings';
+import { EmptyState, ErrorState, PageLoading } from '../StateComponents';
 
 // 导入类型和配置
 import type { DashboardConfig, DashboardWidget } from './types';
@@ -97,6 +98,7 @@ export default function CustomizableDashboard() {
   // 数据状态
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [logStats, setLogStats] = useState<LogStats | null>(null);
   const [dbItems, setDbItems] = useState<DatabaseItem[]>([]);
   const [wsConnected, setWsConnected] = useState(false);
@@ -178,7 +180,9 @@ export default function CustomizableDashboard() {
       try { 
         setDbItems((await databaseService.list()).data.databases || []); 
       } catch {}
-    } catch {} finally { 
+    } catch (err) {
+      setLoadError(err);
+    } finally { 
       setLoading(false); 
     }
   }, []);
@@ -373,7 +377,11 @@ export default function CustomizableDashboard() {
   }, [data, dbItems, trends, logStats, wsData]);
 
   if (loading) {
-    return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
+    return <PageLoading tip="正在加载仪表盘..." fullScreen />;
+  }
+
+  if (loadError) {
+    return <ErrorState error={loadError} onRetry={fetchData} fullScreen />;
   }
 
   const d = data || { 
@@ -385,11 +393,7 @@ export default function CustomizableDashboard() {
   if (d.hosts.total === 0 && d.services.total === 0) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-        <Empty description="暂无监控数据">
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/hosts')}>
-            添加你的第一台服务器
-          </Button>
-        </Empty>
+        <EmptyState scene="dashboard" onAction={() => navigate('/hosts')} actionText="添加你的第一台服务器" />
       </div>
     );
   }

@@ -39,6 +39,7 @@ import {
 import dayjs from 'dayjs';
 import { notificationService } from '../services/alerts';
 import type { NotificationLog } from '../services/alerts';
+import { EmptyState, ErrorState } from '../components/StateComponents';
 
 const { Title } = Typography;
 const { RangePicker } = DatePicker;
@@ -69,7 +70,8 @@ interface NotificationStats {
 
 export default function NotificationLogs() {
   const [logs, setLogs] = useState<NotificationLog[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [stats, setStats] = useState<NotificationStats | null>(null);
   const [channels, setChannels] = useState<any[]>([]);
   
@@ -98,6 +100,7 @@ export default function NotificationLogs() {
   // 获取通知日志
   const fetchLogs = async (params = filters) => {
     setLoading(true);
+    setLoadError(null);
     try {
       const queryParams = new URLSearchParams();
       Object.entries(params).forEach(([key, value]) => {
@@ -109,7 +112,7 @@ export default function NotificationLogs() {
       const { data } = await notificationService.listLogs(Object.fromEntries(queryParams));
       setLogs(Array.isArray(data) ? data : []);
     } catch (error) {
-      message.error('获取通知日志失败');
+      setLoadError(error);
       console.error('Failed to fetch logs:', error);
     } finally {
       setLoading(false);
@@ -427,22 +430,29 @@ export default function NotificationLogs() {
 
       {/* 数据表格 */}
       <Card>
-        <Table
-          dataSource={logs}
-          columns={columns}
-          rowKey="id"
-          loading={loading}
-          pagination={{
-            current: pagination.current,
-            pageSize: pagination.pageSize,
-            total: pagination.total,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条/共 ${total} 条`,
-          }}
-          size="small"
-          scroll={{ x: 1000 }}
-        />
+        {loadError ? (
+          <ErrorState error={loadError} onRetry={refreshData} />
+        ) : (
+          <Table
+            dataSource={logs}
+            columns={columns}
+            rowKey="id"
+            loading={loading}
+            pagination={{
+              current: pagination.current,
+              pageSize: pagination.pageSize,
+              total: pagination.total,
+              showSizeChanger: true,
+              showQuickJumper: true,
+              showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条/共 ${total} 条`,
+            }}
+            size="small"
+            scroll={{ x: 1000 }}
+            locale={{
+              emptyText: <EmptyState scene="notifications" onAction={() => window.location.href = '/notification-channels'} />,
+            }}
+          />
+        )}
       </Card>
 
       {/* 详情模态框 */}

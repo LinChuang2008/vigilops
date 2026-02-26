@@ -16,6 +16,7 @@ import { databaseService } from '../services/databases';
 import type { DatabaseItem } from '../services/databases';
 import type { Alert, AlertRule } from '../services/alerts';
 import { RemediationStatusTag } from '../components/RemediationBadge';
+import { ErrorState } from '../components/StateComponents';
 
 /** 告警严重级别颜色映射 */
 const severityColor: Record<string, string> = { critical: 'red', warning: 'orange', info: 'blue' };
@@ -30,6 +31,7 @@ export default function AlertList() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [severityFilter, setSeverityFilter] = useState<string>('');
@@ -80,6 +82,7 @@ export default function AlertList() {
    */
   const fetchAlerts = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const params: Record<string, unknown> = { page, page_size: 20 };
       if (statusFilter) params.status = statusFilter;
@@ -87,7 +90,7 @@ export default function AlertList() {
       const { data } = await alertService.list(params);
       setAlerts(data.items || []);
       setTotal(data.total || 0);
-    } catch { /* ignore */ } finally { setLoading(false); }
+    } catch (err) { setLoadError(err); } finally { setLoading(false); }
   };
 
   /** 获取告警规则配置列表 (Fetch alert rules configuration list)
@@ -243,15 +246,20 @@ export default function AlertList() {
                 </Col>
               </Row>
               <Card>
-                <Table dataSource={alerts} columns={alertColumns} rowKey="id" loading={loading}
-                  pagination={{ current: page, pageSize: 20, total, onChange: p => setPage(p) }}
-                  locale={{ emptyText: (
-                    <Empty description="暂无告警">
-                      <Button type="primary" onClick={() => { fetchRules(); /* switch to rules tab handled by parent */ }}>
-                        配置告警规则
-                      </Button>
-                    </Empty>
-                  ) }} />
+                {loadError ? (
+                  <ErrorState error={loadError} onRetry={fetchAlerts} />
+                ) : (
+                  <Table dataSource={alerts} columns={alertColumns} rowKey="id" loading={loading}
+                    pagination={{ current: page, pageSize: 20, total, onChange: p => setPage(p) }}
+                    locale={{ emptyText: (
+                      <Empty description="暂无告警" image={Empty.PRESENTED_IMAGE_SIMPLE}>
+                        <span style={{ color: '#52c41a', display: 'block', marginBottom: 8 }}>🎉 系统运行正常，当前没有告警</span>
+                        <Button type="primary" onClick={() => { fetchRules(); }}>
+                          配置告警规则
+                        </Button>
+                      </Empty>
+                    ) }} />
+                )}
               </Card>
             </>
           ),
