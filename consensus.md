@@ -56,9 +56,13 @@
 | 3 | Dashboard 可定制 | ✅ commit d39209c |
 | 4 | AI 反馈闭环 | ✅ commit 0a618fc |
 | 5 | 暗色主题 | ✅ commit 5208433 |
-| 6 | HTTPS 支持 |
+| 6 | HTTPS 支持 | ✅ commit f128ef2 |
 | 7 | 前端空状态/错误状态优化 |
 | 8 | Login 页面美化 |
+
+## ⚡ 董事长指令（CEO 每轮必读，优先级高于默认顺序）
+- P1-6 HTTPS 和 P1-7 前端空状态优化优先做，对用户体验影响大
+- 如果 Engram recall 超时，等 3 秒重试一次再继续
 
 ## 🟢 P2 锦上添花
 
