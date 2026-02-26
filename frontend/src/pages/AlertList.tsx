@@ -18,6 +18,7 @@ import type { DatabaseItem } from '../services/databases';
 import type { Alert, AlertRule } from '../services/alerts';
 import { RemediationStatusTag } from '../components/RemediationBadge';
 import { ErrorState } from '../components/StateComponents';
+import NoiseReduction from '../components/NoiseReduction';
 
 /** 告警严重级别颜色映射 */
 const severityColor: Record<string, string> = { critical: 'red', warning: 'orange', info: 'blue' };
@@ -352,6 +353,10 @@ export default function AlertList() {
               </Card>
             </>
           ),
+        },
+        {
+          key: 'noise-reduction', label: '🔇 告警降噪',
+          children: <NoiseReduction />,
         },
       ]} />
 
