@@ -84,6 +84,32 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 120  # 访问令牌过期时间（分钟） (Access Token Expiry Minutes)
     jwt_refresh_token_expire_days: int = 7  # 刷新令牌过期时间（天） (Refresh Token Expiry Days)
     
+    # OAuth 认证配置 (OAuth Authentication Configuration)
+    # Google OAuth
+    google_client_id: str = ""  # Google OAuth 客户端 ID (Google OAuth Client ID)
+    google_client_secret: str = ""  # Google OAuth 客户端密钥 (Google OAuth Client Secret)
+    
+    # GitHub OAuth
+    github_client_id: str = ""  # GitHub OAuth 客户端 ID (GitHub OAuth Client ID)
+    github_client_secret: str = ""  # GitHub OAuth 客户端密钥 (GitHub OAuth Client Secret)
+    
+    # GitLab OAuth
+    gitlab_client_id: str = ""  # GitLab OAuth 客户端 ID (GitLab OAuth Client ID)
+    gitlab_client_secret: str = ""  # GitLab OAuth 客户端密钥 (GitLab OAuth Client Secret)
+    
+    # Microsoft OAuth
+    microsoft_client_id: str = ""  # Microsoft OAuth 客户端 ID (Microsoft OAuth Client ID)
+    microsoft_client_secret: str = ""  # Microsoft OAuth 客户端密钥 (Microsoft OAuth Client Secret)
+    
+    # LDAP/Active Directory 配置 (LDAP/Active Directory Configuration)
+    ldap_server: str = ""  # LDAP 服务器地址 (LDAP Server Host)
+    ldap_port: int = 389  # LDAP 服务器端口 (LDAP Server Port)
+    ldap_use_tls: bool = False  # 是否使用 TLS/SSL (Use TLS/SSL)
+    ldap_base_dn: str = ""  # LDAP 基础 DN (LDAP Base DN) 例如: "dc=company,dc=com"
+    ldap_user_search: str = "uid={}"  # 用户搜索模式 (User Search Pattern) 例如: "uid={}" 或 "cn={}"
+    ldap_bind_dn: str = ""  # 绑定 DN (Bind DN) - 管理员账户，留空使用用户凭证
+    ldap_bind_password: str = ""  # 绑定密码 (Bind Password)
+
     # 安全和限流配置 (Security and Rate Limiting Configuration)
     enable_rate_limiting: bool = True  # 是否启用 API 限流 (Enable API Rate Limiting)
     enable_security_headers: bool = True  # 是否启用安全响应头 (Enable Security Headers)

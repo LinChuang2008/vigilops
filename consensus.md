@@ -94,7 +94,7 @@
 |---|------|------|
 | 1 | 日志后端切换（ClickHouse/Loki） | ✅ commit 44821a9 |
 | 2 | 移动端适配 | ✅ commit a60bebe |
-| 3 | Prometheus 兼容 | ⏳ |
+| 3 | Prometheus 兼容 | ✅ commit b036ed2 |
 | 4 | OAuth/LDAP | ⏳ |
 | 5 | 国际化 i18n | ⏳ |
 

@@ -69,6 +69,8 @@ export default function Login() {
   const navigate = useNavigate();
   const [loginForm] = Form.useForm();
   const [messageApi, contextHolder] = message.useMessage();
+  const [authProviders, setAuthProviders] = useState<any>(null);
+  const [ldapEnabled, setLdapEnabled] = useState(false);
 
   // 监听窗口大小变化
   useEffect(() => {
@@ -78,6 +80,21 @@ export default function Login() {
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // 获取可用认证提供商
+  useEffect(() => {
+    const fetchAuthProviders = async () => {
+      try {
+        const response = await fetch('/api/v1/auth/providers');
+        const data = await response.json();
+        setAuthProviders(data.providers);
+        setLdapEnabled(data.providers.ldap?.enabled || false);
+      } catch (error) {
+        console.error('Failed to fetch auth providers:', error);
+      }
+    };
+    fetchAuthProviders();
   }, []);
 
   /** 处理登录：调用登录接口，存储 token，获取用户信息后跳转首页 */
@@ -116,6 +133,49 @@ export default function Login() {
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } } };
       messageApi.error(err.response?.data?.detail || '注册失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** 处理OAuth登录 */
+  const handleOAuthLogin = async (provider: string) => {
+    try {
+      const response = await fetch(`/api/v1/auth/oauth/${provider}`);
+      const { redirect_url } = await response.json();
+      window.location.href = redirect_url;
+    } catch (error) {
+      messageApi.error(`OAuth登录失败: ${provider}`);
+    }
+  };
+
+  /** 处理LDAP登录 */
+  const handleLdapLogin = async (values: { email: string; password: string }) => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/v1/auth/ldap/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values)
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'LDAP登录失败');
+      }
+      
+      const { access_token, refresh_token } = await response.json();
+      localStorage.setItem('access_token', access_token);
+      localStorage.setItem('refresh_token', refresh_token);
+      
+      // 获取用户信息
+      const { data: user } = await authService.me();
+      localStorage.setItem('user_name', user.name);
+      localStorage.setItem('user_role', user.role);
+      messageApi.success('LDAP登录成功');
+      navigate('/');
+    } catch (e: any) {
+      messageApi.error(e.message || 'LDAP登录失败');
     } finally {
       setLoading(false);
     }
@@ -386,7 +446,89 @@ export default function Login() {
                     🚀 Demo 体验（只读账号，无需注册）
                   </Button>
                 </div>
+
+                {/* OAuth 登录选项 */}
+                {authProviders && (
+                  <div style={{ marginTop: 24 }}>
+                    <div style={{ textAlign: 'center', marginBottom: 16, color: '#666' }}>
+                      <span>或使用第三方账号登录</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {Object.entries(authProviders).map(([key, provider]: [string, any]) => {
+                        if (key !== 'ldap' && provider.enabled) {
+                          const providerIcons: Record<string, string> = {
+                            google: '🔍',
+                            github: '⚡',
+                            gitlab: '🦊',
+                            microsoft: '🪟'
+                          };
+                          
+                          return (
+                            <Button
+                              key={key}
+                              size="large"
+                              style={{ 
+                                flex: 1,
+                                minWidth: 120,
+                                borderRadius: 8,
+                                border: '1px solid #d9d9d9',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                              onClick={() => handleOAuthLogin(key)}
+                            >
+                              <span style={{ marginRight: 8 }}>{providerIcons[key]}</span>
+                              {provider.name}
+                            </Button>
+                          );
+                        }
+                        return null;
+                      })}
+                    </div>
+                  </div>
+                )}
               </Form>
+            ),
+          },
+          {
+            key: 'ldap',
+            label: <span style={{ fontSize: 16, fontWeight: 500 }}>LDAP</span>,
+            children: ldapEnabled ? (
+              <Form onFinish={handleLdapLogin} size="large">
+                <Form.Item name="email" rules={[{ required: true, message: '请输入用户名或邮箱' }]}>
+                  <Input prefix={<UserOutlined />} placeholder="用户名或邮箱" />
+                </Form.Item>
+                <Form.Item name="password" rules={[{ required: true, message: '请输入密码' }]}>
+                  <Input.Password prefix={<LockOutlined />} placeholder="密码" />
+                </Form.Item>
+                <Form.Item>
+                  <Button 
+                    type="primary" 
+                    htmlType="submit" 
+                    loading={loading} 
+                    block 
+                    size="large"
+                    style={{
+                      height: 48,
+                      borderRadius: 8,
+                      background: 'linear-gradient(135deg, #52c41a 0%, #73d13d 100%)',
+                      border: 'none',
+                      fontSize: 16,
+                      fontWeight: 500,
+                      boxShadow: '0 4px 16px rgba(82,196,26,0.3)'
+                    }}
+                  >
+                    LDAP 登录
+                  </Button>
+                </Form.Item>
+              </Form>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
+                <Typography.Text type="secondary">
+                  LDAP 认证未配置或不可用
+                </Typography.Text>
+              </div>
             ),
           },
           {
