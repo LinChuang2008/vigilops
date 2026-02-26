@@ -62,7 +62,7 @@
 
 ## ⚡ 董事长指令（CEO 每轮必读，优先级高于默认顺序）
 - 如果 Engram recall 超时，等 3 秒重试一次再继续
-- **🟡 Engram 竞品研究（CEO 必读并给出行动计划）**：
+- **✅ Engram 竞品研究（行动计划已制定，Noise Filter+Adaptive Retrieval 已实现 commit cff61ac）**：
   董事长分析了 https://github.com/win4r/memory-lancedb-pro（OpenClaw 增强记忆插件），与我们的 Engram 做了对比。
   **我们的优势**：实体关系图谱、多命名空间、AI蒸馏引擎（consolidator）、置信度衰减、独立部署不绑定 OpenClaw
   **对方的优势（要借鉴）**：
@@ -95,7 +95,7 @@
 | 1 | 日志后端切换（ClickHouse/Loki） | ✅ commit 44821a9 |
 | 2 | 移动端适配 | ✅ commit a60bebe |
 | 3 | Prometheus 兼容 | ✅ commit b036ed2 |
-| 4 | OAuth/LDAP | ⏳ |
+| 4 | OAuth/LDAP | ✅ commit ddef752 |
 | 5 | 国际化 i18n | ⏳ |
 
 ## ECS 访问策略（董事长决定 2026-02-25）
