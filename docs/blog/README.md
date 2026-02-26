@@ -1,29 +1,19 @@
-# VigilOps Blog & Tutorials
+# VigilOps Blog
 
-## 📖 Tutorials
+## 中文文章
 
-| Title | Language | Target Platform |
-|-------|----------|----------------|
-| [5 分钟搭建 AI 运维监控](quickstart-5min-zh.md) | 中文 | 知乎 / 掘金 / CSDN / SegmentFault |
-| [Deploy AI Monitoring in 5 Minutes](quickstart-5min-en.md) | English | HN / Reddit / Dev.to |
+| 文章 | 主题 |
+|------|------|
+| [告警疲劳：你的监控系统正在浪费你多少时间？](alert-fatigue-zh.md) | 告警疲劳问题分析与解决思路 |
+| [用 AI 给运维告警降噪：从理想到现实](ai-noise-reduction-zh.md) | AI 降噪的实际做法、效果与局限 |
+| [开源运维监控工具横评](opensource-monitoring-comparison-zh.md) | Zabbix/夜莺/Prometheus+Grafana/VigilOps 对比 |
+| [MCP 协议遇上运维](mcp-ai-ops-zh.md) | MCP 协议如何让 AI Agent 参与运维 |
 
-## 🦾 Agentic SRE
+## English Articles
 
-| Title | Language | Target Platform |
-|-------|----------|----------------|
-| [Agentic SRE：2026 年运维的终极形态](agentic-sre-self-healing-zh.md) | 中文 | 知乎 / 掘金 / CSDN / SegmentFault |
-| [Agentic SRE: Open-Source Self-Healing](agentic-sre-self-healing-en.md) | English | HN / Reddit / Dev.to |
-
-## 🔍 Comparison & Selection Guide
-
-| Title | Language | Target Platform |
-|-------|----------|----------------|
-| [2026 监控工具选型指南：VigilOps vs Zabbix vs Prometheus vs Datadog](monitoring-tools-comparison-zh.md) | 中文 | 知乎 / 掘金 / CSDN / SegmentFault |
-| [Monitoring Tools Comparison 2026](monitoring-tools-comparison-en.md) | English | HN / Reddit / Dev.to |
-
-## 📊 Industry Analysis
-
-| Title | Language | Target Platform |
-|-------|----------|----------------|
-| [2026 可观测性趋势](2026-ai-observability-trend-zh.md) | 中文 | 知乎 / 掘金 / CSDN |
-| [2026 Observability Trends](2026-ai-observability-trend-en.md) | English | HN / Reddit / Dev.to |
+| Article | Topic |
+|---------|-------|
+| [Alert Fatigue Is Real](alert-fatigue-problem-en.md) | The cost of alert noise and practical solutions |
+| [Auto-Remediation: What If Your Monitoring System Could Fix Things?](auto-remediation-runbooks-en.md) | Built-in runbooks and automated incident response |
+| [Open Source Monitoring in 2026](open-source-monitoring-landscape-en.md) | Landscape overview and where AI fits in |
+| [MCP Protocol Meets Operations](mcp-protocol-ai-native-ops-en.md) | AI-native monitoring via MCP protocol |
