@@ -58,11 +58,35 @@
 | 5 | 暗色主题 | ✅ commit 5208433 |
 | 6 | HTTPS 支持 | ✅ commit f128ef2 |
 | 7 | 前端空状态/错误状态优化 | ✅ commit 0eb6911 |
-| 8 | Login 页面美化 |
+| 8 | Login 页面美化 | ✅ commit dfc9653 |
 
 ## ⚡ 董事长指令（CEO 每轮必读，优先级高于默认顺序）
-- P1-6 HTTPS 和 P1-7 前端空状态优化优先做，对用户体验影响大
 - 如果 Engram recall 超时，等 3 秒重试一次再继续
+- **🟡 Engram 竞品研究（CEO 必读并给出行动计划）**：
+  董事长分析了 https://github.com/win4r/memory-lancedb-pro（OpenClaw 增强记忆插件），与我们的 Engram 做了对比。
+  **我们的优势**：实体关系图谱、多命名空间、AI蒸馏引擎（consolidator）、置信度衰减、独立部署不绑定 OpenClaw
+  **对方的优势（要借鉴）**：
+  1. Noise Filter — store 入口自动过滤垃圾（agent拒绝/打招呼/meta问题），防止记忆堆积垃圾
+  2. Adaptive Retrieval — 判断 query 是否需要检索（greeting/emoji/简单确认跳过），省 API 调用
+  3. Cross-Encoder Rerank — 用 SiliconFlow/Jina reranker 做二次排序，提升检索精度
+  4. RRF 混合评分 — Vector + BM25 融合打分（我们有两路但没融合）
+  5. 多维评分管线 — Recency Boost(14天半衰期) + Length Norm + Time Decay + Hard Min Score
+  6. MMR Diversity — cosine > 0.85 的近似重复结果降权
+  **CEO 的任务**：
+  - 读完上面的分析后，结合 Engram 代码（/Volumes/Data/project/gitlab_data/lchuangnet/engram/），给出行动计划
+  - 优先做 Noise Filter 和 Adaptive Retrieval（工作量小，ROI 高）
+  - 战略定位：保持智能化差异（蒸馏引擎是护城河），不做纯检索工具
+  - 下一轮 store 你的行动计划到 Engram
+- **✅ 获客文章重写（已完成 commit 7c24d2c）**：docs/blog/ 下 4 篇中文 + 4 篇英文文章修改完成
+  ✅ 1. 默认账号：统一为 demo@vigilops.io/demo123
+  ✅ 2. 页面数量：统一为 24 个页面  
+  ✅ 3. Agent 安装脚本：删除不存在的 install.sh 引用，改为实际配置步骤
+  ✅ 4. Datadog 价格：web_search 确认 $15/主机/月 准确
+  ✅ 5. 时间描述：统一为 10 分钟部署
+  ✅ 6. IBM 报告：未发现虚构引用（实际是行业观察）
+  ✅ 7. 对比表诚实：已标注 K8s/APM/社区规模不足
+  ✅ 8. "凌晨 3 点"梗：修改为不同表述避免重复  
+  ✅ 9. 英文版同步：已同步更新
 
 ## 🟢 P2 锦上添花
 

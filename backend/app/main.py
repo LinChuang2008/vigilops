@@ -41,6 +41,7 @@ from app.routers import alerts
 from app.routers import notifications
 from app.routers import settings
 from app.routers import logs
+from app.routers import log_admin
 from app.routers import databases
 from app.routers import ai_analysis
 from app.routers import users
@@ -262,6 +263,7 @@ app.include_router(notifications.router)  # 通知管理 (Notification managemen
 app.include_router(settings.router)  # 系统设置 (System settings)
 app.include_router(logs.router)  # 日志管理 (Log management)
 app.include_router(logs.ws_router)  # WebSocket 日志流 (WebSocket log streaming)
+app.include_router(log_admin.router)  # 日志后端管理 (Log backend administration)
 app.include_router(databases.router)  # 数据库监控 (Database monitoring)
 app.include_router(ai_analysis.router)  # AI 分析 (AI analysis)
 app.include_router(ai_feedback.router)  # AI 反馈 (AI feedback)

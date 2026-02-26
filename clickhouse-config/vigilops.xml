@@ -1,0 +1,138 @@
+<?xml version="1.0"?>
+<yandex>
+    <!-- ClickHouse configuration for VigilOps -->
+    
+    <!-- Listen on all interfaces -->
+    <listen_host>::</listen_host>
+    
+    <!-- HTTP interface settings -->
+    <http_port>8123</http_port>
+    <https_port>8443</https_port>
+    
+    <!-- TCP interface settings -->
+    <tcp_port>9000</tcp_port>
+    <tcp_port_secure>9440</tcp_port_secure>
+    
+    <!-- Memory and performance settings optimized for log storage -->
+    <max_connections>200</max_connections>
+    <max_concurrent_queries>50</max_concurrent_queries>
+    
+    <!-- Database settings -->
+    <default_database>vigilops</default_database>
+    
+    <!-- Log settings -->
+    <logger>
+        <level>information</level>
+        <log>/var/log/clickhouse-server/clickhouse-server.log</log>
+        <errorlog>/var/log/clickhouse-server/clickhouse-server.err.log</errorlog>
+        <size>1000M</size>
+        <count>3</count>
+    </logger>
+    
+    <!-- Data retention and storage settings -->
+    <merge_tree>
+        <!-- Optimize for log data -->
+        <max_suspicious_broken_parts>10</max_suspicious_broken_parts>
+        <max_bytes_to_merge_at_max_space_in_pool>161061273600</max_bytes_to_merge_at_max_space_in_pool>
+        
+        <!-- Performance settings -->
+        <max_part_loading_threads>16</max_part_loading_threads>
+        <max_part_removal_threads>8</max_part_removal_threads>
+        
+        <!-- TTL settings for automatic cleanup -->
+        <merge_with_ttl_timeout>3600</merge_with_ttl_timeout>
+        <ttl_only_drop_parts>0</ttl_only_drop_parts>
+    </merge_tree>
+    
+    <!-- Memory limits -->
+    <max_memory_usage>4000000000</max_memory_usage> <!-- 4GB -->
+    <max_memory_usage_for_user>3000000000</max_memory_usage_for_user> <!-- 3GB -->
+    
+    <!-- Query processing limits -->
+    <max_query_size>268435456</max_query_size> <!-- 256MB -->
+    <max_ast_depth>1000</max_ast_depth>
+    <max_ast_elements>50000</max_ast_elements>
+    <max_expanded_ast_elements>500000</max_expanded_ast_elements>
+    
+    <!-- Compression settings -->
+    <compression>
+        <case>
+            <method>lz4</method>
+            <level>3</level>
+        </case>
+    </compression>
+    
+    <!-- Background processing -->
+    <background_pool_size>16</background_pool_size>
+    <background_merges_mutations_concurrency_ratio>2</background_merges_mutations_concurrency_ratio>
+    <background_schedule_pool_size>16</background_schedule_pool_size>
+    <background_message_broker_schedule_pool_size>16</background_message_broker_schedule_pool_size>
+    <background_distributed_schedule_pool_size>16</background_distributed_schedule_pool_size>
+    
+    <!-- Performance profiles optimized for logging -->
+    <profiles>
+        <default>
+            <max_memory_usage>4000000000</max_memory_usage>
+            <use_uncompressed_cache>0</use_uncompressed_cache>
+            <load_balancing>random</load_balancing>
+        </default>
+        
+        <readonly>
+            <readonly>1</readonly>
+        </readonly>
+        
+        <logs_insert>
+            <max_insert_block_size>1048576</max_insert_block_size>
+            <max_block_size>65536</max_block_size>
+            <max_threads>8</max_threads>
+            <join_use_nulls>0</join_use_nulls>
+            <partial_merge_join_optimizations>1</partial_merge_join_optimizations>
+            <async_insert>1</async_insert>
+            <wait_for_async_insert>0</wait_for_async_insert>
+            <async_insert_max_data_size>10485760</async_insert_max_data_size> <!-- 10MB -->
+            <async_insert_busy_timeout_ms>200</async_insert_busy_timeout_ms>
+        </logs_insert>
+    </profiles>
+    
+    <!-- Users and quotas -->
+    <users>
+        <default>
+            <password></password>
+            <networks incl="networks" />
+            <profile>default</profile>
+            <quota>default</quota>
+        </default>
+        
+        <vigilops>
+            <password_sha256_hex></password_sha256_hex>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <profile>logs_insert</profile>
+            <quota>default</quota>
+            <databases>
+                <vigilops>1</vigilops>
+            </databases>
+        </vigilops>
+    </users>
+    
+    <!-- Access control -->
+    <networks>
+        <ip>::/0</ip>
+    </networks>
+    
+    <!-- Query log settings -->
+    <query_log>
+        <database>system</database>
+        <table>query_log</table>
+        <partition_by>toYYYYMM(event_date)</partition_by>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+    </query_log>
+    
+    <!-- Async metrics -->
+    <asynchronous_metrics_log>
+        <database>system</database>
+        <table>asynchronous_metrics_log</table>
+        <flush_interval_milliseconds>60000</flush_interval_milliseconds>
+    </asynchronous_metrics_log>
+</yandex>

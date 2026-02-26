@@ -29,6 +29,38 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # ClickHouse 高性能日志存储 (ClickHouse High-Performance Log Storage)
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.1-alpine
+    ports:
+      - "${CLICKHOUSE_HTTP_PORT:-8123}:8123"  # HTTP接口 (HTTP Interface)
+      - "${CLICKHOUSE_TCP_PORT:-9000}:9000"   # TCP接口 (TCP Interface)
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DATABASE:-vigilops}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+    volumes:
+      - clickhousedata:/var/lib/clickhouse
+      - ./clickhouse-config:/etc/clickhouse-server/conf.d
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # Grafana Loki 日志聚合 (Grafana Loki Log Aggregation) - 可选
+  loki:
+    image: grafana/loki:2.9.0
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - lokidata:/loki
+    restart: unless-stopped
+    profiles:
+      - loki
+
   backend:
     build: ./backend
     ports:
@@ -64,3 +96,5 @@ services:
 volumes:
   pgdata:
   redisdata:
+  clickhousedata:
+  lokidata:

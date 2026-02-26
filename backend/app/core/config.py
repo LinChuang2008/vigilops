@@ -52,6 +52,22 @@ class Settings(BaseSettings):
     memory_api_url: str = "http://host.docker.internal:8002/api/v1/memory"  # 记忆系统 API 地址 (Memory System API URL)
     memory_enabled: bool = True  # 是否启用记忆系统 (Enable Memory System)
 
+    # 日志后端配置 (Log Backend Configuration)
+    log_backend_type: str = "postgresql"  # 日志后端类型：postgresql/clickhouse/loki (Log Backend Type)
+    log_retention_days: int = 7  # 日志保留天数 (Log Retention Days)
+    
+    # ClickHouse 配置 (ClickHouse Configuration)
+    clickhouse_host: str = "localhost"  # ClickHouse 主机地址 (ClickHouse Host)
+    clickhouse_port: int = 8123  # ClickHouse HTTP 端口 (ClickHouse HTTP Port)
+    clickhouse_user: str = "default"  # ClickHouse 用户名 (ClickHouse Username)
+    clickhouse_password: str = ""  # ClickHouse 密码 (ClickHouse Password)
+    clickhouse_database: str = "vigilops"  # ClickHouse 数据库名 (ClickHouse Database)
+    
+    # Loki 配置 (Loki Configuration)
+    loki_url: str = "http://localhost:3100"  # Loki 服务地址 (Loki Service URL)
+    loki_username: str = ""  # Loki 用户名 (Loki Username)
+    loki_password: str = ""  # Loki 密码 (Loki Password)
+
     # Agent 自动修复配置 (Agent Auto-Remediation Configuration)
     agent_enabled: bool = False  # 是否启用自动修复 Agent (Enable Auto-Remediation Agent)
     # ⚠️ dry-run 默认开启！上线后建议先观察一周，确认无误再设为 False (Dry-run enabled by default for safety)
@@ -104,6 +120,19 @@ class Settings(BaseSettings):
         Defaults to database 0, used for caching and session storage.
         """
         return f"redis://{self.redis_host}:{self.redis_port}/0"
+
+    @property
+    def clickhouse_url(self) -> str:
+        """
+        构造 ClickHouse 连接 URL (Build ClickHouse Connection URL)
+        
+        根据配置的 ClickHouse 连接参数，生成 HTTP 接口访问的基础 URL。
+        用于通过 HTTP 接口进行日志数据的高性能存储和查询。
+        
+        Generates a base URL for HTTP interface access based on configured ClickHouse parameters.
+        Used for high-performance log data storage and querying via HTTP interface.
+        """
+        return f"http://{self.clickhouse_host}:{self.clickhouse_port}"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}  # Pydantic 配置：自动加载 .env 文件 (Pydantic Config: Auto-load .env file)
 

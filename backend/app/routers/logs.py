@@ -33,6 +33,7 @@ from app.schemas.log_entry import (
     LevelCount,
     TimeCount,
 )
+from app.services.log_service import get_log_service
 
 router = APIRouter(prefix="/api/v1/logs", tags=["logs"])
 
@@ -137,56 +138,34 @@ async def search_logs(
     Returns:
         LogSearchResponse: 包含日志条目列表、总数和分页信息
     """
-    # 构建基础查询和计数查询
-    base = select(LogEntry)
-    count_base = select(func.count(LogEntry.id))
-
-    # 构建动态过滤条件列表
-    conditions = []
-    if q:  # 全文搜索：在消息内容中模糊匹配关键字
-        conditions.append(LogEntry.message.ilike(f"%{q}%"))
-    if host_id is not None:  # 主机筛选：精确匹配主机ID
-        conditions.append(LogEntry.host_id == host_id)
-    if service:  # 服务筛选：精确匹配服务名
-        conditions.append(LogEntry.service == service)
-    if level:  # 日志级别筛选：支持多个级别同时查询
-        levels = [l.strip().upper() for l in level.split(",") if l.strip()]
-        conditions.append(LogEntry.level.in_(levels))
-    if start_time:  # 时间范围筛选：大于等于起始时间
-        conditions.append(LogEntry.timestamp >= start_time)
-    if end_time:  # 时间范围筛选：小于等于结束时间
-        conditions.append(LogEntry.timestamp <= end_time)
-
-    # 将过滤条件应用到主查询和计数查询
-    for cond in conditions:
-        base = base.where(cond)
-        count_base = count_base.where(cond)
-
-    # 执行计数查询获取符合条件的总记录数
-    total_result = await db.execute(count_base)
-    total = total_result.scalar() or 0
-
-    # 构建分页查询，关联 Host 表获取主机名
-    offset = (page - 1) * page_size  # 计算跳过的记录数
-    stmt = (
-        select(LogEntry, Host.hostname)
-        .outerjoin(Host, LogEntry.host_id == Host.id)  # 左连接获取主机名，允许主机不存在
+    # 使用新的日志服务进行搜索
+    log_service = await get_log_service(db)
+    log_items, total = await log_service.search_logs(
+        q=q, host_id=host_id, service=service, level=level,
+        start_time=start_time, end_time=end_time,
+        page=page, page_size=page_size
     )
     
-    # 应用所有过滤条件
-    for cond in conditions:
-        stmt = stmt.where(cond)
-        
-    # 按时间倒序排列（最新的日志在前）+ 分页
-    stmt = stmt.order_by(LogEntry.timestamp.desc()).offset(offset).limit(page_size)
-    rows = await db.execute(stmt)
-    
-    # 构建响应数据，将数据库记录转换为 API 响应格式
+    # 转换为API响应格式
     items = []
-    for log_entry, hostname in rows.all():
-        item = LogEntryResponse.model_validate(log_entry)  # 使用 Pydantic 模型验证
-        item.hostname = hostname  # 添加主机名信息
-        items.append(item)
+    for log_item in log_items:
+        # 如果是字典格式（来自新后端），转换为LogEntryResponse
+        if isinstance(log_item, dict):
+            item = LogEntryResponse(
+                id=log_item.get('id'),
+                host_id=log_item.get('host_id'),
+                service=log_item.get('service'),
+                source=log_item.get('source'),
+                level=log_item.get('level'),
+                message=log_item.get('message'),
+                timestamp=log_item.get('timestamp'),
+                created_at=log_item.get('created_at'),
+                hostname=log_item.get('hostname')
+            )
+            items.append(item)
+        else:
+            # 兼容旧格式
+            items.append(log_item)
 
     return LogSearchResponse(items=items, total=total, page=page, page_size=page_size)
 
@@ -220,34 +199,18 @@ async def log_stats(
     Returns:
         LogStatsResponse: 包含按级别统计和时间序列统计的响应对象
     """
-    # 构建筛选条件，与搜索接口保持一致
-    conditions = []
-    if host_id is not None:
-        conditions.append(LogEntry.host_id == host_id)
-    if service:
-        conditions.append(LogEntry.service == service)
-    if start_time:
-        conditions.append(LogEntry.timestamp >= start_time)
-    if end_time:
-        conditions.append(LogEntry.timestamp <= end_time)
-
-    # 按日志级别统计数量 (Statistics by log level)
-    # 用于饼图或柱状图展示不同级别日志的分布
-    level_stmt = select(LogEntry.level, func.count(LogEntry.id).label("count")).group_by(LogEntry.level)
-    for cond in conditions:
-        level_stmt = level_stmt.where(cond)
-    level_rows = await db.execute(level_stmt)
-    by_level = [LevelCount(level=row.level or "UNKNOWN", count=row.count) for row in level_rows.all()]
-
-    # 按时间分桶统计数量 (Statistics by time buckets)
-    # 用于时间序列图展示日志数量的时间趋势
-    trunc = "hour" if period == "1h" else "day"  # 根据 period 选择分桶粒度
-    bucket = func.date_trunc(trunc, LogEntry.timestamp).label("time_bucket")  # PostgreSQL 时间截断函数
-    time_stmt = select(bucket, func.count(LogEntry.id).label("count")).group_by(bucket).order_by(bucket)
-    for cond in conditions:
-        time_stmt = time_stmt.where(cond)
-    time_rows = await db.execute(time_stmt)
-    by_time = [TimeCount(time_bucket=row.time_bucket, count=row.count) for row in time_rows.all()]
+    # 使用新的日志服务进行统计
+    log_service = await get_log_service(db)
+    stats_data = await log_service.get_stats(
+        host_id=host_id, service=service, period=period,
+        start_time=start_time, end_time=end_time
+    )
+    
+    # 转换为API响应格式
+    by_level = [LevelCount(level=item.get("level", "UNKNOWN"), count=item.get("count", 0)) 
+                for item in stats_data.get("by_level", [])]
+    by_time = [TimeCount(time_bucket=item.get("time_bucket"), count=item.get("count", 0)) 
+               for item in stats_data.get("by_time", [])]
 
     return LogStatsResponse(by_level=by_level, by_time=by_time)
 
