@@ -22,6 +22,10 @@ frontend/dist/
 # Docker
 docker-compose.override.yml
 
+# SSL certificates
+nginx/certs/
+nginx/certbot/
+
 # OS
 .DS_Store
 Thumbs.db
