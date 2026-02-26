@@ -27,7 +27,7 @@ That's six components to deploy, configure, upgrade, and troubleshoot. For a tea
 
 The biggest shift in monitoring over the past 18 months is the injection of AI — specifically large language models — into operational workflows.
 
-**Datadog** launched LLM Observability for monitoring AI agent applications, and has been adding AI-powered features across their platform. At $3.3 billion in 2025 revenue, they have the resources to integrate AI deeply.
+**Datadog** launched LLM Observability for monitoring AI agent applications, and has been adding AI-powered features across their platform. At $2.68 billion in FY2024 revenue, they have the resources to integrate AI deeply.
 
 **Grafana Labs** has been more measured, focusing on AI-assisted query building and anomaly detection within their existing stack.
 
@@ -59,7 +59,7 @@ This gap is why we built VigilOps — but more on that later. First, let's surve
 
 **Best at:** Being a Prometheus-compatible, all-in-one monitoring platform with Chinese language support and an active Chinese community.
 
-**The reality:** Nightingale, incubated at Didi (the Chinese ride-hailing company) and hosted by CCF (China Computer Federation), has become the go-to open-source monitoring tool in China. 8,000+ GitHub stars, 1,000+ enterprise users. It essentially solves the "Prometheus + Grafana assembly" problem by bundling everything into one deployable unit.
+**The reality:** Nightingale, incubated at Didi (the Chinese ride-hailing company) and hosted by CCF (China Computer Federation), has become the go-to open-source monitoring tool in China. 12,800+ GitHub stars, 1,000+ enterprise users. It essentially solves the "Prometheus + Grafana assembly" problem by bundling everything into one deployable unit.
 
 **What's missing:** No AI analysis, no auto-remediation. Primarily metrics-focused — log and trace capabilities are limited compared to the full LGTM stack.
 
