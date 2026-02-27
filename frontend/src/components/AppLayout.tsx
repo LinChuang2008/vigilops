@@ -218,19 +218,22 @@ export default function AppLayout() {
   /** 根据当前路径匹配侧边栏选中菜单项（支持分组 + 嵌套子菜单） */
   const findSelectedKey = (): string => {
     const path = location.pathname;
-    // 先在子菜单里找精确匹配
+    // 收集所有可匹配的菜单 key（含子菜单）
+    const allKeys: string[] = [];
     for (const item of allFlatItems) {
       if ('children' in item && Array.isArray(item.children)) {
         for (const child of item.children) {
-          if (child.key !== '/' && path.startsWith(child.key)) return child.key;
+          if (child.key && child.key !== '/') allKeys.push(child.key);
         }
       }
+      if (item.key && item.key !== '/' && !item.key?.includes('-group')) {
+        allKeys.push(item.key);
+      }
     }
-    // 再在顶层找
-    const found = allFlatItems.find(
-      (item: any) => item.key !== '/' && !item.key?.includes('-group') && path.startsWith(item.key)
-    );
-    return found?.key || '/';
+    // 按 key 长度倒序排列，确保最长匹配优先（/topology/servers 优先于 /topology）
+    allKeys.sort((a, b) => b.length - a.length);
+    const matched = allKeys.find(k => path.startsWith(k));
+    return matched || '/';
   };
   const selectedKey = findSelectedKey();
   const openKey = allFlatItems.find(
