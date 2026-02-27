@@ -23,6 +23,7 @@ class ServerConfig:
 class HostConfig:
     """主机标识配置。"""
     name: str = ""
+    ip: str = ""  # 手动指定 IP（留空则自动检测）
     tags: List[str] = field(default_factory=list)
 
 
@@ -131,6 +132,7 @@ def load_config(path: str) -> AgentConfig:
     # 解析主机配置
     h = data.get("host", {})
     cfg.host.name = h.get("name", "")
+    cfg.host.ip = h.get("ip", "")
     cfg.host.tags = h.get("tags", [])
 
     # 解析指标采集配置

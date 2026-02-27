@@ -89,7 +89,7 @@ class AgentReporter:
         info = collect_system_info()
         payload = {
             "hostname": self.config.host.name or info["hostname"],
-            "ip_address": self._get_local_ip(),
+            "ip_address": self.config.host.ip or self._get_local_ip(),
             "os": info["os"],
             "os_version": info["os_version"],
             "arch": info["arch"],
