@@ -111,7 +111,7 @@ async def get_notification_logs_stats(
         days: 统计天数 (1-365)
     """
     from datetime import datetime, timedelta
-    from sqlalchemy import func, and_
+    from sqlalchemy import func, and_, case
     
     # 时间范围
     end_time = datetime.utcnow()
@@ -149,7 +149,7 @@ async def get_notification_logs_stats(
         NotificationChannel.type,
         func.count(NotificationLog.id).label("count"),
         func.sum(
-            func.case(
+            case(
                 (NotificationLog.status == "sent", 1),
                 else_=0
             )
@@ -171,8 +171,8 @@ async def get_notification_logs_stats(
             "channel_name": row.name,
             "channel_type": row.type,
             "total_count": row.count,
-            "success_count": row.success_count,
-            "success_rate": round((row.success_count / row.count * 100) if row.count > 0 else 0, 2)
+            "success_count": row.success_count or 0,
+            "success_rate": round(((row.success_count or 0) / row.count * 100) if row.count > 0 else 0, 2)
         }
         for row in channel_result
     ]

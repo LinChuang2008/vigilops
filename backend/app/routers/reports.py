@@ -14,6 +14,7 @@ API端点：GET /api/v1/reports, GET /api/v1/reports/{id}, POST /api/v1/reports/
 Author: VigilOps Team
 """
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy import select, func
@@ -34,7 +35,7 @@ CST = timezone(timedelta(hours=8))
 
 @router.get("", response_model=dict)
 async def list_reports(
-    report_type: str | None = None,
+    report_type: Optional[str] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -160,20 +161,20 @@ async def trigger_generate(
     """
     now = datetime.now(CST)  # 获取当前东八区时间
 
-    # 计算报告的时间段范围
+    # 计算报告的时间段范围（使用 naive datetime 以兼容 DB TIMESTAMP WITHOUT TIME ZONE）
     if req.period_start and req.period_end:
-        # 如果请求中指定了时间段，直接使用
-        period_start = req.period_start
-        period_end = req.period_end
+        # 如果请求中指定了时间段，移除时区信息
+        period_start = req.period_start.replace(tzinfo=None) if req.period_start.tzinfo else req.period_start
+        period_end = req.period_end.replace(tzinfo=None) if req.period_end.tzinfo else req.period_end
     elif req.report_type == "weekly":
         # 周报默认取过去 7 天的数据
-        period_end = datetime(now.year, now.month, now.day, tzinfo=CST)
+        period_end = datetime(now.year, now.month, now.day)
         period_start = period_end - timedelta(days=7)
     else:
         # 日报和其他类型默认取昨天的数据
         yesterday = now.date() - timedelta(days=1)
-        period_start = datetime(yesterday.year, yesterday.month, yesterday.day, tzinfo=CST)
-        period_end = datetime(now.year, now.month, now.day, tzinfo=CST)
+        period_start = datetime(yesterday.year, yesterday.month, yesterday.day)
+        period_end = datetime(now.year, now.month, now.day)
 
     # 调用报告生成服务，记录生成者信息
     report = await generate_report(db, req.report_type, period_start, period_end, generated_by=user.id)

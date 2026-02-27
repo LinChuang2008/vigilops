@@ -28,6 +28,7 @@
 """
 import logging
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -296,7 +297,7 @@ async def generate_report(
     report_type: str,
     period_start: datetime,
     period_end: datetime,
-    generated_by: int | None = None,
+    generated_by: Optional[int] = None,
 ) -> Report:
     """
     运维报告生成核心引擎 (Operations Report Generation Core Engine)
