@@ -135,12 +135,12 @@ def collect_mysql_metrics(cfg: DatabaseMonitorConfig) -> Optional[Dict]:
             "SELECT SUM(data_length + index_length) FROM information_schema.tables WHERE table_schema = DATABASE();"
         )
         row = cur.fetchone()
-        size_bytes = row[0] if row and row[0] else 0
+        size_bytes = float(row[0]) if row and row[0] else 0
         database_size_mb = round(size_bytes / (1024 * 1024), 2)
 
         # 表数量
         cur.execute("SELECT count(*) FROM information_schema.tables WHERE table_schema = DATABASE();")
-        tables_count = cur.fetchone()[0]
+        tables_count = int(cur.fetchone()[0])
 
         cur.close()
         conn.close()

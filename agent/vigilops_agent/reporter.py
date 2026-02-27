@@ -182,10 +182,23 @@ class AgentReporter:
             logger.warning(f"Log report failed ({len(logs)} entries): {e}")
             return False
 
+    @staticmethod
+    def _sanitize_metrics(d: dict) -> dict:
+        """确保指标值可 JSON 序列化（处理 Decimal 等类型）。"""
+        from decimal import Decimal
+        out = {}
+        for k, v in d.items():
+            if isinstance(v, Decimal):
+                out[k] = float(v)
+            else:
+                out[k] = v
+        return out
+
     async def report_db_metrics(self, metrics: dict):
         """上报数据库指标。"""
         if not self.host_id:
             return
+        metrics = self._sanitize_metrics(metrics)
         metrics["host_id"] = self.host_id
         client = await self._get_client()
         resp = await client.post("/api/v1/agent/db-metrics", json=metrics)
