@@ -13,16 +13,19 @@ API端点：GET /logs, GET /notification-channels, POST /notification-channels, 
 Author: VigilOps Team
 """
 
+import logging
 from typing import Optional, List
 
 import json
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_operator_user
 from app.models.notification import NotificationChannel, NotificationLog
 from app.models.user import User
 from app.schemas.notification import (
@@ -304,7 +307,7 @@ async def create_channel(
     data: NotificationChannelCreate,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(get_operator_user),
 ):
     """创建新的通知渠道。"""
     from app.services.audit import log_audit

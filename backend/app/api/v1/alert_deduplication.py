@@ -9,17 +9,19 @@
 
 Provides configuration management and statistics APIs for alert deduplication and aggregation.
 """
+from datetime import datetime, timedelta
 from typing import Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
-from app.models.alert_group import AlertGroup
-from app.services.alert_deduplication import AlertDeduplicationService
+from app.models.alert_group import AlertGroup, AlertDeduplication
+from app.models.setting import Setting
 
 router = APIRouter()
 
@@ -67,69 +69,61 @@ class AlertGroupListResponse(BaseModel):
     total: int
 
 
+async def _get_setting(db: AsyncSession, key: str, default: int) -> int:
+    """异步获取配置值"""
+    result = await db.execute(select(Setting).where(Setting.key == key))
+    setting = result.scalar_one_or_none()
+    if setting:
+        try:
+            return int(setting.value)
+        except (ValueError, TypeError):
+            pass
+    return default
+
+
+async def _set_setting(db: AsyncSession, key: str, value: int, description: str) -> None:
+    """异步设置配置值"""
+    result = await db.execute(select(Setting).where(Setting.key == key))
+    setting = result.scalar_one_or_none()
+    if setting:
+        setting.value = str(value)
+    else:
+        setting = Setting(key=key, value=str(value), description=description)
+        db.add(setting)
+    await db.commit()
+
+
 @router.get("/config", response_model=DeduplicationConfigResponse)
-def get_deduplication_config(
-    db: Session = Depends(get_db),
+async def get_deduplication_config(
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    获取告警去重和聚合配置
-    
-    Returns:
-        DeduplicationConfigResponse: 当前配置
-    """
+    """获取告警去重和聚合配置"""
     try:
-        service = AlertDeduplicationService(db)
-        
         config = {
-            "deduplication_window_seconds": service.get_config("alert_deduplication_window_seconds", 300),
-            "aggregation_window_seconds": service.get_config("alert_aggregation_window_seconds", 600),
-            "max_alerts_per_group": service.get_config("alert_max_alerts_per_group", 50)
+            "deduplication_window_seconds": await _get_setting(db, "alert_deduplication_window_seconds", 300),
+            "aggregation_window_seconds": await _get_setting(db, "alert_aggregation_window_seconds", 600),
+            "max_alerts_per_group": await _get_setting(db, "alert_max_alerts_per_group", 50)
         }
-        
         return DeduplicationConfigResponse(**config)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取去重配置失败: {str(e)}")
 
 
 @router.put("/config", response_model=DeduplicationConfigResponse)
-def update_deduplication_config(
+async def update_deduplication_config(
     config: DeduplicationConfigRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    更新告警去重和聚合配置
-    
-    Args:
-        config: 新的配置
-        
-    Returns:
-        DeduplicationConfigResponse: 更新后的配置
-    """
+    """更新告警去重和聚合配置"""
     try:
-        # 检查用户权限（只有管理员可以修改）
         if current_user.role not in ["admin", "super_admin"]:
             raise HTTPException(status_code=403, detail="只有管理员可以修改告警去重配置")
         
-        service = AlertDeduplicationService(db)
-        
-        # 更新配置
-        service.set_config(
-            "alert_deduplication_window_seconds", 
-            config.deduplication_window_seconds,
-            "告警去重时间窗口（秒）"
-        )
-        service.set_config(
-            "alert_aggregation_window_seconds",
-            config.aggregation_window_seconds,
-            "告警聚合时间窗口（秒）"
-        )
-        service.set_config(
-            "alert_max_alerts_per_group",
-            config.max_alerts_per_group,
-            "每个聚合组最大告警数"
-        )
+        await _set_setting(db, "alert_deduplication_window_seconds", config.deduplication_window_seconds, "告警去重时间窗口（秒）")
+        await _set_setting(db, "alert_aggregation_window_seconds", config.aggregation_window_seconds, "告警聚合时间窗口（秒）")
+        await _set_setting(db, "alert_max_alerts_per_group", config.max_alerts_per_group, "每个聚合组最大告警数")
         
         return DeduplicationConfigResponse(
             deduplication_window_seconds=config.deduplication_window_seconds,
@@ -143,59 +137,69 @@ def update_deduplication_config(
 
 
 @router.get("/statistics", response_model=DeduplicationStatsResponse)
-def get_deduplication_statistics(
-    db: Session = Depends(get_db),
+async def get_deduplication_statistics(
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    获取告警去重和聚合统计信息
-    
-    Returns:
-        DeduplicationStatsResponse: 统计信息
-    """
+    """获取告警去重和聚合统计信息"""
     try:
-        service = AlertDeduplicationService(db)
-        stats = service.get_deduplication_statistics()
-        
-        return DeduplicationStatsResponse(**stats)
+        yesterday = datetime.utcnow() - timedelta(hours=24)
+        one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+
+        active_dedup_count = (await db.execute(
+            select(func.count(AlertDeduplication.id)).where(AlertDeduplication.last_occurrence > one_hour_ago)
+        )).scalar() or 0
+
+        active_group_count = (await db.execute(
+            select(func.count(AlertGroup.id)).where(AlertGroup.status.in_(["firing", "acknowledged"]))
+        )).scalar() or 0
+
+        total_occurrences = (await db.execute(
+            select(func.count(AlertDeduplication.id)).where(AlertDeduplication.last_occurrence > yesterday)
+        )).scalar() or 0
+
+        # Get suppressed count
+        dedup_result = await db.execute(
+            select(AlertDeduplication.occurrence_count).where(AlertDeduplication.last_occurrence > yesterday)
+        )
+        suppressed_occurrences = sum(max(0, row[0] - 1) for row in dedup_result)
+
+        dedup_rate = (suppressed_occurrences / total_occurrences * 100) if total_occurrences > 0 else 0
+
+        return DeduplicationStatsResponse(
+            active_dedup_records=active_dedup_count,
+            active_alert_groups=active_group_count,
+            deduplication_rate_24h=round(dedup_rate, 2),
+            suppressed_alerts_24h=suppressed_occurrences,
+            total_alert_occurrences_24h=total_occurrences
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取去重统计失败: {str(e)}")
 
 
 @router.get("/groups", response_model=AlertGroupListResponse)
-def list_alert_groups(
+async def list_alert_groups(
     status: str = None,
     limit: int = 50,
     offset: int = 0,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    获取告警聚合组列表
-    
-    Args:
-        status: 过滤状态 (firing/resolved/acknowledged)
-        limit: 返回数量限制
-        offset: 分页偏移
-        
-    Returns:
-        AlertGroupListResponse: 告警组列表
-    """
+    """获取告警聚合组列表"""
     try:
-        query = db.query(AlertGroup)
-        
-        # 状态过滤
+        query = select(AlertGroup)
+        count_query = select(func.count(AlertGroup.id))
+
         if status:
-            query = query.filter(AlertGroup.status == status)
-        
-        # 按最后发生时间倒序
-        query = query.order_by(AlertGroup.last_occurrence.desc())
-        
-        # 分页
-        total = query.count()
-        groups = query.offset(offset).limit(limit).all()
-        
-        # 转换为响应模型
+            query = query.where(AlertGroup.status == status)
+            count_query = count_query.where(AlertGroup.status == status)
+
+        query = query.order_by(AlertGroup.last_occurrence.desc()).offset(offset).limit(limit)
+
+        total = (await db.execute(count_query)).scalar() or 0
+        result = await db.execute(query)
+        groups = result.scalars().all()
+
         group_summaries = []
         for group in groups:
             summary = AlertGroupSummary(
@@ -211,35 +215,48 @@ def list_alert_groups(
                 window_end=group.window_end.isoformat()
             )
             group_summaries.append(summary)
-        
+
         return AlertGroupListResponse(groups=group_summaries, total=total)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取告警组列表失败: {str(e)}")
 
 
 @router.post("/cleanup")
-def cleanup_expired_records(
-    db: Session = Depends(get_db),
+async def cleanup_expired_records(
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    清理过期的去重和聚合记录
-    
-    Returns:
-        Dict: 清理统计结果
-    """
+    """清理过期的去重和聚合记录"""
     try:
-        # 检查用户权限（只有管理员可以清理）
         if current_user.role not in ["admin", "super_admin"]:
             raise HTTPException(status_code=403, detail="只有管理员可以清理过期记录")
         
-        service = AlertDeduplicationService(db)
-        cleanup_stats = service.cleanup_expired_records()
+        # Cleanup expired dedup records (older than 24h)
+        cutoff = datetime.utcnow() - timedelta(hours=24)
+        expired_dedup = await db.execute(
+            select(AlertDeduplication).where(AlertDeduplication.last_occurrence < cutoff)
+        )
+        dedup_count = 0
+        for record in expired_dedup.scalars().all():
+            await db.delete(record)
+            dedup_count += 1
+        
+        # Cleanup resolved groups older than 7 days
+        group_cutoff = datetime.utcnow() - timedelta(days=7)
+        expired_groups = await db.execute(
+            select(AlertGroup).where(AlertGroup.status == "resolved", AlertGroup.last_occurrence < group_cutoff)
+        )
+        group_count = 0
+        for group in expired_groups.scalars().all():
+            await db.delete(group)
+            group_count += 1
+        
+        await db.commit()
         
         return {
             "success": True,
             "message": "过期记录清理完成",
-            "statistics": cleanup_stats
+            "statistics": {"dedup_records_cleaned": dedup_count, "groups_cleaned": group_count}
         }
     except HTTPException:
         raise
@@ -248,32 +265,24 @@ def cleanup_expired_records(
 
 
 @router.patch("/groups/{group_id}/status")
-def update_alert_group_status(
+async def update_alert_group_status(
     group_id: int,
     status: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    更新告警组状态
-    
-    Args:
-        group_id: 告警组 ID
-        status: 新状态 (firing/resolved/acknowledged)
-        
-    Returns:
-        Dict: 操作结果
-    """
+    """更新告警组状态"""
     try:
         if status not in ["firing", "resolved", "acknowledged"]:
             raise HTTPException(status_code=400, detail="无效的状态值")
         
-        group = db.query(AlertGroup).filter(AlertGroup.id == group_id).first()
+        result = await db.execute(select(AlertGroup).where(AlertGroup.id == group_id))
+        group = result.scalar_one_or_none()
         if not group:
             raise HTTPException(status_code=404, detail="告警组不存在")
         
         group.status = status
-        db.commit()
+        await db.commit()
         
         return {
             "success": True,

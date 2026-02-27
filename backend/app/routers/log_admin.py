@@ -303,14 +303,17 @@ async def get_performance_metrics(
     end_time = datetime.now(timezone.utc)
     start_time = end_time - timedelta(hours=hours)
     
-    log_service = await get_log_service(db)
-    
-    # 获取时间范围内的统计
-    stats = await log_service.get_stats(
-        start_time=start_time,
-        end_time=end_time,
-        period="1h"
-    )
+    try:
+        log_service = await get_log_service(db)
+        
+        # 获取时间范围内的统计
+        stats = await log_service.get_stats(
+            start_time=start_time,
+            end_time=end_time,
+            period="1h"
+        )
+    except Exception:
+        stats = {"by_time": [], "by_level": []}
     
     # 计算性能指标
     total_logs = sum(item.get("count", 0) for item in stats.get("by_time", []))

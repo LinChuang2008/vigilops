@@ -6,8 +6,8 @@ Dashboard 配置管理 API
 """
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import select, and_
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
@@ -164,23 +164,32 @@ DEFAULT_COMPONENTS = [
 @router.get("/", response_model=DashboardConfigResponse)
 async def get_dashboard_config(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """获取用户的仪表盘配置信息"""
     # 获取用户当前激活的布局
-    current_layout = db.query(DashboardLayout).filter(
-        and_(DashboardLayout.user_id == current_user.id, DashboardLayout.is_active == True)
-    ).first()
+    result = await db.execute(
+        select(DashboardLayout).where(
+            and_(DashboardLayout.user_id == current_user.id, DashboardLayout.is_active == True)
+        )
+    )
+    current_layout = result.scalar_one_or_none()
     
     # 获取用户所有布局
-    user_layouts = db.query(DashboardLayout).filter(
-        and_(DashboardLayout.user_id == current_user.id, DashboardLayout.is_preset == False)
-    ).order_by(DashboardLayout.updated_at.desc()).all()
+    result = await db.execute(
+        select(DashboardLayout).where(
+            and_(DashboardLayout.user_id == current_user.id, DashboardLayout.is_preset == False)
+        ).order_by(DashboardLayout.updated_at.desc())
+    )
+    user_layouts = result.scalars().all()
     
     # 获取可用组件（从数据库或默认配置）
-    db_components = db.query(DashboardComponent).filter(
-        DashboardComponent.is_enabled == True
-    ).order_by(DashboardComponent.sort_order).all()
+    result = await db.execute(
+        select(DashboardComponent).where(
+            DashboardComponent.is_enabled == True
+        ).order_by(DashboardComponent.sort_order)
+    )
+    db_components = result.scalars().all()
     
     # 如果数据库中没有组件，使用默认配置
     if not db_components:
@@ -200,38 +209,25 @@ async def get_dashboard_config(
 async def create_layout(
     layout_data: DashboardLayoutCreate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """创建新的仪表盘布局"""
-    # 检查布局名称是否已存在
-    existing = db.query(DashboardLayout).filter(
-        and_(
-            DashboardLayout.user_id == current_user.id,
-            DashboardLayout.name == layout_data.name
+    result = await db.execute(
+        select(DashboardLayout).where(
+            and_(DashboardLayout.user_id == current_user.id, DashboardLayout.name == layout_data.name)
         )
-    ).first()
-    
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"布局名称 '{layout_data.name}' 已存在"
-        )
-    
-    # 创建新布局
-    db_layout = DashboardLayout(
-        user_id=current_user.id,
-        name=layout_data.name,
-        description=layout_data.description,
-        grid_cols=layout_data.grid_cols,
-        config=layout_data.config,
-        is_preset=layout_data.is_preset,
-        is_active=False  # 新创建的布局默认不激活
     )
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"布局名称 '{layout_data.name}' 已存在")
     
+    db_layout = DashboardLayout(
+        user_id=current_user.id, name=layout_data.name, description=layout_data.description,
+        grid_cols=layout_data.grid_cols, config=layout_data.config,
+        is_preset=layout_data.is_preset, is_active=False
+    )
     db.add(db_layout)
-    db.commit()
-    db.refresh(db_layout)
-    
+    await db.commit()
+    await db.refresh(db_layout)
     return DashboardLayoutResponse.from_orm(db_layout)
 
 
@@ -240,18 +236,23 @@ async def list_layouts(
     page: int = 1,
     page_size: int = 20,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """获取用户的仪表盘布局列表"""
+    from sqlalchemy import func as sqlfunc
     offset = (page - 1) * page_size
     
-    query = db.query(DashboardLayout).filter(DashboardLayout.user_id == current_user.id)
-    total = query.count()
+    total_result = await db.execute(
+        select(sqlfunc.count(DashboardLayout.id)).where(DashboardLayout.user_id == current_user.id)
+    )
+    total = total_result.scalar() or 0
     
-    layouts = query.order_by(
-        DashboardLayout.is_active.desc(),  # 激活的在前
-        DashboardLayout.updated_at.desc()
-    ).offset(offset).limit(page_size).all()
+    result = await db.execute(
+        select(DashboardLayout).where(DashboardLayout.user_id == current_user.id)
+        .order_by(DashboardLayout.is_active.desc(), DashboardLayout.updated_at.desc())
+        .offset(offset).limit(page_size)
+    )
+    layouts = result.scalars().all()
     
     return DashboardLayoutList(
         total=total,
@@ -264,33 +265,30 @@ async def update_layout(
     layout_id: int,
     layout_data: DashboardLayoutUpdate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """更新仪表盘布局"""
-    layout = db.query(DashboardLayout).filter(
-        and_(DashboardLayout.id == layout_id, DashboardLayout.user_id == current_user.id)
-    ).first()
-    
+    from sqlalchemy import update as sql_update
+    result = await db.execute(
+        select(DashboardLayout).where(and_(DashboardLayout.id == layout_id, DashboardLayout.user_id == current_user.id))
+    )
+    layout = result.scalar_one_or_none()
     if not layout:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="布局不存在"
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="布局不存在")
+    
+    if layout_data.is_active:
+        await db.execute(
+            sql_update(DashboardLayout).where(
+                and_(DashboardLayout.user_id == current_user.id, DashboardLayout.id != layout_id)
+            ).values(is_active=False)
         )
     
-    # 如果要激活此布局，先取消其他布局的激活状态
-    if layout_data.is_active:
-        db.query(DashboardLayout).filter(
-            and_(DashboardLayout.user_id == current_user.id, DashboardLayout.id != layout_id)
-        ).update({"is_active": False})
-    
-    # 更新布局信息
     update_data = layout_data.dict(exclude_unset=True)
     for field, value in update_data.items():
         setattr(layout, field, value)
     
-    db.commit()
-    db.refresh(layout)
-    
+    await db.commit()
+    await db.refresh(layout)
     return DashboardLayoutResponse.from_orm(layout)
 
 
@@ -298,28 +296,20 @@ async def update_layout(
 async def delete_layout(
     layout_id: int,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """删除仪表盘布局"""
-    layout = db.query(DashboardLayout).filter(
-        and_(DashboardLayout.id == layout_id, DashboardLayout.user_id == current_user.id)
-    ).first()
-    
+    result = await db.execute(
+        select(DashboardLayout).where(and_(DashboardLayout.id == layout_id, DashboardLayout.user_id == current_user.id))
+    )
+    layout = result.scalar_one_or_none()
     if not layout:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="布局不存在"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="布局不存在")
     if layout.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="无法删除当前激活的布局，请先切换到其他布局"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无法删除当前激活的布局，请先切换到其他布局")
     
-    db.delete(layout)
-    db.commit()
-    
+    await db.delete(layout)
+    await db.commit()
     return OperationResponse(success=True, message="布局删除成功")
 
 
@@ -327,28 +317,24 @@ async def delete_layout(
 async def activate_layout(
     layout_id: int,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """激活指定的仪表盘布局"""
-    layout = db.query(DashboardLayout).filter(
-        and_(DashboardLayout.id == layout_id, DashboardLayout.user_id == current_user.id)
-    ).first()
-    
+    from sqlalchemy import update as sql_update
+    result = await db.execute(
+        select(DashboardLayout).where(and_(DashboardLayout.id == layout_id, DashboardLayout.user_id == current_user.id))
+    )
+    layout = result.scalar_one_or_none()
     if not layout:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="布局不存在"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="布局不存在")
     
-    # 取消所有其他布局的激活状态
-    db.query(DashboardLayout).filter(
-        and_(DashboardLayout.user_id == current_user.id, DashboardLayout.id != layout_id)
-    ).update({"is_active": False})
-    
-    # 激活当前布局
+    await db.execute(
+        sql_update(DashboardLayout).where(
+            and_(DashboardLayout.user_id == current_user.id, DashboardLayout.id != layout_id)
+        ).values(is_active=False)
+    )
     layout.is_active = True
-    db.commit()
-    
+    await db.commit()
     return OperationResponse(success=True, message=f"布局 '{layout.name}' 已激活")
 
 
@@ -357,42 +343,27 @@ async def create_from_preset(
     preset_id: str,
     layout_name: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """从预设模板创建新布局"""
     preset = next((p for p in PRESET_LAYOUTS if p["id"] == preset_id), None)
     if not preset:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="预设模板不存在"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="预设模板不存在")
     
-    # 检查布局名称是否已存在
-    existing = db.query(DashboardLayout).filter(
-        and_(DashboardLayout.user_id == current_user.id, DashboardLayout.name == layout_name)
-    ).first()
-    
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"布局名称 '{layout_name}' 已存在"
-        )
-    
-    # 创建基于预设的新布局
-    db_layout = DashboardLayout(
-        user_id=current_user.id,
-        name=layout_name,
-        description=f"基于 '{preset['name']}' 模板创建",
-        grid_cols=24,
-        config=preset["config"],
-        is_preset=False,
-        is_active=False
+    result = await db.execute(
+        select(DashboardLayout).where(and_(DashboardLayout.user_id == current_user.id, DashboardLayout.name == layout_name))
     )
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"布局名称 '{layout_name}' 已存在")
     
+    db_layout = DashboardLayout(
+        user_id=current_user.id, name=layout_name,
+        description=f"基于 '{preset['name']}' 模板创建",
+        grid_cols=24, config=preset["config"], is_preset=False, is_active=False
+    )
     db.add(db_layout)
-    db.commit()
-    db.refresh(db_layout)
-    
+    await db.commit()
+    await db.refresh(db_layout)
     return DashboardLayoutResponse.from_orm(db_layout)
 
 
@@ -400,25 +371,21 @@ async def create_from_preset(
 async def quick_config_update(
     updates: QuickConfigUpdate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """快速更新组件配置（用于拖拽等实时操作）"""
-    # 获取当前激活的布局
-    layout = db.query(DashboardLayout).filter(
-        and_(DashboardLayout.user_id == current_user.id, DashboardLayout.is_active == True)
-    ).first()
-    
-    if not layout:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="没有激活的布局"
+    result = await db.execute(
+        select(DashboardLayout).where(
+            and_(DashboardLayout.user_id == current_user.id, DashboardLayout.is_active == True)
         )
+    )
+    layout = result.scalar_one_or_none()
+    if not layout:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="没有激活的布局")
     
-    # 更新组件配置
     config = layout.config
     components = config.get("components", [])
     
-    # 查找并更新指定组件
     updated = False
     for component in components:
         if component["id"] == updates.component_id:
@@ -432,25 +399,21 @@ async def quick_config_update(
             break
     
     if not updated:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"组件 '{updates.component_id}' 不存在"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"组件 '{updates.component_id}' 不存在")
     
     layout.config = config
-    db.commit()
-    
+    await db.commit()
     return OperationResponse(success=True, message="配置更新成功")
 
 
 @router.get("/components", response_model=List[DashboardComponentInfo])
-async def list_components(db: Session = Depends(get_db)):
+async def list_components(db: AsyncSession = Depends(get_db)):
     """获取所有可用的仪表盘组件"""
-    components = db.query(DashboardComponent).filter(
-        DashboardComponent.is_enabled == True
-    ).order_by(DashboardComponent.sort_order).all()
+    result = await db.execute(
+        select(DashboardComponent).where(DashboardComponent.is_enabled == True).order_by(DashboardComponent.sort_order)
+    )
+    components = result.scalars().all()
     
-    # 如果数据库中没有组件，返回默认组件
     if not components:
         return [DashboardComponentInfo(**comp) for comp in DEFAULT_COMPONENTS]
     

@@ -14,13 +14,14 @@ API端点：GET/POST/DELETE /api/v1/sla/rules, GET /api/v1/sla/status, GET /api/
 Author: VigilOps Team
 """
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_operator_user
 from app.models.sla import SLARule, SLAViolation
 from app.models.service import Service, ServiceCheck
 from app.models.user import User
@@ -207,7 +208,7 @@ async def create_sla_rule(
 @router.delete("/rules/{rule_id}")
 async def delete_sla_rule(
     rule_id: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_operator_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -408,7 +409,7 @@ async def list_violations(
 
 @router.get("/report", response_model=SLAReportResponse)
 async def sla_report(
-    service_id: int = Query(..., description="服务 ID"),
+    service_id: Optional[int] = Query(None, description="服务 ID"),
     period: str = Query("monthly", description="报告周期"),
     start_date: str = Query(None, description="开始日期 YYYY-MM-DD"),
     end_date: str = Query(None, description="结束日期 YYYY-MM-DD"),
@@ -442,6 +443,14 @@ async def sla_report(
     Note:
         如果未指定日期范围，默认生成过去30天的报告
     """
+    # 如果未指定 service_id，使用第一个有 SLA 规则的服务
+    if service_id is None:
+        first_rule = (await db.execute(select(SLARule).order_by(SLARule.id).limit(1))).scalar_one_or_none()
+        if first_rule:
+            service_id = first_rule.service_id
+        else:
+            raise HTTPException(status_code=400, detail="未指定 service_id 且无可用的 SLA 规则")
+
     # 确定报告的时间范围
     if start_date and end_date:
         # 使用用户指定的日期范围

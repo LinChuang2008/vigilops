@@ -69,5 +69,6 @@ def require_role(*roles: str):
 
 # 预定义常用角色依赖 (Predefined common role dependencies)
 get_admin_user = require_role("admin")  # 仅管理员 (Admin only)
+require_admin = require_role("admin")  # 别名，供 log_admin 等模块使用 (Alias for log_admin etc.)
 get_operator_user = require_role("admin", "operator")  # 管理员和操作员 (Admin and operator)
 get_viewer_user = require_role("admin", "operator", "viewer")  # 所有角色 (All roles)

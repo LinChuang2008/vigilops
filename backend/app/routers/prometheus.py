@@ -92,7 +92,7 @@ async def prometheus_metrics(
             HostMetric.disk_percent,
             HostMetric.net_bytes_sent,
             HostMetric.net_bytes_recv,
-            Host.name.label('hostname'),
+            Host.hostname.label('hostname'),
             Host.ip.label('host_ip'),
             Host.group_name
         ).select_from(

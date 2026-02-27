@@ -7,9 +7,8 @@ AI 反馈管理 API
 from typing import List, Optional
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, func, desc, asc
-from sqlalchemy.dialects.postgresql import aggregate_order_by
+from sqlalchemy import select, and_, func, desc, asc
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
@@ -33,7 +32,7 @@ router = APIRouter(prefix="/ai-feedback", tags=["ai-feedback"])
 async def create_feedback(
     feedback_data: AIFeedbackCreate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """创建 AI 反馈"""
     feedback = AIFeedback(
@@ -42,8 +41,8 @@ async def create_feedback(
     )
     
     db.add(feedback)
-    db.commit()
-    db.refresh(feedback)
+    await db.commit()
+    await db.refresh(feedback)
     
     return feedback
 
@@ -52,7 +51,7 @@ async def create_feedback(
 async def quick_feedback(
     feedback_data: QuickFeedback,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """快速反馈（只需评分和有用性）"""
     feedback = AIFeedback(
@@ -66,8 +65,8 @@ async def quick_feedback(
     )
     
     db.add(feedback)
-    db.commit()
-    db.refresh(feedback)
+    await db.commit()
+    await db.refresh(feedback)
     
     return feedback
 
@@ -83,36 +82,42 @@ async def list_feedback(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """获取反馈列表"""
-    query = db.query(AIFeedback)
+    query = select(AIFeedback)
+    count_query = select(func.count(AIFeedback.id))
     
-    # 普通用户只能看自己的反馈，管理员可以看所有
     if current_user.role != "admin":
-        query = query.filter(AIFeedback.user_id == current_user.id)
+        query = query.where(AIFeedback.user_id == current_user.id)
+        count_query = count_query.where(AIFeedback.user_id == current_user.id)
     
-    # 过滤条件
     if rating is not None:
-        query = query.filter(AIFeedback.rating == rating)
+        query = query.where(AIFeedback.rating == rating)
+        count_query = count_query.where(AIFeedback.rating == rating)
     if feedback_type:
-        query = query.filter(AIFeedback.feedback_type == feedback_type)
+        query = query.where(AIFeedback.feedback_type == feedback_type)
+        count_query = count_query.where(AIFeedback.feedback_type == feedback_type)
     if is_helpful is not None:
-        query = query.filter(AIFeedback.is_helpful == is_helpful)
+        query = query.where(AIFeedback.is_helpful == is_helpful)
+        count_query = count_query.where(AIFeedback.is_helpful == is_helpful)
     if is_reviewed is not None:
-        query = query.filter(AIFeedback.is_reviewed == is_reviewed)
+        query = query.where(AIFeedback.is_reviewed == is_reviewed)
+        count_query = count_query.where(AIFeedback.is_reviewed == is_reviewed)
     
-    # 时间范围过滤
     if start_date:
         start = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-        query = query.filter(AIFeedback.created_at >= start)
+        query = query.where(AIFeedback.created_at >= start)
+        count_query = count_query.where(AIFeedback.created_at >= start)
     if end_date:
         end = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-        query = query.filter(AIFeedback.created_at <= end)
+        query = query.where(AIFeedback.created_at <= end)
+        count_query = count_query.where(AIFeedback.created_at <= end)
     
-    total = query.count()
+    total = (await db.execute(count_query)).scalar() or 0
     offset = (page - 1) * page_size
-    items = query.order_by(desc(AIFeedback.created_at)).offset(offset).limit(page_size).all()
+    result = await db.execute(query.order_by(desc(AIFeedback.created_at)).offset(offset).limit(page_size))
+    items = result.scalars().all()
     
     return AIFeedbackList(total=total, items=items)
 
@@ -121,18 +126,18 @@ async def list_feedback(
 async def get_feedback_stats(
     days: int = Query(30, ge=1, le=365),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """获取反馈统计"""
     start_date = datetime.utcnow() - timedelta(days=days)
     
-    query = db.query(AIFeedback).filter(AIFeedback.created_at >= start_date)
+    query = select(AIFeedback).where(AIFeedback.created_at >= start_date)
     
-    # 普通用户只看自己的统计
     if current_user.role != "admin":
-        query = query.filter(AIFeedback.user_id == current_user.id)
+        query = query.where(AIFeedback.user_id == current_user.id)
     
-    feedback_list = query.all()
+    result = await db.execute(query)
+    feedback_list = result.scalars().all()
     
     if not feedback_list:
         return AIFeedbackStats(
@@ -190,23 +195,23 @@ async def get_feedback_stats(
 async def get_feedback_trends(
     days: int = Query(30, ge=1, le=365),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """获取反馈趋势数据"""
     start_date = datetime.utcnow() - timedelta(days=days)
     
-    query = db.query(
+    query = select(
         func.date(AIFeedback.created_at).label('date'),
         func.avg(AIFeedback.rating).label('avg_rating'),
         func.count(AIFeedback.id).label('feedback_count'),
         func.sum(func.case((AIFeedback.is_helpful == True, 1), else_=0)).label('helpful_count')
-    ).filter(AIFeedback.created_at >= start_date)
+    ).where(AIFeedback.created_at >= start_date)
     
-    # 普通用户只看自己的趋势
     if current_user.role != "admin":
-        query = query.filter(AIFeedback.user_id == current_user.id)
+        query = query.where(AIFeedback.user_id == current_user.id)
     
-    trends = query.group_by(func.date(AIFeedback.created_at)).order_by(asc(func.date(AIFeedback.created_at))).all()
+    result = await db.execute(query.group_by(func.date(AIFeedback.created_at)).order_by(asc(func.date(AIFeedback.created_at))))
+    trends = result.all()
     
     return [
         FeedbackTrend(
@@ -223,10 +228,11 @@ async def update_feedback(
     feedback_id: int,
     feedback_data: AIFeedbackUpdate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """更新反馈"""
-    feedback = db.query(AIFeedback).filter(AIFeedback.id == feedback_id).first()
+    result = await db.execute(select(AIFeedback).where(AIFeedback.id == feedback_id))
+    feedback = result.scalar_one_or_none()
     
     if not feedback:
         raise HTTPException(
@@ -246,8 +252,8 @@ async def update_feedback(
     for field, value in update_data.items():
         setattr(feedback, field, value)
     
-    db.commit()
-    db.refresh(feedback)
+    await db.commit()
+    await db.refresh(feedback)
     
     return feedback
 
@@ -256,10 +262,11 @@ async def update_feedback(
 async def delete_feedback(
     feedback_id: int,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """删除反馈"""
-    feedback = db.query(AIFeedback).filter(AIFeedback.id == feedback_id).first()
+    result = await db.execute(select(AIFeedback).where(AIFeedback.id == feedback_id))
+    feedback = result.scalar_one_or_none()
     
     if not feedback:
         raise HTTPException(
@@ -274,8 +281,8 @@ async def delete_feedback(
             detail="无权限删除此反馈"
         )
     
-    db.delete(feedback)
-    db.commit()
+    await db.delete(feedback)
+    await db.commit()
     
     return {"message": "反馈删除成功"}
 
@@ -284,7 +291,7 @@ async def delete_feedback(
 async def get_performance_report(
     period: str = Query("30d", regex="^(7d|30d|90d)$"),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """获取 AI 性能报告（管理员功能）"""
     if current_user.role != "admin":
@@ -297,7 +304,8 @@ async def get_performance_report(
     days = days_map[period]
     start_date = datetime.utcnow() - timedelta(days=days)
     
-    feedback_list = db.query(AIFeedback).filter(AIFeedback.created_at >= start_date).all()
+    result = await db.execute(select(AIFeedback).where(AIFeedback.created_at >= start_date))
+    feedback_list = result.scalars().all()
     
     if not feedback_list:
         return AIPerformanceReport(

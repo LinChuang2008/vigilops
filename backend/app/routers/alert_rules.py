@@ -23,7 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_operator_user
 from app.models.alert import AlertRule
 from app.models.user import User
 from app.schemas.alert import AlertRuleCreate, AlertRuleUpdate, AlertRuleResponse
@@ -66,7 +66,7 @@ async def create_alert_rule(
     data: AlertRuleCreate,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(get_operator_user),
 ):
     """
     创建告警规则接口 (Create Alert Rule)
@@ -138,7 +138,7 @@ async def update_alert_rule(
     data: AlertRuleUpdate,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(get_operator_user),
 ):
     """
     更新告警规则接口 (Update Alert Rule)

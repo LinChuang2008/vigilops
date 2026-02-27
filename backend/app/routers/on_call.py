@@ -429,16 +429,19 @@ async def get_current_on_call(
     Returns:
         CurrentOnCallResponse: 当前值班人员信息，如果没有则返回None
     """
-    current_on_call = await OnCallService.get_current_on_call_user(db, group_id)
-    if current_on_call:
-        return CurrentOnCallResponse(**current_on_call)
+    try:
+        current_on_call = await OnCallService.get_current_on_call_user(db, group_id)
+        if current_on_call:
+            return CurrentOnCallResponse(**current_on_call)
+    except Exception:
+        pass
     return None
 
 
 @router.get("/coverage")
 async def get_schedule_coverage(
-    start_date: date = Query(..., description="开始日期"),
-    end_date: date = Query(..., description="结束日期"),
+    start_date: Optional[date] = Query(None, description="开始日期"),
+    end_date: Optional[date] = Query(None, description="结束日期"),
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
@@ -455,6 +458,11 @@ async def get_schedule_coverage(
     Returns:
         dict: 值班覆盖情况分析结果
     """
+    from datetime import timedelta as td
+    if end_date is None:
+        end_date = date.today()
+    if start_date is None:
+        start_date = end_date - td(days=7)
     if start_date > end_date:
         raise HTTPException(status_code=400, detail="Start date cannot be later than end date")
     
