@@ -96,7 +96,7 @@ async def prometheus_metrics(
             Host.ip_address.label('host_ip'),
             Host.group_name
         ).select_from(
-            HostMetric.__table__.join(Host)
+            HostMetric.__table__.join(Host.__table__, HostMetric.host_id == Host.id)
         ).where(
             HostMetric.id.in_(
                 select(func.max(HostMetric.id)).group_by(HostMetric.host_id)
@@ -342,12 +342,12 @@ async def prometheus_targets(
         
         for host in hosts:
             target = {
-                "targets": [f"{host.ip}:9100"],  # 假设使用 node_exporter 默认端口
+                "targets": [f"{host.ip_address}:9100"],  # 假设使用 node_exporter 默认端口
                 "labels": {
                     "job": "node-exporter",
-                    "instance": host.name,
-                    "hostname": host.name,
-                    "host_ip": host.ip,
+                    "instance": host.hostname,
+                    "hostname": host.hostname,
+                    "host_ip": host.ip_address,
                     "group": host.group_name or "default",
                     "__meta_vigilops_host_id": str(host.id),
                     "__meta_vigilops_host_status": host.status
