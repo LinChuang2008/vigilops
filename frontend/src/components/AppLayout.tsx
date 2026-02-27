@@ -146,6 +146,8 @@ export default function AppLayout() {
   const [drawerVisible, setDrawerVisible] = useState(false);
   /** 是否为移动端 */
   const [isMobile, setIsMobile] = useState(false);
+  /** 菜单展开的 SubMenu keys */
+  const [menuOpenKeys, setMenuOpenKeys] = useState<string[]>([]);
   
   const navigate = useNavigate();
   const location = useLocation();
@@ -235,6 +237,13 @@ export default function AppLayout() {
     (item: any) => 'children' in item && item.children?.some((c: any) => c.key === selectedKey)
   )?.key;
 
+  // 路由变化时自动展开对应的 SubMenu
+  useEffect(() => {
+    if (openKey && !menuOpenKeys.includes(openKey)) {
+      setMenuOpenKeys(prev => [...new Set([...prev, openKey])]);
+    }
+  }, [openKey, location.pathname]);
+
   /** 渲染菜单内容 */
   const renderMenuContent = (inDrawer = false) => (
     <>
@@ -256,7 +265,8 @@ export default function AppLayout() {
         theme={inDrawer ? 'light' : 'dark'}
         mode="inline"
         selectedKeys={[selectedKey]}
-        defaultOpenKeys={openKey ? [openKey] : []}
+        openKeys={menuOpenKeys}
+        onOpenChange={(keys) => setMenuOpenKeys(keys as string[])}
         items={menuItems}
         onClick={handleMenuClick}
       />
