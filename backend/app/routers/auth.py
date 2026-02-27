@@ -13,9 +13,6 @@ API端点：POST /register, POST /login, POST /refresh, GET /me
 
 Author: VigilOps Team
 """
-import time
-from collections import defaultdict
-
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,37 +26,9 @@ from app.services.audit import log_audit
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
-# ── 速率限制 (Rate Limiting) ──────────────────────────────
-# 基于内存的简单速率限制，适合单实例部署
-# 生产环境多实例部署建议改用 Redis 实现
-_rate_limit_store: dict[str, list[float]] = defaultdict(list)
-RATE_LIMIT_LOGIN = 5       # 登录：每窗口最多 5 次
-RATE_LIMIT_REGISTER = 3    # 注册：每窗口最多 3 次
-RATE_LIMIT_WINDOW = 300    # 窗口：5 分钟（秒）
-
-
-def _check_rate_limit(key: str, max_attempts: int, window: int = RATE_LIMIT_WINDOW):
-    """
-    检查速率限制 (Check Rate Limit)
-    
-    基于滑动窗口的速率限制检查。超限时抛出 429 异常。
-    
-    Args:
-        key: 限制键（通常为 IP 地址）
-        max_attempts: 窗口内最大允许次数
-        window: 时间窗口（秒）
-    Raises:
-        HTTPException 429: 请求过于频繁
-    """
-    now = time.time()
-    # 清理过期记录 (Purge expired entries)
-    _rate_limit_store[key] = [t for t in _rate_limit_store[key] if now - t < window]
-    if len(_rate_limit_store[key]) >= max_attempts:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Too many attempts. Please try again in {window // 60} minutes.",
-        )
-    _rate_limit_store[key].append(now)
+# ── 速率限制说明 (Rate Limiting) ──────────────────────────────
+# 速率限制由 Redis 中间件 (RateLimitMiddleware) 统一处理
+# 配置见 core/rate_limiting.py，auth 路由有独立的更严格规则
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
@@ -86,10 +55,6 @@ async def register(data: UserRegister, request: Request, db: AsyncSession = Depe
         4. 创建用户并保存到数据库
         5. 生成并返回JWT令牌
     """
-    # 速率限制检查 (Rate limit check)
-    client_ip = request.client.host if request.client else "unknown"
-    _check_rate_limit(f"register:{client_ip}", RATE_LIMIT_REGISTER)
-
     # 检查邮箱唯一性约束 (Check email uniqueness constraint)
     existing = await db.execute(select(User).where(User.email == data.email))
     if existing.scalar_one_or_none():
@@ -142,11 +107,6 @@ async def login(data: UserLogin, request: Request, db: AsyncSession = Depends(ge
         5. 记录登录审计日志
         6. 生成并返回JWT令牌
     """
-    # 速率限制检查 (Rate limit check) — 同时限制 IP 和邮箱维度
-    client_ip = request.client.host if request.client else "unknown"
-    _check_rate_limit(f"login:{client_ip}", RATE_LIMIT_LOGIN)
-    _check_rate_limit(f"login:{data.email}", RATE_LIMIT_LOGIN)
-
     # 根据邮箱查找用户 (Find user by email)
     result = await db.execute(select(User).where(User.email == data.email))
     user = result.scalar_one_or_none()
