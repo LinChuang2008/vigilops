@@ -37,12 +37,14 @@ import {
   ScheduleOutlined,
   RiseOutlined,
   GlobalOutlined,
+  ClusterOutlined,
+  AppstoreOutlined,
 } from '@ant-design/icons';
 
 const { Header, Sider, Content } = Layout;
 
 /** viewer 可见的菜单 key */
-const viewerKeys = new Set(['/', '/hosts', '/services', 'topology-group', '/topology', '/topology/servers', '/topology/service-groups', '/logs', '/databases', '/alerts', '/ai-analysis']);
+const viewerKeys = new Set(['/', '/hosts', '/services', '/topology', '/topology/servers', '/topology/service-groups', '/logs', '/databases', '/alerts', '/ai-analysis']);
 /** member 隐藏的菜单 key */
 const memberHiddenKeys = new Set(['/users', '/settings']);
 
@@ -78,14 +80,9 @@ function buildMenuItems(t: (key: string) => string) {
         { key: '/', icon: <DashboardOutlined />, label: t('menu.dashboard') },
         { key: '/hosts', icon: <CloudServerOutlined />, label: t('menu.hosts') },
         { key: '/services', icon: <ApiOutlined />, label: t('menu.services') },
-        {
-          key: 'topology-group', icon: <DeploymentUnitOutlined />, label: t('menu.topology'),
-          children: [
-            { key: '/topology', label: t('menu.topologyService') },
-            { key: '/topology/servers', label: t('menu.topologyServers') },
-            { key: '/topology/service-groups', label: t('menu.topologyServiceGroups') },
-          ],
-        },
+        { key: '/topology', icon: <DeploymentUnitOutlined />, label: t('menu.topologyService') },
+        { key: '/topology/servers', icon: <ClusterOutlined />, label: t('menu.topologyServers') },
+        { key: '/topology/service-groups', icon: <AppstoreOutlined />, label: t('menu.topologyServiceGroups') },
       ],
     },
     {
