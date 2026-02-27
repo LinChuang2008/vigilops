@@ -109,6 +109,7 @@ export default function CustomizableDashboard() {
   const [config, setConfig] = useState<DashboardConfig>(DEFAULT_CONFIG);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [containerWidth, setContainerWidth] = useState(1200);
 
   const navigate = useNavigate();
   const wsRef = useRef<WebSocket | null>(null);
@@ -319,6 +320,18 @@ export default function CustomizableDashboard() {
     URL.revokeObjectURL(url);
   };
 
+  // 监听窗口大小变化
+  useEffect(() => {
+    const updateWidth = () => {
+      const width = window.innerWidth - 32; // 减去页面边距
+      setContainerWidth(Math.max(320, width)); // 最小宽度 320px
+    };
+    
+    updateWidth(); // 初始化
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
+
   // 组件初始化
   useEffect(() => {
     loadConfig();
@@ -470,7 +483,7 @@ export default function CustomizableDashboard() {
         rowHeight={config.settings.rowHeight}
         onLayoutChange={handleLayoutChange}
         margin={[16, 16]}
-        width={1200}
+        width={containerWidth}
       >
         {config.layout.widgets
           .filter(w => w.visible)

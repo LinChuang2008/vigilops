@@ -110,7 +110,7 @@ export default function DatabaseDetail() {
         <Col>
           <Space>
             <Typography.Text type="secondary">时间范围:</Typography.Text>
-            <Select value={timeRange} onChange={setTimeRange} style={{ width: 120 }}
+            <Select value={timeRange} onChange={setTimeRange} style={{ width: window.innerWidth < 768 ? '100%' : 120 }}
               options={[
                 { label: '1小时', value: '1h' },
                 { label: '6小时', value: '6h' },
@@ -184,6 +184,7 @@ export default function DatabaseDetail() {
               rowKey="sql_id"
               size="small"
               pagination={false}
+              scroll={{ x: 'max-content' }}
             />
           </Card>
         </>

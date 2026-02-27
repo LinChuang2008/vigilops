@@ -307,6 +307,7 @@ export default function SLA() {
         rowKey="id"
         loading={violLoading}
         pagination={{ pageSize: 20 }}
+        scroll={{ x: 'max-content' }}
       />
     </div>
   );
@@ -315,28 +316,38 @@ export default function SLA() {
   const renderRuleManagement = () => (
     <Spin spinning={rulesLoading}>
       <Card title="添加 SLA 规则" style={{ marginBottom: 16 }}>
-        <Form form={form} layout="inline" onFinish={handleCreate}>
-          <Form.Item name="service_id" label="服务" rules={[{ required: true, message: '请选择服务' }]}>
-            <Select placeholder="选择服务" style={{ width: 200 }}>
-              {services.map(s => (
-                <Select.Option key={s.id} value={s.id}>{s.name}</Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
-          <Form.Item name="target_percent" label="目标可用率(%)" initialValue={99.9}
-            rules={[{ required: true, message: '请输入目标可用率' }]}>
-            <InputNumber min={0} max={100} step={0.01} style={{ width: 120 }} />
-          </Form.Item>
-          <Form.Item name="calculation_window" label="计算窗口" initialValue="monthly">
-            <Select style={{ width: 120 }}>
-              <Select.Option value="monthly">月度</Select.Option>
-              <Select.Option value="weekly">周度</Select.Option>
-              <Select.Option value="daily">每日</Select.Option>
-            </Select>
-          </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit">创建</Button>
-          </Form.Item>
+        <Form form={form} layout="vertical" onFinish={handleCreate}>
+          <Row gutter={16}>
+            <Col xs={24} sm={8} md={6}>
+              <Form.Item name="service_id" label="服务" rules={[{ required: true, message: '请选择服务' }]}>
+                <Select placeholder="选择服务" style={{ width: '100%' }}>
+                  {services.map(s => (
+                    <Select.Option key={s.id} value={s.id}>{s.name}</Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={8} md={6}>
+              <Form.Item name="target_percent" label="目标可用率(%)" initialValue={99.9}
+                rules={[{ required: true, message: '请输入目标可用率' }]}>
+                <InputNumber min={0} max={100} step={0.01} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={8} md={6}>
+              <Form.Item name="calculation_window" label="计算窗口" initialValue="monthly">
+                <Select style={{ width: '100%' }}>
+                  <Select.Option value="monthly">月度</Select.Option>
+                  <Select.Option value="weekly">周度</Select.Option>
+                  <Select.Option value="daily">每日</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={24} md={6}>
+              <Form.Item label=" ">
+                <Button type="primary" htmlType="submit" style={{ width: '100%' }}>创建</Button>
+              </Form.Item>
+            </Col>
+          </Row>
         </Form>
       </Card>
 
@@ -345,6 +356,7 @@ export default function SLA() {
           dataSource={rules}
           rowKey="id"
           pagination={false}
+          scroll={{ x: 'max-content' }}
           columns={[
             { title: '服务', dataIndex: 'service_name', key: 'service_name' },
             { title: '规则名', dataIndex: 'name', key: 'name' },

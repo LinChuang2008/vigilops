@@ -404,7 +404,7 @@ export default function OnCall() {
                 extra={
                   <Space>
                     <Select
-                      style={{ width: 160 }}
+                      style={{ width: window.innerWidth < 768 ? '100%' : 160 }}
                       placeholder="筛选值班组"
                       allowClear
                       value={filterGroupId}

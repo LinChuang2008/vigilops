@@ -266,6 +266,7 @@ export default function Reports() {
           locale={{
             emptyText: <EmptyState scene="reports" onAction={() => openGenerateModal('daily')} />,
           }}
+          scroll={{ x: 'max-content' }}
         />
       )}
 

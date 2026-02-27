@@ -505,7 +505,8 @@ export default function Topology() {
       ) : (
         <Spin spinning={loading}>
           <div ref={chartRef} style={{
-            width: '100%', height: 'calc(100vh - 230px)', minHeight: 550,
+            width: '100%', height: window.innerWidth < 768 ? '70vh' : 'calc(100vh - 230px)', 
+            minHeight: window.innerWidth < 768 ? 400 : 550,
             background: '#fafafa', borderRadius: 8, border: '1px solid #f0f0f0',
           }} />
         </Spin>
@@ -516,7 +517,7 @@ export default function Topology() {
         title="编辑依赖关系"
         open={panelOpen}
         onClose={() => setPanelOpen(false)}
-        width={500}
+        width={window.innerWidth < 768 ? '100%' : 500}
       >
         {/* Tab 切换 */}
         <Radio.Group value={aiTab} onChange={e => setAiTab(e.target.value)} style={{ marginBottom: 16, width: '100%' }}
