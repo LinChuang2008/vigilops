@@ -17,6 +17,8 @@ import {
   DashboardOutlined,
   PlusOutlined,
 } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 
 const { Text } = Typography;
 
@@ -38,33 +40,35 @@ export function classifyError(error: unknown): ErrorType {
 
 /* ==================== 错误状态配置 ==================== */
 
-const ERROR_CONFIG: Record<ErrorType, { icon: React.ReactNode; title: string; description: string }> = {
-  network: {
-    icon: <WifiOutlined style={{ fontSize: 48, color: '#faad14' }} />,
-    title: '网络连接异常',
-    description: '无法连接到服务器，请检查网络连接后重试。',
-  },
-  permission: {
-    icon: <LockOutlined style={{ fontSize: 48, color: '#ff4d4f' }} />,
-    title: '没有访问权限',
-    description: '您没有权限访问此资源，请联系管理员。',
-  },
-  server: {
-    icon: <CloudServerOutlined style={{ fontSize: 48, color: '#ff4d4f' }} />,
-    title: '服务器错误',
-    description: '服务器处理请求时出错，请稍后重试。',
-  },
-  notfound: {
-    icon: <CloudServerOutlined style={{ fontSize: 48, color: '#d9d9d9' }} />,
-    title: '资源不存在',
-    description: '请求的资源不存在或已被删除。',
-  },
-  unknown: {
-    icon: <CloudServerOutlined style={{ fontSize: 48, color: '#faad14' }} />,
-    title: '加载失败',
-    description: '数据加载出错，请稍后重试。',
-  },
-};
+function getErrorConfig(t: TFunction): Record<ErrorType, { icon: React.ReactNode; title: string; description: string }> {
+  return {
+    network: {
+      icon: <WifiOutlined style={{ fontSize: 48, color: '#faad14' }} />,
+      title: t('state.error.network.title'),
+      description: t('state.error.network.description'),
+    },
+    permission: {
+      icon: <LockOutlined style={{ fontSize: 48, color: '#ff4d4f' }} />,
+      title: t('state.error.permission.title'),
+      description: t('state.error.permission.description'),
+    },
+    server: {
+      icon: <CloudServerOutlined style={{ fontSize: 48, color: '#ff4d4f' }} />,
+      title: t('state.error.server.title'),
+      description: t('state.error.server.description'),
+    },
+    notfound: {
+      icon: <CloudServerOutlined style={{ fontSize: 48, color: '#d9d9d9' }} />,
+      title: t('state.error.notfound.title'),
+      description: t('state.error.notfound.description'),
+    },
+    unknown: {
+      icon: <CloudServerOutlined style={{ fontSize: 48, color: '#faad14' }} />,
+      title: t('state.error.unknown.title'),
+      description: t('state.error.unknown.description'),
+    },
+  };
+}
 
 /* ==================== ErrorState 组件 ==================== */
 
@@ -88,8 +92,9 @@ interface ErrorStateProps {
  * 根据错误类型显示对应的图标、标题和描述，提供重试按钮
  */
 export function ErrorState({ type, error, title, description, onRetry, fullScreen }: ErrorStateProps) {
+  const { t } = useTranslation();
   const errorType = type || classifyError(error);
-  const config = ERROR_CONFIG[errorType];
+  const config = getErrorConfig(t)[errorType];
 
   const content = (
     <Result
@@ -99,7 +104,7 @@ export function ErrorState({ type, error, title, description, onRetry, fullScree
       extra={
         onRetry ? (
           <Button type="primary" icon={<ReloadOutlined />} onClick={onRetry}>
-            重新加载
+            {t('state.error.retry')}
           </Button>
         ) : undefined
       }
@@ -121,48 +126,50 @@ export function ErrorState({ type, error, title, description, onRetry, fullScree
 
 type EmptyScene = 'dashboard' | 'servers' | 'alerts' | 'notifications' | 'reports' | 'topology' | 'default';
 
-const EMPTY_CONFIG: Record<EmptyScene, { icon: React.ReactNode; title: string; description: string; actionText?: string }> = {
-  dashboard: {
-    icon: <DashboardOutlined style={{ fontSize: 48, color: '#1890ff' }} />,
-    title: '暂无监控数据',
-    description: '还没有主机上报数据，请先添加主机并安装 Agent。',
-    actionText: '添加主机',
-  },
-  servers: {
-    icon: <CloudServerOutlined style={{ fontSize: 48, color: '#1890ff' }} />,
-    title: '暂无服务器',
-    description: '还没有服务器数据，请先添加主机并安装 Agent 开始监控。',
-    actionText: '添加主机',
-  },
-  alerts: {
-    icon: <AlertOutlined style={{ fontSize: 48, color: '#52c41a' }} />,
-    title: '暂无告警',
-    description: '当前没有任何告警，系统运行正常。您可以配置告警规则来监控关键指标。',
-    actionText: '配置告警规则',
-  },
-  notifications: {
-    icon: <BellOutlined style={{ fontSize: 48, color: '#1890ff' }} />,
-    title: '暂无通知记录',
-    description: '还没有发送过通知。当告警触发时，系统会自动通过配置的渠道发送通知。',
-    actionText: '配置通知渠道',
-  },
-  reports: {
-    icon: <FileTextOutlined style={{ fontSize: 48, color: '#1890ff' }} />,
-    title: '暂无报告',
-    description: '还没有生成过运维报告。您可以生成日报或周报来查看系统运行概况。',
-    actionText: '生成报告',
-  },
-  topology: {
-    icon: <ApartmentOutlined style={{ fontSize: 48, color: '#1890ff' }} />,
-    title: '暂无拓扑数据',
-    description: '还没有服务拓扑信息，请先添加服务并配置依赖关系。',
-  },
-  default: {
-    icon: undefined,
-    title: '暂无数据',
-    description: '当前没有数据。',
-  },
-};
+function getEmptyConfig(t: TFunction): Record<EmptyScene, { icon: React.ReactNode; title: string; description: string; actionText?: string }> {
+  return {
+    dashboard: {
+      icon: <DashboardOutlined style={{ fontSize: 48, color: '#1890ff' }} />,
+      title: t('state.empty.dashboard.title'),
+      description: t('state.empty.dashboard.description'),
+      actionText: t('state.empty.dashboard.actionText'),
+    },
+    servers: {
+      icon: <CloudServerOutlined style={{ fontSize: 48, color: '#1890ff' }} />,
+      title: t('state.empty.servers.title'),
+      description: t('state.empty.servers.description'),
+      actionText: t('state.empty.servers.actionText'),
+    },
+    alerts: {
+      icon: <AlertOutlined style={{ fontSize: 48, color: '#52c41a' }} />,
+      title: t('state.empty.alerts.title'),
+      description: t('state.empty.alerts.description'),
+      actionText: t('state.empty.alerts.actionText'),
+    },
+    notifications: {
+      icon: <BellOutlined style={{ fontSize: 48, color: '#1890ff' }} />,
+      title: t('state.empty.notifications.title'),
+      description: t('state.empty.notifications.description'),
+      actionText: t('state.empty.notifications.actionText'),
+    },
+    reports: {
+      icon: <FileTextOutlined style={{ fontSize: 48, color: '#1890ff' }} />,
+      title: t('state.empty.reports.title'),
+      description: t('state.empty.reports.description'),
+      actionText: t('state.empty.reports.actionText'),
+    },
+    topology: {
+      icon: <ApartmentOutlined style={{ fontSize: 48, color: '#1890ff' }} />,
+      title: t('state.empty.topology.title'),
+      description: t('state.empty.topology.description'),
+    },
+    default: {
+      icon: undefined,
+      title: t('state.empty.default.title'),
+      description: t('state.empty.default.description'),
+    },
+  };
+}
 
 /* ==================== EmptyState 组件 ==================== */
 
@@ -186,7 +193,8 @@ interface EmptyStateProps {
  * 根据场景类型显示对应的图标、说明文字和操作建议
  */
 export function EmptyState({ scene = 'default', title, description, actionText, onAction, icon }: EmptyStateProps) {
-  const config = EMPTY_CONFIG[scene];
+  const { t } = useTranslation();
+  const config = getEmptyConfig(t)[scene];
   const displayIcon = icon || config.icon;
 
   return (
@@ -203,7 +211,7 @@ export function EmptyState({ scene = 'default', title, description, actionText, 
       >
         {onAction && (
           <Button type="primary" icon={<PlusOutlined />} onClick={onAction}>
-            {actionText || config.actionText || '开始'}
+            {actionText || config.actionText || t('state.empty.start')}
           </Button>
         )}
       </Empty>
@@ -223,11 +231,12 @@ interface PageLoadingProps {
 /**
  * 统一页面加载组件
  */
-export function PageLoading({ tip = '加载中...', fullScreen }: PageLoadingProps) {
+export function PageLoading({ tip, fullScreen }: PageLoadingProps) {
+  const { t } = useTranslation();
   const height = fullScreen ? 'calc(100vh - 200px)' : 400;
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: height }}>
-      <Spin size="large" tip={tip}>
+      <Spin size="large" tip={tip || t('state.loading')}>
         <div style={{ padding: 50 }} />
       </Spin>
     </div>

@@ -361,7 +361,7 @@ export default function AlertList() {
       ]} />
 
       {/* 告警详情抽屉 */}
-      <Drawer open={!!selectedAlert} onClose={() => setSelectedAlert(null)} title="告警详情" width={480}>
+      <Drawer open={!!selectedAlert} onClose={() => setSelectedAlert(null)} title="告警详情" width={window.innerWidth < 768 ? '100%' : 480}>
         {selectedAlert && (
           <Descriptions column={1} bordered size="small">
             <Descriptions.Item label="标题">{selectedAlert.title}</Descriptions.Item>
@@ -380,7 +380,7 @@ export default function AlertList() {
 
       {/* 告警规则编辑弹窗 */}
       <Modal title={editingRule ? '编辑规则' : '新建规则'} open={ruleModalOpen} onCancel={() => setRuleModalOpen(false)}
-        onOk={() => form.submit()} destroyOnClose width={560}>
+        onOk={() => form.submit()} destroyOnClose width={window.innerWidth < 768 ? '100%' : 560}>
         <Form form={form} layout="vertical" onFinish={handleRuleSave} initialValues={{ rule_type: 'metric' }}>
           <Form.Item name="name" label="规则名称" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="rule_type" label="规则类型" rules={[{ required: true }]}>

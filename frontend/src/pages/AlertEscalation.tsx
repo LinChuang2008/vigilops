@@ -374,7 +374,7 @@ export default function AlertEscalation() {
         open={ruleModalOpen}
         onOk={handleRuleSave}
         onCancel={() => setRuleModalOpen(false)}
-        width={640}
+        width={window.innerWidth < 768 ? '100%' : 640}
         destroyOnClose
       >
         <Form form={ruleForm} layout="vertical">

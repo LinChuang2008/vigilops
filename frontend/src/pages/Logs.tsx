@@ -286,7 +286,7 @@ export default function Logs() {
         title="日志详情"
         open={drawerVisible}
         onClose={() => setDrawerVisible(false)}
-        width={640}
+        width={window.innerWidth < 768 ? '100%' : 640}
       >
         {selectedLog && (
           <>

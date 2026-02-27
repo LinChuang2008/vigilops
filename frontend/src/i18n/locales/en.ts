@@ -115,6 +115,12 @@ const en = {
     users: 'Users',
     auditLogs: 'Audit Logs',
     settings: 'Settings',
+    groupMonitoring: 'Monitoring',
+    groupLogsAlerts: 'Logs & Alerts',
+    groupAutomation: 'Automation',
+    groupAI: 'AI',
+    groupNotifications: 'Notifications',
+    groupSystem: 'System',
   },
 
   // ========== Header ==========
@@ -386,6 +392,70 @@ const en = {
     serviceTopology: 'Service Topology',
     multiServer: 'Multi-Server',
     serviceGroups: 'Service Groups',
+  },
+
+  // ========== State Components ==========
+  state: {
+    loading: 'Loading...',
+    error: {
+      retry: 'Reload',
+      network: {
+        title: 'Network Error',
+        description: 'Unable to connect to the server. Please check your network and try again.',
+      },
+      permission: {
+        title: 'Access Denied',
+        description: 'You do not have permission to access this resource. Please contact an administrator.',
+      },
+      server: {
+        title: 'Server Error',
+        description: 'The server encountered an error. Please try again later.',
+      },
+      notfound: {
+        title: 'Not Found',
+        description: 'The requested resource does not exist or has been deleted.',
+      },
+      unknown: {
+        title: 'Load Failed',
+        description: 'Failed to load data. Please try again later.',
+      },
+    },
+    empty: {
+      start: 'Get Started',
+      dashboard: {
+        title: 'No Monitoring Data',
+        description: 'No hosts have reported data yet. Add a host and install the Agent to get started.',
+        actionText: 'Add Host',
+      },
+      servers: {
+        title: 'No Servers',
+        description: 'No server data available. Add a host and install the Agent to start monitoring.',
+        actionText: 'Add Host',
+      },
+      alerts: {
+        title: 'No Alerts',
+        description: 'No alerts at the moment — the system is running normally. You can configure alert rules to monitor key metrics.',
+        actionText: 'Configure Alert Rules',
+      },
+      notifications: {
+        title: 'No Notifications',
+        description: 'No notifications have been sent yet. When an alert fires, the system will notify via your configured channels.',
+        actionText: 'Configure Channels',
+      },
+      reports: {
+        title: 'No Reports',
+        description: 'No reports have been generated yet. Generate a daily or weekly report to view system status.',
+        actionText: 'Generate Report',
+      },
+      topology: {
+        title: 'No Topology Data',
+        description: 'No service topology available. Add services and configure dependencies to get started.',
+      },
+      default: {
+        title: 'No Data',
+        description: 'No data available.',
+      },
+    },
   },
 };
 

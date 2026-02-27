@@ -115,6 +115,12 @@ const zh = {
     users: '用户管理',
     auditLogs: '审计日志',
     settings: '系统设置',
+    groupMonitoring: '监控',
+    groupLogsAlerts: '日志与告警',
+    groupAutomation: '自动化',
+    groupAI: 'AI',
+    groupNotifications: '通知',
+    groupSystem: '系统',
   },
 
   // ========== 顶部栏 ==========
@@ -386,6 +392,70 @@ const zh = {
     serviceTopology: '服务拓扑',
     multiServer: '多服务器',
     serviceGroups: '服务组',
+  },
+
+  // ========== 通用状态组件 ==========
+  state: {
+    loading: '加载中...',
+    error: {
+      retry: '重新加载',
+      network: {
+        title: '网络连接异常',
+        description: '无法连接到服务器，请检查网络连接后重试。',
+      },
+      permission: {
+        title: '没有访问权限',
+        description: '您没有权限访问此资源，请联系管理员。',
+      },
+      server: {
+        title: '服务器错误',
+        description: '服务器处理请求时出错，请稍后重试。',
+      },
+      notfound: {
+        title: '资源不存在',
+        description: '请求的资源不存在或已被删除。',
+      },
+      unknown: {
+        title: '加载失败',
+        description: '数据加载出错，请稍后重试。',
+      },
+    },
+    empty: {
+      start: '开始',
+      dashboard: {
+        title: '暂无监控数据',
+        description: '还没有主机上报数据，请先添加主机并安装 Agent。',
+        actionText: '添加主机',
+      },
+      servers: {
+        title: '暂无服务器',
+        description: '还没有服务器数据，请先添加主机并安装 Agent 开始监控。',
+        actionText: '添加主机',
+      },
+      alerts: {
+        title: '暂无告警',
+        description: '当前没有任何告警，系统运行正常。您可以配置告警规则来监控关键指标。',
+        actionText: '配置告警规则',
+      },
+      notifications: {
+        title: '暂无通知记录',
+        description: '还没有发送过通知。当告警触发时，系统会自动通过配置的渠道发送通知。',
+        actionText: '配置通知渠道',
+      },
+      reports: {
+        title: '暂无报告',
+        description: '还没有生成过运维报告。您可以生成日报或周报来查看系统运行概况。',
+        actionText: '生成报告',
+      },
+      topology: {
+        title: '暂无拓扑数据',
+        description: '还没有服务拓扑信息，请先添加服务并配置依赖关系。',
+      },
+      default: {
+        title: '暂无数据',
+        description: '当前没有数据。',
+      },
+    },
   },
 };
 

@@ -46,51 +46,93 @@ const viewerKeys = new Set(['/', '/hosts', '/services', 'topology-group', '/topo
 /** member 隐藏的菜单 key */
 const memberHiddenKeys = new Set(['/users', '/settings']);
 
-/** 根据角色过滤菜单 */
+/** 根据角色过滤菜单（支持分组结构） */
 function filterMenuByRole(items: ReturnType<typeof buildMenuItems>, role: string) {
   if (role === 'admin') return items;
   return items
-    .filter((item) => {
-      if (role === 'viewer') return viewerKeys.has(item.key);
-      if (role === 'member') return !memberHiddenKeys.has(item.key);
-      return true;
+    .map((group) => {
+      const children = ((group as any).children as any[])
+        .filter((item: any) => {
+          if (role === 'viewer') return viewerKeys.has(item.key);
+          if (role === 'member') return !memberHiddenKeys.has(item.key);
+          return true;
+        })
+        .map((item: any) => {
+          if ('children' in item && Array.isArray(item.children) && role === 'viewer') {
+            return { ...item, children: item.children.filter((c: any) => viewerKeys.has(c.key)) };
+          }
+          return item;
+        });
+      return { ...group, children };
     })
-    .map((item) => {
-      if ('children' in item && Array.isArray((item as any).children) && role === 'viewer') {
-        return { ...item, children: (item as any).children.filter((c: any) => viewerKeys.has(c.key)) };
-      }
-      return item;
-    });
+    .filter((group) => ((group as any).children as any[]).length > 0);
 }
 
-/** 生成侧边栏菜单项，使用 i18n 翻译 */
+/** 生成侧边栏菜单项（分 6 个分组），使用 i18n 翻译 */
 function buildMenuItems(t: (key: string) => string) {
   return [
-    { key: '/', icon: <DashboardOutlined />, label: t('menu.dashboard') },
-    { key: '/hosts', icon: <CloudServerOutlined />, label: t('menu.hosts') },
-    { key: '/services', icon: <ApiOutlined />, label: t('menu.services') },
-    { key: 'topology-group', icon: <DeploymentUnitOutlined />, label: t('menu.topology'),
+    {
+      type: 'group' as const,
+      label: t('menu.groupMonitoring'),
       children: [
-        { key: '/topology', label: t('menu.topologyService') },
-        { key: '/topology/servers', label: t('menu.topologyServers') },
-        { key: '/topology/service-groups', label: t('menu.topologyServiceGroups') },
+        { key: '/', icon: <DashboardOutlined />, label: t('menu.dashboard') },
+        { key: '/hosts', icon: <CloudServerOutlined />, label: t('menu.hosts') },
+        { key: '/services', icon: <ApiOutlined />, label: t('menu.services') },
+        {
+          key: 'topology-group', icon: <DeploymentUnitOutlined />, label: t('menu.topology'),
+          children: [
+            { key: '/topology', label: t('menu.topologyService') },
+            { key: '/topology/servers', label: t('menu.topologyServers') },
+            { key: '/topology/service-groups', label: t('menu.topologyServiceGroups') },
+          ],
+        },
       ],
     },
-    { key: '/logs', icon: <FileTextOutlined />, label: t('menu.logs') },
-    { key: '/databases', icon: <DatabaseOutlined />, label: t('menu.databases') },
-    { key: '/alerts', icon: <AlertOutlined />, label: t('menu.alerts') },
-    { key: '/alert-escalation', icon: <RiseOutlined />, label: t('menu.alertEscalation') },
-    { key: '/on-call', icon: <ScheduleOutlined />, label: t('menu.onCall') },
-    { key: '/remediations', icon: <ThunderboltOutlined />, label: t('menu.remediation') },
-    { key: '/sla', icon: <SafetyCertificateOutlined />, label: t('menu.sla') },
-    { key: '/ai-analysis', icon: <RobotOutlined />, label: t('menu.aiAnalysis') },
-    { key: '/reports', icon: <FileSearchOutlined />, label: t('menu.reports') },
-    { key: '/notification-channels', icon: <NotificationOutlined />, label: t('menu.notificationChannels') },
-    { key: '/notification-templates', icon: <FormOutlined />, label: t('menu.notificationTemplates') },
-    { key: '/notification-logs', icon: <UnorderedListOutlined />, label: t('menu.notificationLogs') },
-    { key: '/users', icon: <TeamOutlined />, label: t('menu.users') },
-    { key: '/audit-logs', icon: <AuditOutlined />, label: t('menu.auditLogs') },
-    { key: '/settings', icon: <SettingOutlined />, label: t('menu.settings') },
+    {
+      type: 'group' as const,
+      label: t('menu.groupLogsAlerts'),
+      children: [
+        { key: '/logs', icon: <FileTextOutlined />, label: t('menu.logs') },
+        { key: '/databases', icon: <DatabaseOutlined />, label: t('menu.databases') },
+        { key: '/alerts', icon: <AlertOutlined />, label: t('menu.alerts') },
+        { key: '/alert-escalation', icon: <RiseOutlined />, label: t('menu.alertEscalation') },
+      ],
+    },
+    {
+      type: 'group' as const,
+      label: t('menu.groupAutomation'),
+      children: [
+        { key: '/on-call', icon: <ScheduleOutlined />, label: t('menu.onCall') },
+        { key: '/remediations', icon: <ThunderboltOutlined />, label: t('menu.remediation') },
+        { key: '/sla', icon: <SafetyCertificateOutlined />, label: t('menu.sla') },
+      ],
+    },
+    {
+      type: 'group' as const,
+      label: t('menu.groupAI'),
+      children: [
+        { key: '/ai-analysis', icon: <RobotOutlined />, label: t('menu.aiAnalysis') },
+      ],
+    },
+    {
+      type: 'group' as const,
+      label: t('menu.groupNotifications'),
+      children: [
+        { key: '/notification-channels', icon: <NotificationOutlined />, label: t('menu.notificationChannels') },
+        { key: '/notification-templates', icon: <FormOutlined />, label: t('menu.notificationTemplates') },
+        { key: '/notification-logs', icon: <UnorderedListOutlined />, label: t('menu.notificationLogs') },
+      ],
+    },
+    {
+      type: 'group' as const,
+      label: t('menu.groupSystem'),
+      children: [
+        { key: '/users', icon: <TeamOutlined />, label: t('menu.users') },
+        { key: '/reports', icon: <FileSearchOutlined />, label: t('menu.reports') },
+        { key: '/audit-logs', icon: <AuditOutlined />, label: t('menu.auditLogs') },
+        { key: '/settings', icon: <SettingOutlined />, label: t('menu.settings') },
+      ],
+    },
   ];
 }
 
@@ -171,26 +213,29 @@ export default function AppLayout() {
     }
   };
 
-  /** 根据当前路径匹配侧边栏选中菜单项（支持嵌套子菜单） */
+  /** 将分组菜单展平为一级列表，用于选中状态检测 */
+  const allFlatItems = allMenuItems.flatMap((g) => (g as any).children as any[]);
+
+  /** 根据当前路径匹配侧边栏选中菜单项（支持分组 + 嵌套子菜单） */
   const findSelectedKey = (): string => {
     const path = location.pathname;
     // 先在子菜单里找精确匹配
-    for (const item of allMenuItems) {
-      if ('children' in item && Array.isArray((item as any).children)) {
-        for (const child of (item as any).children) {
+    for (const item of allFlatItems) {
+      if ('children' in item && Array.isArray(item.children)) {
+        for (const child of item.children) {
           if (child.key !== '/' && path.startsWith(child.key)) return child.key;
         }
       }
     }
     // 再在顶层找
-    const found = allMenuItems.find(
-      (item) => item.key !== '/' && !item.key.includes('-group') && path.startsWith(item.key)
+    const found = allFlatItems.find(
+      (item: any) => item.key !== '/' && !item.key?.includes('-group') && path.startsWith(item.key)
     );
     return found?.key || '/';
   };
   const selectedKey = findSelectedKey();
-  const openKey = allMenuItems.find(
-    (item) => 'children' in item && (item as any).children?.some((c: any) => c.key === selectedKey)
+  const openKey = allFlatItems.find(
+    (item: any) => 'children' in item && item.children?.some((c: any) => c.key === selectedKey)
   )?.key;
 
   /** 渲染菜单内容 */

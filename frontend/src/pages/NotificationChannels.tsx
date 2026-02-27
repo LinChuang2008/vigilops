@@ -316,7 +316,7 @@ export default function NotificationChannels() {
         onCancel={() => setModalOpen(false)}
         onOk={() => form.submit()}
         destroyOnClose
-        width={560}
+        width={window.innerWidth < 768 ? '100%' : 560}
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ type: 'webhook', smtp_port: 465, smtp_ssl: true }}>
           <Form.Item name="name" label="渠道名称" rules={[{ required: true, message: '请输入名称' }]}>
