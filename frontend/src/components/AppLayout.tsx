@@ -226,7 +226,7 @@ export default function AppLayout() {
           if (child.key && child.key !== '/') allKeys.push(child.key);
         }
       }
-      if (item.key && item.key !== '/' && !item.key?.includes('-group')) {
+      if (item.key && item.key !== '/' && item.key.startsWith('/')) {
         allKeys.push(item.key);
       }
     }
