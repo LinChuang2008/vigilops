@@ -195,7 +195,7 @@ export default function AppLayout() {
 
   /** 处理菜单点击 - 移动端自动关闭抽屉 */
   const handleMenuClick = ({ key }: { key: string }) => {
-    if (!key.includes('-group')) {
+    if (key.startsWith('/')) {
       navigate(key);
       if (isMobile) {
         setDrawerVisible(false); // 移动端点击菜单后关闭抽屉
