@@ -20,7 +20,7 @@ from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_operator_user
 from app.models.server import Server
 from app.models.server_service import ServerService
 from app.models.service_group import ServiceGroup
@@ -195,7 +195,7 @@ async def get_server(
 async def create_server(
     body: ServerCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_operator_user),
 ):
     """
     注册新服务器 (Register New Server)
@@ -248,7 +248,7 @@ async def update_server(
     server_id: int,
     body: ServerCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_operator_user),
 ):
     """
     更新服务器信息 (Update Server Information)
@@ -309,7 +309,7 @@ async def update_server(
 async def delete_server(
     server_id: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_operator_user),
 ):
     """
     删除服务器 (Delete Server)

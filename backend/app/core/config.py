@@ -9,6 +9,7 @@ supporting reading from .env files and environment variables. Provides configura
 management for database connections, Redis cache, AI services, JWT authentication, and other modules.
 """
 import logging
+import os
 import secrets
 
 from pydantic_settings import BaseSettings
@@ -166,13 +167,18 @@ class Settings(BaseSettings):
 # 全局配置实例 (Global Configuration Instance)
 settings = Settings()
 
-# JWT 密钥安全检查：未设置时生成随机密钥并警告
+# JWT 密钥安全检查：生产环境必须设置，开发环境自动生成
+_env = os.getenv("ENVIRONMENT", "production").lower()
 if not settings.jwt_secret_key or settings.jwt_secret_key == "change-me-in-production":
+    if _env == "production":
+        logger.error(
+            "🔴 JWT_SECRET_KEY 未设置！生产环境必须通过环境变量设置固定密钥。"
+            "请在 .env 中添加: JWT_SECRET_KEY=<random-64-char-string>"
+            " | JWT_SECRET_KEY not set in production! Set it in .env."
+        )
+        # 仍然生成随机密钥保证能启动，但强烈警告
     settings.jwt_secret_key = secrets.token_urlsafe(64)
     logger.warning(
-        "JWT_SECRET_KEY 未设置，已自动生成随机密钥。此密钥在每次重启后会变化，所有已签发的 token 将失效。"
-        "生产环境请务必设置环境变量 JWT_SECRET_KEY！"
-        " | JWT_SECRET_KEY not set, using auto-generated random key. "
-        "All issued tokens will be invalidated on restart. "
-        "Set JWT_SECRET_KEY environment variable in production!"
+        "JWT_SECRET_KEY 已自动生成随机密钥。重启后所有 token 失效。"
+        " | Auto-generated JWT key. Tokens invalidated on restart."
     )

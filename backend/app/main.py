@@ -237,11 +237,11 @@ app.add_middleware(RateLimitMiddleware)
 # 4. 配置 CORS 中间件，允许前端跨域访问 (Configure CORS middleware for frontend cross-origin access)
 # 生产环境下的 CORS 配置更加严格 (Stricter CORS configuration in production)
 import os
-is_production = os.getenv("ENVIRONMENT", "development").lower() == "production"
-allowed_origins = ["*"] if not is_production else [
+is_development = os.getenv("ENVIRONMENT", "production").lower() == "development"
+allowed_origins = ["*"] if is_development else [
     "http://localhost:3001",
-    "https://localhost:3001", 
-    os.getenv("FRONTEND_URL", "http://localhost:3001")
+    "https://localhost:3001",
+    os.getenv("FRONTEND_URL", "http://localhost:3001"),
 ]
 
 app.add_middleware(

@@ -20,7 +20,7 @@ from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_operator_user
 from app.models.server import Server
 from app.models.server_service import ServerService
 from app.models.service_group import ServiceGroup
@@ -169,7 +169,7 @@ async def get_service_group(
 async def create_service_group(
     body: ServiceGroupCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_operator_user),
 ):
     """
     创建服务组 (Create Service Group)
@@ -222,7 +222,7 @@ async def update_service_group(
     group_id: int,
     body: ServiceGroupCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_operator_user),
 ):
     """
     更新服务组信息 (Update Service Group)
@@ -283,7 +283,7 @@ async def update_service_group(
 async def delete_service_group(
     group_id: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_operator_user),
 ):
     """
     删除服务组 (Delete Service Group)
@@ -338,7 +338,7 @@ async def add_server_to_group(
     group_id: int,
     body: ServerServiceCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_operator_user),
 ):
     """
     将服务器添加到服务组 (Add Server to Service Group)
@@ -407,7 +407,7 @@ async def remove_server_from_group(
     group_id: int,
     server_id: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_operator_user),
 ):
     """
     从服务组移除服务器 (Remove Server from Service Group)

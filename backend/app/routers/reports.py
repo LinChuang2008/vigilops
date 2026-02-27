@@ -21,7 +21,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_operator_user
 from app.models.report import Report
 from app.models.user import User
 from app.schemas.report import ReportResponse, GenerateReportRequest
@@ -129,7 +129,7 @@ async def trigger_generate(
     req: GenerateReportRequest,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_operator_user),
 ):
     """
     手动触发生成运维报告 (Manually Trigger Report Generation)
@@ -185,7 +185,7 @@ async def trigger_generate(
 async def delete_report(
     report_id: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_operator_user),
 ):
     """
     删除运维报告 (Delete Operations Report)

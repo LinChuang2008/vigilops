@@ -139,7 +139,7 @@ async def list_sla_rules(
 @router.post("/rules", response_model=SLARuleResponse)
 async def create_sla_rule(
     body: SLARuleCreate,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_operator_user),
     db: AsyncSession = Depends(get_db),
 ):
     """

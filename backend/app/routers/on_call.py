@@ -21,7 +21,7 @@ from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_operator_user
 from app.models.on_call import OnCallGroup, OnCallSchedule
 from app.models.user import User
 from app.schemas.on_call import (
@@ -86,7 +86,7 @@ async def create_on_call_group(
     group_data: OnCallGroupCreate,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_operator_user),
 ):
     """
     创建值班组接口 (Create On-Call Group)
@@ -134,7 +134,7 @@ async def update_on_call_group(
     group_data: OnCallGroupUpdate,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_operator_user),
 ):
     """
     更新值班组接口 (Update On-Call Group)
@@ -175,7 +175,7 @@ async def delete_on_call_group(
     group_id: int,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_operator_user),
 ):
     """
     删除值班组接口 (Delete On-Call Group)
@@ -273,7 +273,7 @@ async def create_on_call_schedule(
     schedule_data: OnCallScheduleCreate,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_operator_user),
 ):
     """
     创建值班排期接口 (Create On-Call Schedule)
@@ -338,7 +338,7 @@ async def update_on_call_schedule(
     schedule_data: OnCallScheduleUpdate,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_operator_user),
 ):
     """
     更新值班排期接口 (Update On-Call Schedule)
@@ -390,7 +390,7 @@ async def delete_on_call_schedule(
     schedule_id: int,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_operator_user),
 ):
     """删除值班排期接口 (Delete On-Call Schedule)"""
     result = await db.execute(select(OnCallSchedule).where(OnCallSchedule.id == schedule_id))
