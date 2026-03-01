@@ -10,13 +10,15 @@ import json
 import logging
 import operator as op
 from datetime import datetime, timezone, timedelta
+from functools import partial
 
 from sqlalchemy import select, and_
 
-from app.core.database import async_session
+from app.core.database import async_session, SessionLocal
 from app.core.redis import get_redis
 from app.models.alert import Alert, AlertRule
 from app.models.host import Host
+from app.models.service import Service
 from app.services.alert_deduplication import AlertDeduplicationService
 
 logger = logging.getLogger(__name__)
@@ -99,13 +101,16 @@ async def _evaluate_rule(db, redis, rule: AlertRule, host: Host, metrics: dict):
 
     # 查询该规则+主机是否已有触发中的告警
     result = await db.execute(
-        select(Alert).where(
+        select(Alert)
+        .where(
             and_(
                 Alert.rule_id == rule.id,
                 Alert.host_id == host.id,
                 Alert.status == "firing",
             )
         )
+        .order_by(Alert.fired_at.desc())
+        .limit(1)
     )
     existing_alert = result.scalar_one_or_none()
 
@@ -122,7 +127,12 @@ async def _evaluate_rule(db, redis, rule: AlertRule, host: Host, metrics: dict):
                 # 首次违规，记录时间戳并等待
                 await redis.set(redis_key, now.isoformat(), ex=rule.duration_seconds * 2)
                 return
-            first_dt = datetime.fromisoformat(first_seen)
+            if isinstance(first_seen, bytes):
+                first_seen = first_seen.decode('utf-8')
+            try:
+                first_dt = datetime.fromisoformat(first_seen)
+            except (ValueError, TypeError):
+                first_dt = datetime.utcnow().replace(tzinfo=timezone.utc)
             if (now - first_dt).total_seconds() < rule.duration_seconds:
                 return  # 尚未达到持续时间要求
 
@@ -131,22 +141,26 @@ async def _evaluate_rule(db, redis, rule: AlertRule, host: Host, metrics: dict):
 
         # 告警去重和聚合检查
         alert_title = f"{rule.name} - {host.hostname}"
-        
-        # 使用同步数据库会话进行去重检查（因为 AlertDeduplicationService 需要同步 Session）
-        sync_db = SessionLocal()
-        try:
-            dedup_service = AlertDeduplicationService(sync_db)
-            should_create_alert, dedup_info = dedup_service.process_alert_deduplication(
-                rule, host.id, None, float(current_value), alert_title
-            )
-            
-            if not should_create_alert:
-                logger.info(f"Alert suppressed by deduplication: {alert_title} - {dedup_info}")
-                return  # 不创建告警，直接返回
-                
-            logger.info(f"Alert will be created: {alert_title} - {dedup_info}")
-        finally:
-            sync_db.close()
+
+        # 用 run_in_executor 包装同步 DB 调用，避免阻塞事件循环
+        def _run_dedup_host():
+            sync_db = SessionLocal()
+            try:
+                dedup_service = AlertDeduplicationService(sync_db)
+                return dedup_service.process_alert_deduplication(
+                    rule, host.id, None, float(current_value), alert_title
+                )
+            finally:
+                sync_db.close()
+
+        loop = asyncio.get_event_loop()
+        should_create_alert, dedup_info = await loop.run_in_executor(None, _run_dedup_host)
+
+        if not should_create_alert:
+            logger.info(f"Alert suppressed by deduplication: {alert_title} - {dedup_info}")
+            return  # 不创建告警，直接返回
+
+        logger.info(f"Alert will be created: {alert_title} - {dedup_info}")
 
         # 创建新告警
         alert = Alert(
@@ -191,12 +205,152 @@ async def _evaluate_rule(db, redis, rule: AlertRule, host: Host, metrics: dict):
             await send_alert_notification(db, existing_alert)
 
 
+async def evaluate_service_rules():
+    """评估所有已启用的服务类型告警规则，对每个服务逐一检查。"""
+    redis = await get_redis()
+    async with async_session() as db:
+        # 查询所有已启用的服务类型告警规则
+        result = await db.execute(
+            select(AlertRule).where(
+                and_(AlertRule.is_enabled == True, AlertRule.target_type == "service")  # noqa: E712
+            )
+        )
+        rules = result.scalars().all()
+
+        if not rules:
+            return
+
+        # 获取所有服务
+        result = await db.execute(select(Service))
+        services = result.scalars().all()
+
+        for service in services:
+            for rule in rules:
+                await _evaluate_service_rule(db, redis, rule, service)
+
+        await db.commit()
+
+
+async def _evaluate_service_rule(db, redis, rule: AlertRule, service: Service):
+    """评估单条服务规则是否触发告警。"""
+    # service_down: 服务状态为 down 时触发
+    if rule.metric == "service_down":
+        is_violated = service.status == "down"
+        current_value = 1.0 if is_violated else 0.0
+    else:
+        return  # 未知指标类型，跳过
+
+    # 查询该规则+服务是否已有触发中的告警
+    result = await db.execute(
+        select(Alert)
+        .where(
+            and_(
+                Alert.rule_id == rule.id,
+                Alert.service_id == service.id,
+                Alert.status == "firing",
+            )
+        )
+        .order_by(Alert.fired_at.desc())
+        .limit(1)
+    )
+    existing_alert = result.scalar_one_or_none()
+
+    if is_violated:
+        if existing_alert:
+            return  # 已在触发状态
+
+        # 持续时间检查
+        if rule.duration_seconds > 0:
+            redis_key = f"alert:pending:{rule.id}:svc:{service.id}"
+            first_seen = await redis.get(redis_key)
+            now = datetime.now(timezone.utc)
+            if first_seen is None:
+                await redis.set(redis_key, now.isoformat(), ex=rule.duration_seconds * 2)
+                return
+            if isinstance(first_seen, bytes):
+                first_seen = first_seen.decode('utf-8')
+            try:
+                first_dt = datetime.fromisoformat(first_seen)
+            except (ValueError, TypeError):
+                first_dt = datetime.utcnow().replace(tzinfo=timezone.utc)
+            if (now - first_dt).total_seconds() < rule.duration_seconds:
+                return
+            await redis.delete(redis_key)
+
+        # 告警去重
+        alert_title = f"{rule.name} - {service.name}"
+
+        # 用 run_in_executor 包装同步 DB 调用，避免阻塞事件循环
+        def _run_dedup_service():
+            sync_db = SessionLocal()
+            try:
+                dedup_service = AlertDeduplicationService(sync_db)
+                return dedup_service.process_alert_deduplication(
+                    rule, service.host_id, service.id, float(current_value), alert_title
+                )
+            finally:
+                sync_db.close()
+
+        loop = asyncio.get_event_loop()
+        should_create, dedup_info = await loop.run_in_executor(None, _run_dedup_service)
+
+        if not should_create:
+            logger.info(f"Service alert suppressed: {alert_title} - {dedup_info}")
+            return
+        logger.info(f"Service alert will be created: {alert_title} - {dedup_info}")
+
+        # 创建告警
+        alert = Alert(
+            rule_id=rule.id,
+            host_id=service.host_id,
+            service_id=service.id,
+            severity=rule.severity,
+            status="firing",
+            title=alert_title,
+            message=f"Service {service.name} is {service.status}",
+            metric_value=float(current_value),
+            threshold=rule.threshold,
+        )
+        db.add(alert)
+        await db.flush()
+        logger.info(f"Service alert fired: {alert.title}")
+
+        from app.services.notifier import send_alert_notification
+        await send_alert_notification(db, alert)
+
+        # 发布 Redis 事件供 remediation listener 消费
+        await redis.publish("vigilops:alert:new", json.dumps({
+            "alert_id": alert.id,
+            "rule_id": rule.id,
+            "host_id": service.host_id,
+            "service_id": service.id,
+            "severity": rule.severity,
+            "metric": rule.metric,
+            "metric_value": float(current_value),
+            "threshold": rule.threshold,
+            "title": alert.title,
+        }))
+
+    else:
+        # 恢复正常
+        if rule.duration_seconds > 0:
+            await redis.delete(f"alert:pending:{rule.id}:svc:{service.id}")
+
+        if existing_alert:
+            existing_alert.status = "resolved"
+            existing_alert.resolved_at = datetime.now(timezone.utc)
+            logger.info(f"Service alert resolved: {existing_alert.title}")
+            from app.services.notifier import send_alert_notification
+            await send_alert_notification(db, existing_alert)
+
+
 async def alert_engine_loop():
     """告警引擎后台循环，定期执行告警规则评估。"""
     logger.info("Alert engine started")
     while True:
         try:
             await evaluate_host_rules()
+            await evaluate_service_rules()
         except Exception:
             logger.exception("Error in alert engine")
         await asyncio.sleep(CHECK_INTERVAL)
