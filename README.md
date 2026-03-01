@@ -82,6 +82,285 @@ Open `http://localhost:3001`. That's it.
 
 ---
 
+## 🚀 Deployment Guide
+
+### Prerequisites
+
+- Docker 20+ and Docker Compose v2+
+- 1 GB RAM minimum (2 GB recommended)
+- Ports 3001 (frontend) and 8001 (backend) available
+
+---
+
+### 1. Local Development (Quick Start)
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/LinChuang2008/vigilops.git
+cd vigilops
+
+# 2. Configure environment variables
+cp backend/.env.example backend/.env
+# Edit backend/.env — set at minimum:
+#   AI_API_KEY=<your DeepSeek API key>
+
+# 3. Start all services
+docker compose up -d
+
+# 4. Wait for services to be ready (~30s)
+curl http://localhost:8001/health
+
+# 5. Open the frontend
+# http://localhost:3001
+# Register the first account — it is automatically granted admin rights.
+```
+
+> 💡 For the development environment you can also use the built-in test account: `admin` / `vigilops` (dev only, not available in production).
+
+---
+
+### 2. Production Deployment (Linux / VPS / Cloud)
+
+```bash
+# Requirements: Docker 20+ / Docker Compose v2+
+
+# 1. Clone to the server
+git clone https://github.com/LinChuang2008/vigilops.git /opt/vigilops
+cd /opt/vigilops
+
+# 2. Configure production environment variables
+cp backend/.env.example backend/.env
+# You MUST change the following values:
+#   POSTGRES_PASSWORD  — use a strong password
+#   JWT_SECRET_KEY     — random string, generate with: openssl rand -hex 32
+#   AI_API_KEY         — your DeepSeek API key
+#   AI_AUTO_SCAN       — set to true to enable automatic alert scanning
+
+# 3. Start services
+docker compose up -d
+
+# 4. Check status
+docker compose ps
+docker compose logs backend --tail=50
+
+# 5. Open the frontend
+# http://<your-server-ip>:3001
+# Register the first account — it is automatically granted admin rights.
+```
+
+> ⚠️ **Security reminder**: Never commit `.env` to version control. All default passwords in `.env.example` must be changed before going to production.
+
+---
+
+### 3. Environment Variables Reference
+
+| Variable | Description | Example / Default |
+|---|---|---|
+| `POSTGRES_PASSWORD` | PostgreSQL password | `change-me` (**required**) |
+| `POSTGRES_DB` | Database name | `vigilops` |
+| `POSTGRES_USER` | Database user | `vigilops` |
+| `JWT_SECRET_KEY` | JWT signing secret | `change-me-in-production` (**required**) |
+| `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | Access token TTL (minutes) | `120` |
+| `AI_PROVIDER` | AI backend | `deepseek` |
+| `AI_API_KEY` | DeepSeek (or compatible) API key | _(empty, **required**)_ |
+| `AI_API_BASE` | AI API endpoint | `https://api.deepseek.com/v1` |
+| `AI_MODEL` | Model name | `deepseek-chat` |
+| `AI_AUTO_SCAN` | Auto-scan new alerts with AI | `false` |
+| `AGENT_ENABLED` | Enable auto-remediation | `false` |
+| `AGENT_DRY_RUN` | Dry-run mode (log only, no execution) | `true` |
+| `AGENT_MAX_AUTO_PER_HOUR` | Max auto-remediations per hour | `10` |
+| `BACKEND_PORT` | Host port for backend | `8001` |
+| `FRONTEND_PORT` | Host port for frontend | `3001` |
+
+> 💡 Run `openssl rand -hex 32` to generate a secure random value for `JWT_SECRET_KEY` and `POSTGRES_PASSWORD`.
+
+---
+
+### 4. Installing the VigilOps Agent (Monitored Servers)
+
+The VigilOps Agent is a lightweight Python process that collects metrics, checks service health, and tails logs on each monitored host, then reports data to the VigilOps backend.
+
+**Requirements**: Linux (Ubuntu / Debian / CentOS / RHEL / Rocky / Alma), Python ≥ 3.9, root access.
+
+#### Getting an Agent Token
+
+1. Log in to VigilOps → **Server Management** → **Add Server**
+2. Copy the generated Agent Token from the dialog
+
+#### Quick install (one-liner)
+
+```bash
+# Run on the server you want to monitor
+curl -fsSL http://<your-vigilops-server>:8001/agent/install.sh | \
+  VIGILOPS_SERVER=http://<your-vigilops-server>:8001 \
+  AGENT_TOKEN=<token-from-ui> \
+  bash
+```
+
+#### Manual installation
+
+```bash
+# 1. Copy the agent directory to the monitored server
+scp -r vigilops/agent user@monitored-host:/opt/vigilops-agent
+
+# 2. Install dependencies
+cd /opt/vigilops-agent
+pip3 install -r requirements.txt
+
+# 3. Create config file
+cp config.example.yml config.yml
+# Edit config.yml — set server.url and server.token
+
+# 4. Start with systemd
+cp vigilops-agent.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now vigilops-agent
+```
+
+> See [docs/agent-guide.md](docs/agent-guide.md) for full configuration options, multi-host batch deployment, and troubleshooting.
+
+---
+
+### 5. Upgrading
+
+```bash
+cd /opt/vigilops
+git pull origin main
+docker compose down
+docker compose up -d --build --no-cache
+```
+
+---
+
+### 6. FAQ
+
+**Q: Port 3001 or 8001 is already in use — what do I do?**
+
+Set `FRONTEND_PORT` and/or `BACKEND_PORT` in `backend/.env` before starting:
+```bash
+FRONTEND_PORT=3002 BACKEND_PORT=8002 docker compose up -d
+```
+
+**Q: I forgot the admin password. How do I reset it?**
+
+```bash
+docker compose exec backend python3 -c "
+import asyncio
+from app.core.security import get_password_hash
+from app.db.session import AsyncSessionLocal
+from app.models.user import User
+from sqlalchemy import update
+
+async def reset():
+    async with AsyncSessionLocal() as db:
+        await db.execute(
+            update(User).where(User.email == 'your@email.com')
+            .values(hashed_password=get_password_hash('NewPassword123!'))
+        )
+        await db.commit()
+        print('Password reset OK')
+
+asyncio.run(reset())
+"
+```
+
+**Q: How do I back up data?**
+
+```bash
+bash scripts/backup.sh
+# Scheduled backup (add to cron):
+# 0 2 * * * cd /opt/vigilops && bash scripts/backup.sh >> logs/backup.log 2>&1
+```
+
+**Q: How do I view backend logs?**
+
+```bash
+docker compose logs backend -f --tail=100
+```
+
+**Q: Are ClickHouse and Loki required?**
+
+No. Both are optional log backends. The default is PostgreSQL, which works out of the box.  
+- ClickHouse: set `LOG_BACKEND=clickhouse` in `.env`  
+- Loki: start with `docker compose --profile loki up -d`
+
+---
+
+## MCP Integration (AI Agent Access)
+
+VigilOps ships a built-in **MCP Server** so AI coding assistants like Claude Code and Cursor can query live production data — alerts, logs, server health, topology — directly from the chat interface.
+
+### Enabling the MCP Server
+
+The MCP Server runs inside the backend container. It is **disabled by default**. To enable it, add the following to `backend/.env`:
+
+```env
+VIGILOPS_MCP_ENABLED=true
+VIGILOPS_MCP_HOST=0.0.0.0   # bind to all interfaces (required for remote access)
+VIGILOPS_MCP_PORT=8003       # default port
+```
+
+Then restart the backend:
+
+```bash
+docker compose restart backend
+# Verify it is listening:
+curl http://localhost:8003/
+```
+
+### Connecting Claude Desktop / Claude Code
+
+The MCP Server speaks HTTP (FastMCP + uvicorn). Add it to your Claude Desktop config (`~/.claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "vigilops": {
+      "type": "http",
+      "url": "http://localhost:8003/mcp"
+    }
+  }
+}
+```
+
+For a **remote server**, replace `localhost:8003` with your server's IP or domain:
+
+```json
+{
+  "mcpServers": {
+    "vigilops": {
+      "type": "http",
+      "url": "http://139.196.210.68:8003/mcp"
+    }
+  }
+}
+```
+
+> ⚠️ The MCP Server currently has no built-in authentication. Bind it to `127.0.0.1` (localhost only) or protect port 8003 with a firewall rule when deployed in production.
+
+### Available Tools (5 total)
+
+| Tool | Description |
+|------|-------------|
+| `get_servers_health` | Get health status and metrics for all monitored servers |
+| `get_alerts` | Query alert list — filter by status, severity, or host |
+| `search_logs` | Search logs by keyword and time range |
+| `analyze_incident` | AI-powered root cause analysis with fix recommendations |
+| `get_topology` | Retrieve service dependency topology data |
+
+### Usage Examples
+
+Once connected, you can ask your AI assistant:
+
+```
+"Check the current alerts on prod-server-01"
+"Analyze the root cause of last night's CPU spike"
+"Search for OOM errors in the last 2 hours"
+"What is the health status of all servers right now?"
+```
+
+---
+
 ## What's Inside
 
 - **AI Root Cause Analysis** — DeepSeek analyzes logs, metrics, and topology to explain *why* something broke
@@ -227,6 +506,245 @@ docker compose up -d
 打开 `http://localhost:3001` 即可使用。
 
 **🎯 在线体验：** [http://139.196.210.68:3001](http://139.196.210.68:3001) — 账号 `demo@vigilops.io` / `demo123`（只读）
+
+---
+
+### 🚀 部署教程
+
+#### 前置要求
+
+- Docker 20+ 及 Docker Compose v2+
+- 最低 1 GB 内存（推荐 2 GB）
+- 端口 3001（前端）和 8001（后端）未被占用
+
+---
+
+#### 1. 本地开发部署
+
+```bash
+# 1. 克隆项目
+git clone https://github.com/LinChuang2008/vigilops.git
+cd vigilops
+
+# 2. 配置环境变量
+cp backend/.env.example backend/.env
+# 编辑 backend/.env，至少填入：
+#   AI_API_KEY=<你的 DeepSeek API Key>
+
+# 3. 启动所有服务
+docker compose up -d
+
+# 4. 等待服务就绪（约 30 秒）
+curl http://localhost:8001/health
+
+# 5. 访问前端
+# http://localhost:3001
+# 注册第一个账号，系统自动设为管理员。
+```
+
+> 💡 开发环境可使用内置测试账号：`admin` / `vigilops`（仅开发环境有效）
+
+---
+
+#### 2. 生产环境部署（Linux / VPS / 云服务器）
+
+```bash
+# 1. 克隆到服务器
+git clone https://github.com/LinChuang2008/vigilops.git /opt/vigilops
+cd /opt/vigilops
+
+# 2. 配置生产环境变量
+cp backend/.env.example backend/.env
+# 必须修改以下值：
+#   POSTGRES_PASSWORD  — 改为强密码
+#   JWT_SECRET_KEY     — 随机字符串，可用 openssl rand -hex 32 生成
+#   AI_API_KEY         — 填入你的 DeepSeek API Key
+#   AI_AUTO_SCAN       — 改为 true 以启用告警自动分析
+
+# 3. 启动服务
+docker compose up -d
+
+# 4. 查看状态
+docker compose ps
+docker compose logs backend --tail=50
+
+# 5. 访问前端
+# http://<你的服务器IP>:3001
+# 注册第一个账号，系统自动设为管理员。
+```
+
+> ⚠️ 生产部署必须修改所有默认密码，`.env` 文件不要提交到 Git 仓库。
+
+---
+
+#### 3. 环境变量说明
+
+| 变量 | 说明 | 默认值 |
+|---|---|---|
+| `POSTGRES_PASSWORD` | 数据库密码 | `change-me`（**必须修改**）|
+| `JWT_SECRET_KEY` | JWT 签名密钥 | `change-me-in-production`（**必须修改**）|
+| `AI_API_KEY` | DeepSeek API Key | _空_（**必填**）|
+| `AI_AUTO_SCAN` | 是否自动用 AI 分析告警 | `false` |
+| `AGENT_ENABLED` | 是否启用自动修复 | `false` |
+| `AGENT_DRY_RUN` | Dry-run 模式（只记录不执行） | `true` |
+| `BACKEND_PORT` | 后端宿主机端口 | `8001` |
+| `FRONTEND_PORT` | 前端宿主机端口 | `3001` |
+
+---
+
+#### 4. 安装 VigilOps Agent（被监控服务器）
+
+VigilOps Agent 是部署在被监控主机上的轻量级 Python 进程，负责采集指标、检查服务健康状态、采集日志，并上报到 VigilOps 后端。
+
+**系统要求**：Linux（Ubuntu/Debian/CentOS/RHEL/Rocky/Alma），Python ≥ 3.9，root 权限。
+
+**获取 Agent Token**：登录 VigilOps → **服务器管理** → **添加服务器** → 复制 Token
+
+```bash
+# 一键安装（在被监控服务器上执行）
+curl -fsSL http://<VigilOps服务器>:8001/agent/install.sh | \
+  VIGILOPS_SERVER=http://<VigilOps服务器>:8001 \
+  AGENT_TOKEN=<从管理界面获取的Token> \
+  bash
+```
+
+详细配置参见 [docs/agent-guide.md](docs/agent-guide.md)。
+
+---
+
+#### 5. 升级
+
+```bash
+cd /opt/vigilops
+git pull origin main
+docker compose down
+docker compose up -d --build --no-cache
+```
+
+---
+
+#### 6. 常见问题
+
+**Q: 端口被占用怎么办？**
+
+在 `backend/.env` 中修改端口：
+```bash
+FRONTEND_PORT=3002 BACKEND_PORT=8002 docker compose up -d
+```
+
+**Q: 忘记管理员密码怎么重置？**
+
+```bash
+docker compose exec backend python3 -c "
+import asyncio
+from app.core.security import get_password_hash
+from app.db.session import AsyncSessionLocal
+from app.models.user import User
+from sqlalchemy import update
+
+async def reset():
+    async with AsyncSessionLocal() as db:
+        await db.execute(
+            update(User).where(User.email == 'your@email.com')
+            .values(hashed_password=get_password_hash('NewPassword123!'))
+        )
+        await db.commit()
+        print('密码重置成功')
+
+asyncio.run(reset())
+"
+```
+
+**Q: 如何备份数据？**
+
+```bash
+bash scripts/backup.sh
+# 定时备份（加入 cron）：
+# 0 2 * * * cd /opt/vigilops && bash scripts/backup.sh >> logs/backup.log 2>&1
+```
+
+**Q: ClickHouse / Loki 是必须的吗？**
+
+不是。默认使用 PostgreSQL 存储日志，开箱即用。  
+- 使用 ClickHouse：在 `.env` 中设置 `LOG_BACKEND=clickhouse`  
+- 使用 Loki：`docker compose --profile loki up -d`
+
+---
+
+### MCP 集成（AI Agent 接入）
+
+VigilOps 内置 **MCP Server**，让 Claude Code、Cursor 等 AI 编程助手可以直接查询生产环境数据——告警、日志、服务器健康状态、拓扑结构——无需离开对话界面。
+
+#### 启用 MCP Server
+
+MCP Server 运行在 backend 容器内，**默认关闭**。在 `backend/.env` 中添加：
+
+```env
+VIGILOPS_MCP_ENABLED=true
+VIGILOPS_MCP_HOST=0.0.0.0   # 允许外部访问（远程服务器必须设置）
+VIGILOPS_MCP_PORT=8003       # 默认端口
+```
+
+重启 backend 生效：
+
+```bash
+docker compose restart backend
+# 验证是否已启动：
+curl http://localhost:8003/
+```
+
+#### 在 Claude Desktop / Claude Code 中接入
+
+MCP Server 使用 HTTP 模式（FastMCP + uvicorn）。在 Claude Desktop 配置文件（`~/.claude/claude_desktop_config.json`）中添加：
+
+```json
+{
+  "mcpServers": {
+    "vigilops": {
+      "type": "http",
+      "url": "http://localhost:8003/mcp"
+    }
+  }
+}
+```
+
+远程服务器将 `localhost:8003` 替换为服务器 IP：
+
+```json
+{
+  "mcpServers": {
+    "vigilops": {
+      "type": "http",
+      "url": "http://139.196.210.68:8003/mcp"
+    }
+  }
+}
+```
+
+> ⚠️ MCP Server 暂无内置认证。生产环境建议绑定 `127.0.0.1` 或通过防火墙限制 8003 端口的访问来源。
+
+#### 可用工具（共 5 个）
+
+| 工具名 | 功能 |
+|--------|------|
+| `get_servers_health` | 获取所有服务器健康状态和指标 |
+| `get_alerts` | 查询告警列表，支持状态/严重性/主机过滤 |
+| `search_logs` | 搜索日志，支持关键词和时间范围 |
+| `analyze_incident` | AI 根因分析，生成修复建议 |
+| `get_topology` | 获取服务拓扑图数据 |
+
+#### 使用示例
+
+接入后，可以这样使用 AI 助手：
+
+```
+"查一下 prod-server-01 最近的告警"
+"分析一下今天凌晨的 CPU 告警根因"
+"搜索最近 2 小时的 OOM 错误"
+"所有服务器现在的健康状态怎么样？"
+```
+
+---
 
 ### 核心差异化
 
