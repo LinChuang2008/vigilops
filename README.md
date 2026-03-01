@@ -221,6 +221,8 @@ cd vigilops
 cp .env.example .env   # 填入你的 DeepSeek API Key
 docker compose up -d
 ```
+> ⚠️ **安全提示**：生产部署前请务必修改 `.env` 中的所有默认密码（`JWT_SECRET_KEY`、`POSTGRES_PASSWORD` 等）。
+
 
 打开 `http://localhost:3001` 即可使用。
 
