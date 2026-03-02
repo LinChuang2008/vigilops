@@ -176,7 +176,14 @@ async def get_host_metrics(
             .limit(1000)  # 限制返回数量防止内存溢出
         )
         result = await db.execute(query)
-        return result.scalars().all()
+        rows = result.scalars().all()
+        # 处理计数器重置导致的负值（计数器溢出/重启场景）
+        for row in rows:
+            if row.net_send_rate_kb is not None and row.net_send_rate_kb < 0:
+                row.net_send_rate_kb = 0.0
+            if row.net_recv_rate_kb is not None and row.net_recv_rate_kb < 0:
+                row.net_recv_rate_kb = 0.0
+        return rows
 
     # 使用PostgreSQL的date_trunc函数聚合数据 (Use PostgreSQL date_trunc for data aggregation)
     # 安全说明：trunc_unit 来自固定白名单映射，非用户输入，无 SQL 注入风险
