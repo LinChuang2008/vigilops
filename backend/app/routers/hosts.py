@@ -198,8 +198,8 @@ async def get_host_metrics(
             avg(disk_percent) as disk_percent,
             avg(net_bytes_sent)::bigint as net_bytes_sent,
             avg(net_bytes_recv)::bigint as net_bytes_recv,
-            avg(net_send_rate_kb) as net_send_rate_kb,
-            avg(net_recv_rate_kb) as net_recv_rate_kb,
+            greatest(0, avg(net_send_rate_kb)) as net_send_rate_kb,
+            greatest(0, avg(net_recv_rate_kb)) as net_recv_rate_kb,
             avg(net_packet_loss_rate) as net_packet_loss_rate,
             date_trunc('{trunc_unit}', recorded_at) as recorded_at
         FROM host_metrics
