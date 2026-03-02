@@ -186,6 +186,7 @@ const zh = {
     alertTrend: '告警趋势 (24h)',
     errorLogTrend: '错误日志 (24h)',
     loadingDashboard: '正在加载仪表盘...',
+    networkBandwidth: '网络带宽 (KB/s)',
   },
 
   // ========== 告警 ==========

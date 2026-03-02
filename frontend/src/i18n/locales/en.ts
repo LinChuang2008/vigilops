@@ -186,6 +186,7 @@ const en = {
     alertTrend: 'Alert Trend (24h)',
     errorLogTrend: 'Error Log (24h)',
     loadingDashboard: 'Loading dashboard...',
+    networkBandwidth: 'Network (KB/s)',
   },
 
   // ========== Alerts ==========

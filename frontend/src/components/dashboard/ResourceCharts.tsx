@@ -3,6 +3,7 @@
  * 显示多服务器资源使用率和网络带宽对比
  */
 import { Row, Col, Card, Typography } from 'antd';
+import { useTranslation } from 'react-i18next';
 import ReactECharts from '../ThemedECharts';
 
 const { Text } = Typography;
@@ -24,10 +25,8 @@ interface ResourceChartsProps {
 }
 
 export default function ResourceCharts({ hosts }: ResourceChartsProps) {
-  /**
-   * 多服务器资源对比图配置
-   * 横向对比所有在线服务器的 CPU、内存、磁盘使用率
-   */
+  const { t } = useTranslation();
+
   const resourceCompareOption = () => {
     const validHosts = hosts.filter(h => h.latest_metrics);
     if (validHosts.length === 0) return null;
@@ -35,7 +34,7 @@ export default function ResourceCharts({ hosts }: ResourceChartsProps) {
     const names = validHosts.map(h => h.hostname);
     return {
       tooltip: { trigger: 'axis' as const },
-      legend: { bottom: 0, data: ['CPU', '内存', '磁盘'] },
+      legend: { bottom: 0, data: ['CPU', t('hosts.memory', { defaultValue: 'Mem' }), t('hosts.disk', { defaultValue: 'Disk' })] },
       xAxis: { 
         type: 'category' as const, 
         data: names, 
@@ -55,14 +54,14 @@ export default function ResourceCharts({ hosts }: ResourceChartsProps) {
           barMaxWidth: 40 
         },
         { 
-          name: '内存', 
+          name: t('hosts.memory', { defaultValue: 'Mem' }), 
           type: 'bar' as const, 
           data: validHosts.map(h => h.latest_metrics!.memory_percent ?? 0), 
           itemStyle: { color: '#52c41a' }, 
           barMaxWidth: 40 
         },
         { 
-          name: '磁盘', 
+          name: t('hosts.disk', { defaultValue: 'Disk' }), 
           type: 'bar' as const, 
           data: validHosts.map(h => h.latest_metrics!.disk_percent ?? 0), 
           itemStyle: { color: '#faad14' }, 
@@ -73,10 +72,6 @@ export default function ResourceCharts({ hosts }: ResourceChartsProps) {
     };
   };
 
-  /**
-   * 网络带宽对比图配置
-   * 对比各服务器的上传/下载带宽使用情况
-   */
   const networkCompareOption = () => {
     const networkHosts = hosts.filter(h => h.latest_metrics?.net_send_rate_kb != null);
     if (networkHosts.length === 0) return null;
@@ -95,13 +90,13 @@ export default function ResourceCharts({ hosts }: ResourceChartsProps) {
       },
       series: [
         { 
-          name: '上传', 
+          name: t('hosts.upload', { defaultValue: 'Upload' }), 
           type: 'bar' as const, 
           data: networkHosts.map(h => h.latest_metrics!.net_send_rate_kb ?? 0), 
           itemStyle: { color: '#1677ff' } 
         },
         { 
-          name: '下载', 
+          name: t('hosts.download', { defaultValue: 'Download' }), 
           type: 'bar' as const, 
           data: networkHosts.map(h => h.latest_metrics!.net_recv_rate_kb ?? 0), 
           itemStyle: { color: '#52c41a' } 
@@ -117,17 +112,17 @@ export default function ResourceCharts({ hosts }: ResourceChartsProps) {
   return (
     <Row gutter={[16, 16]}>
       <Col xs={24} md={12}>
-        <Card title="资源使用率对比">
+        <Card title={t('dashboard.resourceUsage')}>
           {resOption ? (
             <ReactECharts option={resOption} style={{ height: 260 }} />
-          ) : <Text type="secondary">暂无数据</Text>}
+          ) : <Text type="secondary">{t('dashboard.noData')}</Text>}
         </Card>
       </Col>
       <Col xs={24} md={12}>
-        <Card title="网络带宽 (KB/s)">
+        <Card title={t('dashboard.networkBandwidth', { defaultValue: 'Network (KB/s)' })}>
           {netOption ? (
             <ReactECharts option={netOption} style={{ height: 260 }} />
-          ) : <Text type="secondary">暂无数据</Text>}
+          ) : <Text type="secondary">{t('dashboard.noData')}</Text>}
         </Card>
       </Col>
     </Row>
