@@ -13,6 +13,7 @@ import {
 } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { useTranslation } from 'react-i18next';
 import ReactECharts from '../components/ThemedECharts';
 import api from '../services/api';
 
@@ -71,6 +72,8 @@ interface DailyAvailability {
 }
 
 export default function SLA() {
+  const { t } = useTranslation();
+
   // ========== 看板状态 ==========
   const [statusList, setStatusList] = useState<SLAStatus[]>([]);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -105,7 +108,7 @@ export default function SLA() {
         } catch { /* 忽略趋势加载失败 */ }
       }
     } catch {
-      message.error('加载 SLA 状态失败');
+      message.error(t('sla.loadStatusFailed'));
     }
     setStatusLoading(false);
   };
@@ -122,7 +125,7 @@ export default function SLA() {
       const res = await api.get('/sla/violations', { params });
       setViolations(res.data);
     } catch {
-      message.error('加载违规事件失败');
+      message.error(t('sla.loadViolationsFailed'));
     }
     setViolLoading(false);
   };
@@ -138,7 +141,7 @@ export default function SLA() {
       setRules(rulesRes.data);
       setServices(svcRes.data.items || svcRes.data);
     } catch {
-      message.error('加载规则失败');
+      message.error(t('sla.loadRulesFailed'));
     }
     setRulesLoading(false);
   };
@@ -155,14 +158,14 @@ export default function SLA() {
       const svc = services.find(s => s.id === values.service_id);
       await api.post('/sla/rules', {
         ...values,
-        name: svc ? `${svc.name} SLA` : 'SLA 规则',
+        name: svc ? `${svc.name}${t('sla.ruleSuffix')}` : 'SLA',
       });
-      message.success('创建成功');
+      message.success(t('sla.createSuccess'));
       form.resetFields();
       loadRules();
       loadStatus();
     } catch (err: any) {
-      message.error(err.response?.data?.detail || '创建失败');
+      message.error(err.response?.data?.detail || t('sla.createFailed'));
     }
   };
 
@@ -170,11 +173,11 @@ export default function SLA() {
   const handleDelete = async (id: number) => {
     try {
       await api.delete(`/sla/rules/${id}`);
-      message.success('已删除');
+      message.success(t('sla.deleted'));
       loadRules();
       loadStatus();
     } catch {
-      message.error('删除失败');
+      message.error(t('sla.deleteFailed'));
     }
   };
 
@@ -199,7 +202,7 @@ export default function SLA() {
   const renderDashboard = () => (
     <Spin spinning={statusLoading}>
       {statusList.length === 0 ? (
-        <Empty description="暂无 SLA 规则，请先添加" />
+        <Empty description={t('sla.noRules')} />
       ) : (
         <>
           <Row gutter={[16, 16]}>
@@ -210,7 +213,7 @@ export default function SLA() {
                   <Card hoverable>
                     <Space direction="vertical" style={{ width: '100%' }} align="center">
                       <Text strong>{s.service_name}</Text>
-                      <Text type="secondary">目标: {s.target_percent}%</Text>
+                      <Text type="secondary">{t('sla.targetLabel')}{s.target_percent}%</Text>
                       {s.actual_percent != null ? (
                         <>
                           <Progress
@@ -221,11 +224,11 @@ export default function SLA() {
                             size={120}
                           />
                           <Tag color={s.is_met ? 'green' : 'red'}>
-                            {s.is_met ? '达标' : '未达标'}
+                            {s.is_met ? t('sla.met') : t('sla.notMet')}
                           </Tag>
                           <div style={{ width: '100%' }}>
                             <Text type="secondary" style={{ fontSize: 12 }}>
-                              错误预算剩余: {s.error_budget_remaining_minutes?.toFixed(1)} 分钟
+                              {t('sla.errorBudgetRemaining')}{s.error_budget_remaining_minutes?.toFixed(1)} {t('common.minute')}
                             </Text>
                             <Progress
                               percent={budgetPct}
@@ -236,7 +239,7 @@ export default function SLA() {
                           </div>
                         </>
                       ) : (
-                        <Text type="secondary">N/A（暂无检查数据）</Text>
+                        <Text type="secondary">{t('sla.noCheckData')}</Text>
                       )}
                     </Space>
                   </Card>
@@ -250,19 +253,19 @@ export default function SLA() {
             const trend = trendData[s.service_id];
             if (!trend || trend.length === 0) return null;
             const option = {
-              title: { text: `${s.service_name} - 30 天可用率趋势`, left: 'center', textStyle: { fontSize: 14 } },
+              title: { text: `${s.service_name} - ${t('sla.availabilityTrend')}`, left: 'center', textStyle: { fontSize: 14 } },
               tooltip: { trigger: 'axis' as const },
               xAxis: { type: 'category' as const, data: trend.map(d => d.date.slice(5)) },
               yAxis: { type: 'value' as const, min: 99, max: 100, axisLabel: { formatter: '{value}%' } },
               series: [
                 {
-                  name: '可用率',
+                  name: t('sla.availability'),
                   type: 'line' as const,
                   data: trend.map(d => d.availability),
                   smooth: true,
                   markLine: {
                     silent: true,
-                    data: [{ yAxis: s.target_percent, name: '目标', lineStyle: { type: 'dashed' as const, color: '#ff4d4f' } }],
+                    data: [{ yAxis: s.target_percent, name: t('sla.targetLine'), lineStyle: { type: 'dashed' as const, color: '#ff4d4f' } }],
                   },
                 },
               ],
@@ -281,15 +284,15 @@ export default function SLA() {
   // ========== 违规事件 Tab ==========
   const violationColumns = [
     {
-      title: '时间', dataIndex: 'started_at', key: 'started_at',
+      title: t('sla.violationTime'), dataIndex: 'started_at', key: 'started_at',
       render: (v: string) => dayjs(v).format('YYYY-MM-DD HH:mm:ss'),
     },
-    { title: '服务', dataIndex: 'service_name', key: 'service_name' },
+    { title: t('sla.violationService'), dataIndex: 'service_name', key: 'service_name' },
     {
-      title: '持续时间', dataIndex: 'duration_seconds', key: 'duration',
-      render: (v: number | null) => v != null ? `${Math.round(v / 60)} 分钟` : '-',
+      title: t('sla.violationDuration'), dataIndex: 'duration_seconds', key: 'duration',
+      render: (v: number | null) => v != null ? t('sla.durationMinutes', { minutes: Math.round(v / 60) }) : '-',
     },
-    { title: '描述', dataIndex: 'description', key: 'description', render: (v: string) => v || '-' },
+    { title: t('sla.violationDesc'), dataIndex: 'description', key: 'description', render: (v: string) => v || '-' },
   ];
 
   const renderViolations = () => (
@@ -299,7 +302,7 @@ export default function SLA() {
           value={violDates}
           onChange={(dates) => setViolDates(dates as [dayjs.Dayjs, dayjs.Dayjs] | null)}
         />
-        <Button type="primary" onClick={loadViolations}>查询</Button>
+        <Button type="primary" onClick={loadViolations}>{t('sla.query')}</Button>
       </Space>
       <Table
         columns={violationColumns}
@@ -313,14 +316,20 @@ export default function SLA() {
   );
 
   // ========== 规则管理 Tab ==========
+  const windowMap: Record<string, string> = {
+    monthly: t('sla.monthly'),
+    weekly: t('sla.weekly'),
+    daily: t('sla.daily'),
+  };
+
   const renderRuleManagement = () => (
     <Spin spinning={rulesLoading}>
-      <Card title="添加 SLA 规则" style={{ marginBottom: 16 }}>
+      <Card title={t('sla.addRule')} style={{ marginBottom: 16 }}>
         <Form form={form} layout="vertical" onFinish={handleCreate}>
           <Row gutter={16}>
             <Col xs={24} sm={8} md={6}>
-              <Form.Item name="service_id" label="服务" rules={[{ required: true, message: '请选择服务' }]}>
-                <Select placeholder="选择服务" style={{ width: '100%' }}>
+              <Form.Item name="service_id" label={t('sla.service')} rules={[{ required: true, message: t('sla.serviceRequired') }]}>
+                <Select placeholder={t('sla.service')} style={{ width: '100%' }}>
                   {services.map(s => (
                     <Select.Option key={s.id} value={s.id}>{s.name}</Select.Option>
                   ))}
@@ -328,51 +337,51 @@ export default function SLA() {
               </Form.Item>
             </Col>
             <Col xs={24} sm={8} md={6}>
-              <Form.Item name="target_percent" label="目标可用率(%)" initialValue={99.9}
-                rules={[{ required: true, message: '请输入目标可用率' }]}>
+              <Form.Item name="target_percent" label={t('sla.targetPercent')} initialValue={99.9}
+                rules={[{ required: true, message: t('sla.targetRequired') }]}>
                 <InputNumber min={0} max={100} step={0.01} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
             <Col xs={24} sm={8} md={6}>
-              <Form.Item name="calculation_window" label="计算窗口" initialValue="monthly">
+              <Form.Item name="calculation_window" label={t('sla.calculationWindow')} initialValue="monthly">
                 <Select style={{ width: '100%' }}>
-                  <Select.Option value="monthly">月度</Select.Option>
-                  <Select.Option value="weekly">周度</Select.Option>
-                  <Select.Option value="daily">每日</Select.Option>
+                  <Select.Option value="monthly">{t('sla.monthly')}</Select.Option>
+                  <Select.Option value="weekly">{t('sla.weekly')}</Select.Option>
+                  <Select.Option value="daily">{t('sla.daily')}</Select.Option>
                 </Select>
               </Form.Item>
             </Col>
             <Col xs={24} sm={24} md={6}>
               <Form.Item label=" ">
-                <Button type="primary" htmlType="submit" style={{ width: '100%' }}>创建</Button>
+                <Button type="primary" htmlType="submit" style={{ width: '100%' }}>{t('common.create')}</Button>
               </Form.Item>
             </Col>
           </Row>
         </Form>
       </Card>
 
-      <Card title="已有规则">
+      <Card title={t('sla.existingRules')}>
         <Table
           dataSource={rules}
           rowKey="id"
           pagination={false}
           scroll={{ x: 'max-content' }}
           columns={[
-            { title: '服务', dataIndex: 'service_name', key: 'service_name' },
-            { title: '规则名', dataIndex: 'name', key: 'name' },
+            { title: t('sla.service'), dataIndex: 'service_name', key: 'service_name' },
+            { title: t('sla.ruleName'), dataIndex: 'name', key: 'name' },
             {
-              title: '目标可用率', dataIndex: 'target_percent', key: 'target',
+              title: t('sla.targetAvailability'), dataIndex: 'target_percent', key: 'target',
               render: (v: number) => `${v}%`,
             },
             {
-              title: '计算窗口', dataIndex: 'calculation_window', key: 'window',
-              render: (v: string) => ({ monthly: '月度', weekly: '周度', daily: '每日' }[v] || v),
+              title: t('sla.calculationWindow'), dataIndex: 'calculation_window', key: 'window',
+              render: (v: string) => windowMap[v] || v,
             },
             {
-              title: '操作', key: 'action',
+              title: t('common.actions'), key: 'action',
               render: (_: any, record: SLARule) => (
-                <Popconfirm title="确认删除该规则？" onConfirm={() => handleDelete(record.id)}>
-                  <Button danger icon={<DeleteOutlined />} size="small">删除</Button>
+                <Popconfirm title={t('sla.confirmDeleteRule')} onConfirm={() => handleDelete(record.id)}>
+                  <Button danger icon={<DeleteOutlined />} size="small">{t('common.delete')}</Button>
                 </Popconfirm>
               ),
             },
@@ -384,13 +393,13 @@ export default function SLA() {
 
   return (
     <div>
-      <Title level={4}>SLA 管理</Title>
+      <Title level={4}>{t('sla.title')}</Title>
       <Tabs
         defaultActiveKey="dashboard"
         items={[
-          { key: 'dashboard', label: 'SLA 看板', children: renderDashboard() },
-          { key: 'violations', label: '违规事件', children: renderViolations() },
-          { key: 'rules', label: '添加 SLA 规则', children: renderRuleManagement() },
+          { key: 'dashboard', label: t('sla.dashboard'), children: renderDashboard() },
+          { key: 'violations', label: t('sla.violations'), children: renderViolations() },
+          { key: 'rules', label: t('sla.addRule'), children: renderRuleManagement() },
         ]}
       />
     </div>

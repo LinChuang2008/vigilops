@@ -485,6 +485,8 @@ const zh = {
     createFailed: '创建失败',
     ruleSuffix: ' SLA',
     service: '服务',
+    serviceRequired: '请选择服务',
+    targetRequired: '请输入目标可用率',
   },
 
   // ========== 自动修复 ==========

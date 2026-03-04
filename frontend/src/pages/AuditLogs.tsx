@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import { Table, Tag, Select, Row, Col, Typography, Space, Tooltip, message } from 'antd';
 import dayjs from 'dayjs';
+import { useTranslation } from 'react-i18next';
 import type { AuditLog } from '../services/users';
 import { fetchAuditLogs, fetchUsers } from '../services/users';
 
@@ -35,6 +36,7 @@ function formatDetail(detail: string | null): string {
 }
 
 export default function AuditLogs() {
+  const { t } = useTranslation();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -58,7 +60,7 @@ export default function AuditLogs() {
       setLogs(data.items || []);
       setTotal(data.total || 0);
     } catch {
-      messageApi.error('获取审计日志失败');
+      messageApi.error(t('auditLogs.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -79,27 +81,27 @@ export default function AuditLogs() {
 
   /** 操作类型选项 */
   const actionOptions = [
-    { label: '创建', value: 'create' },
-    { label: '更新', value: 'update' },
-    { label: '删除', value: 'delete' },
-    { label: '登录', value: 'login' },
-    { label: '登出', value: 'logout' },
-    { label: '重置密码', value: 'reset_password' },
-    { label: '启用', value: 'enable' },
-    { label: '禁用', value: 'disable' },
+    { label: t('auditLogs.actionCreate'), value: 'create' },
+    { label: t('auditLogs.actionUpdate'), value: 'update' },
+    { label: t('auditLogs.actionDelete'), value: 'delete' },
+    { label: t('auditLogs.actionLogin'), value: 'login' },
+    { label: t('auditLogs.actionLogout'), value: 'logout' },
+    { label: t('auditLogs.actionResetPassword'), value: 'reset_password' },
+    { label: t('auditLogs.actionEnable'), value: 'enable' },
+    { label: t('auditLogs.actionDisable'), value: 'disable' },
   ];
 
   const columns = [
     {
-      title: '时间',
+      title: t('auditLogs.timestamp'),
       dataIndex: 'created_at',
       key: 'created_at',
       width: 180,
-      render: (t: string) => dayjs(t).format('YYYY-MM-DD HH:mm:ss'),
+      render: (v: string) => dayjs(v).format('YYYY-MM-DD HH:mm:ss'),
     },
-    { title: '用户', dataIndex: 'user_name', key: 'user_name', width: 120 },
+    { title: t('auditLogs.user'), dataIndex: 'user_name', key: 'user_name', width: 120 },
     {
-      title: '操作类型',
+      title: t('auditLogs.action'),
       dataIndex: 'action',
       key: 'action',
       width: 120,
@@ -107,11 +109,11 @@ export default function AuditLogs() {
         <Tag color={actionColorMap[action] || 'default'}>{action}</Tag>
       ),
     },
-    { title: '资源类型', dataIndex: 'resource_type', key: 'resource_type', width: 120 },
-    { title: '资源ID', dataIndex: 'resource_id', key: 'resource_id', width: 80, render: (v: number | null) => v ?? '-' },
-    { title: 'IP 地址', dataIndex: 'ip_address', key: 'ip_address', width: 140, render: (v: string | null) => v ?? '-' },
+    { title: t('auditLogs.resource'), dataIndex: 'resource_type', key: 'resource_type', width: 120 },
+    { title: t('auditLogs.resourceId'), dataIndex: 'resource_id', key: 'resource_id', width: 80, render: (v: number | null) => v ?? '-' },
+    { title: t('auditLogs.ipAddress'), dataIndex: 'ip_address', key: 'ip_address', width: 140, render: (v: string | null) => v ?? '-' },
     {
-      title: '详情',
+      title: t('auditLogs.detail'),
       dataIndex: 'detail',
       key: 'detail',
       ellipsis: true,
@@ -131,12 +133,12 @@ export default function AuditLogs() {
     <>
       {contextHolder}
       <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
-        <Col><Title level={4} style={{ margin: 0 }}>审计日志</Title></Col>
+        <Col><Title level={4} style={{ margin: 0 }}>{t('auditLogs.title')}</Title></Col>
         <Col>
           <Space>
             <Select
               allowClear
-              placeholder="操作类型"
+              placeholder={t('auditLogs.filterAction')}
               style={{ width: 140 }}
               options={actionOptions}
               value={actionFilter}
@@ -146,7 +148,7 @@ export default function AuditLogs() {
               allowClear
               showSearch
               optionFilterProp="label"
-              placeholder="用户筛选"
+              placeholder={t('auditLogs.filterUser')}
               style={{ width: 160 }}
               options={userOptions}
               value={userFilter}
@@ -166,7 +168,7 @@ export default function AuditLogs() {
           pageSize,
           total,
           onChange: (p) => setPage(p),
-          showTotal: (t) => `共 ${t} 条`,
+          showTotal: (count) => t('common.total', { count }),
         }}
       />
     </>

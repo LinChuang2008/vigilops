@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { Table, Button, Tag, Switch, Modal, Form, Input, Select, Row, Col, Typography, Space, message, Popconfirm } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { useTranslation } from 'react-i18next';
 import type { User, UserCreate, UserUpdate } from '../services/users';
 import { fetchUsers, createUser, updateUser, deleteUser, resetPassword } from '../services/users';
 
@@ -20,14 +21,8 @@ const roleColorMap: Record<string, string> = {
   viewer: 'default',
 };
 
-/** 角色选项 */
-const roleOptions = [
-  { label: '管理员', value: 'admin' },
-  { label: '操作员', value: 'operator' },
-  { label: '观察者', value: 'viewer' },
-];
-
 export default function Users() {
+  const { t } = useTranslation();
   const [users, setUsers] = useState<User[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -46,6 +41,13 @@ export default function Users() {
 
   const [messageApi, contextHolder] = message.useMessage();
 
+  /** 角色选项 */
+  const roleOptions = [
+    { label: t('users.roles.admin'), value: 'admin' },
+    { label: t('users.roles.operator'), value: 'operator' },
+    { label: t('users.roles.viewer'), value: 'viewer' },
+  ];
+
   /** 加载用户列表 */
   const load = async () => {
     setLoading(true);
@@ -54,7 +56,7 @@ export default function Users() {
       setUsers(data.items || []);
       setTotal(data.total || 0);
     } catch {
-      messageApi.error('获取用户列表失败');
+      messageApi.error(t('users.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -82,10 +84,10 @@ export default function Users() {
       const values = await form.validateFields();
       if (editingUser) {
         await updateUser(editingUser.id, values as UserUpdate);
-        messageApi.success('用户已更新');
+        messageApi.success(t('users.updated'));
       } else {
         await createUser(values as UserCreate);
-        messageApi.success('用户已创建');
+        messageApi.success(t('users.created'));
       }
       setModalOpen(false);
       load();
@@ -98,10 +100,10 @@ export default function Users() {
   const handleToggleActive = async (user: User, checked: boolean) => {
     try {
       await updateUser(user.id, { is_active: checked });
-      messageApi.success(checked ? '已启用' : '已禁用');
+      messageApi.success(checked ? t('users.enabled') : t('users.disabled'));
       load();
     } catch {
-      messageApi.error('操作失败');
+      messageApi.error(t('users.actionFailed'));
     }
   };
 
@@ -109,10 +111,10 @@ export default function Users() {
   const handleDelete = async (id: number) => {
     try {
       await deleteUser(id);
-      messageApi.success('用户已删除');
+      messageApi.success(t('users.deleted'));
       load();
     } catch {
-      messageApi.error('删除失败');
+      messageApi.error(t('users.deleteFailed'));
     }
   };
 
@@ -129,7 +131,7 @@ export default function Users() {
       const { password } = await pwdForm.validateFields();
       if (pwdUserId !== null) {
         await resetPassword(pwdUserId, password);
-        messageApi.success('密码已重置');
+        messageApi.success(t('users.passwordReset'));
         setPwdModalOpen(false);
       }
     } catch {
@@ -138,10 +140,10 @@ export default function Users() {
   };
 
   const columns = [
-    { title: '邮箱', dataIndex: 'email', key: 'email' },
-    { title: '姓名', dataIndex: 'name', key: 'name' },
+    { title: t('users.email'), dataIndex: 'email', key: 'email' },
+    { title: t('users.name'), dataIndex: 'name', key: 'name' },
     {
-      title: '角色',
+      title: t('users.role'),
       dataIndex: 'role',
       key: 'role',
       render: (role: string) => (
@@ -149,7 +151,7 @@ export default function Users() {
       ),
     },
     {
-      title: '状态',
+      title: t('users.status'),
       dataIndex: 'is_active',
       key: 'is_active',
       render: (active: boolean, record: User) => (
@@ -157,20 +159,20 @@ export default function Users() {
       ),
     },
     {
-      title: '创建时间',
+      title: t('users.createdAt'),
       dataIndex: 'created_at',
       key: 'created_at',
-      render: (t: string) => dayjs(t).format('YYYY-MM-DD HH:mm'),
+      render: (v: string) => dayjs(v).format('YYYY-MM-DD HH:mm'),
     },
     {
-      title: '操作',
+      title: t('common.actions'),
       key: 'action',
       render: (_: unknown, record: User) => (
         <Space>
-          <Button type="link" size="small" onClick={() => handleEdit(record)}>编辑</Button>
-          <Button type="link" size="small" onClick={() => handleResetPwd(record.id)}>重置密码</Button>
-          <Popconfirm title="确认删除该用户？" onConfirm={() => handleDelete(record.id)}>
-            <Button type="link" size="small" danger>删除</Button>
+          <Button type="link" size="small" onClick={() => handleEdit(record)}>{t('common.edit')}</Button>
+          <Button type="link" size="small" onClick={() => handleResetPwd(record.id)}>{t('users.resetPassword')}</Button>
+          <Popconfirm title={t('users.confirmDeleteUser')} onConfirm={() => handleDelete(record.id)}>
+            <Button type="link" size="small" danger>{t('common.delete')}</Button>
           </Popconfirm>
         </Space>
       ),
@@ -181,9 +183,9 @@ export default function Users() {
     <>
       {contextHolder}
       <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
-        <Col><Title level={4} style={{ margin: 0 }}>用户管理</Title></Col>
+        <Col><Title level={4} style={{ margin: 0 }}>{t('users.title')}</Title></Col>
         <Col>
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>新建用户</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>{t('users.createUser')}</Button>
         </Col>
       </Row>
 
@@ -197,13 +199,13 @@ export default function Users() {
           pageSize,
           total,
           onChange: (p) => setPage(p),
-          showTotal: (t) => `共 ${t} 条`,
+          showTotal: (count) => t('common.total', { count }),
         }}
       />
 
       {/* 新建/编辑用户弹窗 */}
       <Modal
-        title={editingUser ? '编辑用户' : '新建用户'}
+        title={editingUser ? t('users.editUser') : t('users.newUser')}
         open={modalOpen}
         onOk={handleSubmit}
         onCancel={() => setModalOpen(false)}
@@ -212,18 +214,18 @@ export default function Users() {
         <Form form={form} layout="vertical">
           {!editingUser && (
             <>
-              <Form.Item name="email" label="邮箱" rules={[{ required: true, type: 'email', message: '请输入有效邮箱' }]}>
+              <Form.Item name="email" label={t('users.email')} rules={[{ required: true, type: 'email', message: t('users.emailRequired') }]}>
                 <Input />
               </Form.Item>
-              <Form.Item name="password" label="密码" rules={[{ required: true, min: 6, message: '密码至少6位' }]}>
+              <Form.Item name="password" label={t('login.password')} rules={[{ required: true, min: 6, message: t('users.passwordMin') }]}>
                 <Input.Password />
               </Form.Item>
             </>
           )}
-          <Form.Item name="name" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}>
+          <Form.Item name="name" label={t('users.name')} rules={[{ required: true, message: t('users.nameRequired') }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="role" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
+          <Form.Item name="role" label={t('users.role')} rules={[{ required: true, message: t('users.roleRequired') }]}>
             <Select options={roleOptions} />
           </Form.Item>
         </Form>
@@ -231,14 +233,14 @@ export default function Users() {
 
       {/* 重置密码弹窗 */}
       <Modal
-        title="重置密码"
+        title={t('users.resetPassword')}
         open={pwdModalOpen}
         onOk={handlePwdSubmit}
         onCancel={() => setPwdModalOpen(false)}
         destroyOnClose
       >
         <Form form={pwdForm} layout="vertical">
-          <Form.Item name="password" label="新密码" rules={[{ required: true, min: 6, message: '密码至少6位' }]}>
+          <Form.Item name="password" label={t('users.newPassword')} rules={[{ required: true, min: 6, message: t('users.passwordMin') }]}>
             <Input.Password />
           </Form.Item>
         </Form>

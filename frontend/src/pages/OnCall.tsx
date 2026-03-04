@@ -18,6 +18,7 @@ import {
   WarningOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { useTranslation } from 'react-i18next';
 import { onCallService } from '../services/onCall';
 
 const { Title, Text } = Typography;
@@ -72,6 +73,7 @@ interface CoverageData {
 }
 
 export default function OnCall() {
+  const { t } = useTranslation();
   const [messageApi, contextHolder] = message.useMessage();
 
   // ===== 值班组 =====
@@ -179,10 +181,10 @@ export default function OnCall() {
       const values = await groupForm.validateFields();
       if (editingGroup) {
         await onCallService.updateGroup(editingGroup.id, values);
-        messageApi.success('值班组已更新');
+        messageApi.success(t('onCall.groupUpdated'));
       } else {
         await onCallService.createGroup(values);
-        messageApi.success('值班组已创建');
+        messageApi.success(t('onCall.groupCreated'));
       }
       setGroupModalOpen(false);
       fetchGroups();
@@ -192,9 +194,9 @@ export default function OnCall() {
   const handleGroupDelete = async (id: number) => {
     try {
       await onCallService.deleteGroup(id);
-      messageApi.success('值班组已删除');
+      messageApi.success(t('onCall.groupDeleted'));
       fetchGroups();
-    } catch { messageApi.error('删除失败'); }
+    } catch { messageApi.error(t('onCall.deleteFailed')); }
   };
 
   // ===== 排期 CRUD =====
@@ -224,10 +226,10 @@ export default function OnCall() {
       };
       if (editingSchedule) {
         await onCallService.updateSchedule(editingSchedule.id, payload);
-        messageApi.success('排期已更新');
+        messageApi.success(t('onCall.scheduleUpdated'));
       } else {
         await onCallService.createSchedule(payload);
-        messageApi.success('排期已创建');
+        messageApi.success(t('onCall.scheduleCreated'));
       }
       setScheduleModalOpen(false);
       fetchSchedules();
@@ -243,10 +245,10 @@ export default function OnCall() {
   const handleScheduleDelete = async (id: number) => {
     try {
       await onCallService.deleteSchedule(id);
-      messageApi.success('排期已删除');
+      messageApi.success(t('onCall.scheduleDeleted'));
       fetchSchedules();
       fetchCoverage();
-    } catch { messageApi.error('删除失败'); }
+    } catch { messageApi.error(t('onCall.deleteFailed')); }
   };
 
   // ===== 日历渲染 =====
@@ -281,7 +283,7 @@ export default function OnCall() {
           </li>
         ))}
         {items.length > 3 && (
-          <li><Text type="secondary" style={{ fontSize: 11 }}>+{items.length - 3} 更多</Text></li>
+          <li><Text type="secondary" style={{ fontSize: 11 }}>{t('onCall.moreItems', { count: items.length - 3 })}</Text></li>
         )}
       </ul>
     );
@@ -303,22 +305,22 @@ export default function OnCall() {
   // ===== 表格列 =====
   const groupColumns = [
     { title: 'ID', dataIndex: 'id', width: 60 },
-    { title: '组名', dataIndex: 'name', ellipsis: true },
-    { title: '描述', dataIndex: 'description', ellipsis: true },
+    { title: t('onCall.columnName'), dataIndex: 'name', ellipsis: true },
+    { title: t('onCall.columnDesc'), dataIndex: 'description', ellipsis: true },
     {
-      title: '状态', dataIndex: 'is_active', width: 80,
-      render: (v: boolean) => <Tag color={v ? 'green' : 'default'}>{v ? '激活' : '停用'}</Tag>,
+      title: t('onCall.columnStatus'), dataIndex: 'is_active', width: 80,
+      render: (v: boolean) => <Tag color={v ? 'green' : 'default'}>{v ? t('onCall.columnActive') : t('onCall.columnInactive')}</Tag>,
     },
     {
-      title: '创建时间', dataIndex: 'created_at', width: 170,
+      title: t('onCall.columnCreatedAt'), dataIndex: 'created_at', width: 170,
       render: (v: string) => dayjs(v).format('YYYY-MM-DD HH:mm'),
     },
     {
-      title: '操作', width: 120, fixed: 'right' as const,
+      title: t('onCall.columnActions'), width: 120, fixed: 'right' as const,
       render: (_: unknown, record: OnCallGroup) => (
         <Space>
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openGroupModal(record)} />
-          <Popconfirm title="确认删除此值班组？" onConfirm={() => handleGroupDelete(record.id)}>
+          <Popconfirm title={t('onCall.confirmDeleteGroup')} onConfirm={() => handleGroupDelete(record.id)}>
             <Button type="link" size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
@@ -329,27 +331,27 @@ export default function OnCall() {
   const scheduleColumns = [
     { title: 'ID', dataIndex: 'id', width: 60 },
     {
-      title: '值班组', dataIndex: 'group_id', width: 120,
-      render: (v: number) => groupNameMap[v] || `组${v}`,
+      title: t('onCall.columnGroup'), dataIndex: 'group_id', width: 120,
+      render: (v: number) => groupNameMap[v] || t('onCall.groupIdPrefix', { id: v }),
     },
     {
-      title: '值班人员', dataIndex: 'user_id', width: 120,
-      render: (v: number) => userNameMap[v] || `用户${v}`,
+      title: t('onCall.columnPerson'), dataIndex: 'user_id', width: 120,
+      render: (v: number) => userNameMap[v] || t('onCall.userIdPrefix', { id: v }),
     },
     {
-      title: '值班时段', width: 220,
+      title: t('onCall.columnPeriod'), width: 220,
       render: (_: unknown, r: OnCallSchedule) => `${r.start_date} ~ ${r.end_date}`,
     },
     {
-      title: '状态', dataIndex: 'is_active', width: 80,
-      render: (v: boolean) => <Tag color={v ? 'green' : 'default'}>{v ? '激活' : '停用'}</Tag>,
+      title: t('onCall.columnStatus'), dataIndex: 'is_active', width: 80,
+      render: (v: boolean) => <Tag color={v ? 'green' : 'default'}>{v ? t('onCall.columnActive') : t('onCall.columnInactive')}</Tag>,
     },
     {
-      title: '操作', width: 120, fixed: 'right' as const,
+      title: t('onCall.columnActions'), width: 120, fixed: 'right' as const,
       render: (_: unknown, record: OnCallSchedule) => (
         <Space>
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openScheduleModal(record)} />
-          <Popconfirm title="确认删除此排期？" onConfirm={() => handleScheduleDelete(record.id)}>
+          <Popconfirm title={t('onCall.confirmDeleteSchedule')} onConfirm={() => handleScheduleDelete(record.id)}>
             <Button type="link" size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
@@ -361,12 +363,12 @@ export default function OnCall() {
     <>
       {contextHolder}
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Title level={4} style={{ margin: 0 }}>值班排期管理</Title>
+        <Title level={4} style={{ margin: 0 }}>{t('onCall.title')}</Title>
         {currentOnCall && (
           <Card size="small" style={{ background: '#f6ffed', border: '1px solid #b7eb8f' }}>
             <Space>
               <CheckCircleOutlined style={{ color: '#52c41a' }} />
-              <Text strong>当前值班：</Text>
+              <Text strong>{t('onCall.currentOnCall')}</Text>
               <Text>{currentOnCall.username}</Text>
               <Tag color="blue">{currentOnCall.group_name}</Tag>
               <Text type="secondary">{currentOnCall.start_date} ~ {currentOnCall.end_date}</Text>
@@ -379,10 +381,10 @@ export default function OnCall() {
         items={[
           {
             key: 'groups',
-            label: <span><TeamOutlined /> 值班组</span>,
+            label: <span><TeamOutlined /> {t('onCall.groups')}</span>,
             children: (
               <Card
-                extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => openGroupModal()}>新建值班组</Button>}
+                extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => openGroupModal()}>{t('onCall.newGroup')}</Button>}
               >
                 <Table
                   rowKey="id"
@@ -398,20 +400,20 @@ export default function OnCall() {
           },
           {
             key: 'schedules',
-            label: <span><CalendarOutlined /> 排期管理</span>,
+            label: <span><CalendarOutlined /> {t('onCall.scheduleManage')}</span>,
             children: (
               <Card
                 extra={
                   <Space>
                     <Select
                       style={{ width: window.innerWidth < 768 ? '100%' : 160 }}
-                      placeholder="筛选值班组"
+                      placeholder={t('onCall.filterGroup')}
                       allowClear
                       value={filterGroupId}
                       onChange={(v) => { setFilterGroupId(v); setSchedulesPage(1); }}
                       options={groups.map(g => ({ value: g.id, label: g.name }))}
                     />
-                    <Button type="primary" icon={<PlusOutlined />} onClick={() => openScheduleModal()}>新建排期</Button>
+                    <Button type="primary" icon={<PlusOutlined />} onClick={() => openScheduleModal()}>{t('onCall.newSchedule')}</Button>
                     <Button icon={<ReloadOutlined />} onClick={fetchSchedules} />
                   </Space>
                 }
@@ -430,7 +432,7 @@ export default function OnCall() {
           },
           {
             key: 'calendar',
-            label: <span><CalendarOutlined /> 值班日历</span>,
+            label: <span><CalendarOutlined /> {t('onCall.calendar')}</span>,
             children: (
               <Card
                 loading={coverageLoading}
@@ -441,8 +443,8 @@ export default function OnCall() {
                         color={coverageData.coverage_analysis.has_gaps ? 'warning' : 'success'}
                         icon={coverageData.coverage_analysis.has_gaps ? <WarningOutlined /> : <CheckCircleOutlined />}
                       >
-                        覆盖率: {(coverageData.coverage_analysis.coverage_rate * 100).toFixed(0)}%
-                        ({coverageData.coverage_analysis.covered_days}/{coverageData.coverage_analysis.total_days}天)
+                        {t('onCall.coverageRate')}{(coverageData.coverage_analysis.coverage_rate * 100).toFixed(0)}%
+                        ({coverageData.coverage_analysis.covered_days}/{coverageData.coverage_analysis.total_days}{t('onCall.dayUnit')})
                       </Tag>
                     )}
                     <Button icon={<ReloadOutlined />} onClick={fetchCoverage} />
@@ -464,20 +466,20 @@ export default function OnCall() {
 
       {/* 值班组编辑弹窗 */}
       <Modal
-        title={editingGroup ? '编辑值班组' : '新建值班组'}
+        title={editingGroup ? t('onCall.editGroup') : t('onCall.newGroupTitle')}
         open={groupModalOpen}
         onOk={handleGroupSave}
         onCancel={() => setGroupModalOpen(false)}
         destroyOnClose
       >
         <Form form={groupForm} layout="vertical">
-          <Form.Item name="name" label="组名" rules={[{ required: true, message: '请输入值班组名称' }]}>
-            <Input placeholder="例：运维一组" />
+          <Form.Item name="name" label={t('onCall.groupNameLabel')} rules={[{ required: true, message: t('onCall.groupNameRequired') }]}>
+            <Input placeholder={t('onCall.groupNamePlaceholder')} />
           </Form.Item>
-          <Form.Item name="description" label="描述">
-            <Input.TextArea rows={3} placeholder="值班组描述（可选）" />
+          <Form.Item name="description" label={t('onCall.descLabel')}>
+            <Input.TextArea rows={3} placeholder={t('onCall.descPlaceholder')} />
           </Form.Item>
-          <Form.Item name="is_active" label="激活" valuePropName="checked">
+          <Form.Item name="is_active" label={t('onCall.activeLabel')} valuePropName="checked">
             <Switch />
           </Form.Item>
         </Form>
@@ -485,31 +487,31 @@ export default function OnCall() {
 
       {/* 排期编辑弹窗 */}
       <Modal
-        title={editingSchedule ? '编辑排期' : '新建排期'}
+        title={editingSchedule ? t('onCall.editSchedule') : t('onCall.newScheduleTitle')}
         open={scheduleModalOpen}
         onOk={handleScheduleSave}
         onCancel={() => setScheduleModalOpen(false)}
         destroyOnClose
       >
         <Form form={scheduleForm} layout="vertical">
-          <Form.Item name="group_id" label="值班组" rules={[{ required: true, message: '请选择值班组' }]}>
+          <Form.Item name="group_id" label={t('onCall.columnGroup')} rules={[{ required: true, message: t('onCall.groupRequired') }]}>
             <Select
-              placeholder="选择值班组"
+              placeholder={t('onCall.filterGroup')}
               options={groups.filter(g => g.is_active).map(g => ({ value: g.id, label: g.name }))}
             />
           </Form.Item>
-          <Form.Item name="user_id" label="值班人员" rules={[{ required: true, message: '请选择值班人员' }]}>
+          <Form.Item name="user_id" label={t('onCall.columnPerson')} rules={[{ required: true, message: t('onCall.personRequired') }]}>
             <Select
-              placeholder="选择值班人员"
+              placeholder={t('onCall.columnPerson')}
               showSearch
               optionFilterProp="label"
               options={users.map(u => ({ value: u.id, label: u.username }))}
             />
           </Form.Item>
-          <Form.Item name="dateRange" label="值班时段" rules={[{ required: true, message: '请选择值班时段' }]}>
+          <Form.Item name="dateRange" label={t('onCall.columnPeriod')} rules={[{ required: true, message: t('onCall.periodRequired') }]}>
             <DatePicker.RangePicker style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="is_active" label="激活" valuePropName="checked">
+          <Form.Item name="is_active" label={t('onCall.activeLabel')} valuePropName="checked">
             <Switch />
           </Form.Item>
         </Form>
