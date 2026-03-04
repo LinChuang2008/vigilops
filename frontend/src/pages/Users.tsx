@@ -5,15 +5,13 @@
  * 角色通过不同颜色 Tag 区分：admin=red, operator=blue, viewer=default。
  */
 import { useEffect, useState } from 'react';
-import { Table, Button, Tag, Switch, Modal, Form, Input, Select, Typography, Space, message, Popconfirm } from 'antd';
+import { Table, Button, Tag, Switch, Modal, Form, Input, Select, Space, message, Popconfirm } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
 import type { User, UserCreate, UserUpdate } from '../services/users';
 import { fetchUsers, createUser, updateUser, deleteUser, resetPassword } from '../services/users';
 import PageHeader from '../components/PageHeader';
-
-const { } = Typography;
 
 /** 角色颜色映射 */
 const roleColorMap: Record<string, string> = {
