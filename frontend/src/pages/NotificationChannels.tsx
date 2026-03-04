@@ -202,6 +202,14 @@ export default function NotificationChannels() {
     });
   };
 
+  /** 测试发送（后端接口暂未实现，弹提示） */
+  const handleTestSend = (r: NotificationChannel) => {
+    Modal.info({
+      title: `测试发送 - ${r.name}`,
+      content: '功能开发中，敬请期待。',
+    });
+  };
+
   /** 表格列定义 */
   const columns = [
     { title: 'ID', dataIndex: 'id', width: 60 },
@@ -218,9 +226,10 @@ export default function NotificationChannels() {
     },
     { title: '创建时间', dataIndex: 'created_at', render: (t: string) => new Date(t).toLocaleString() },
     {
-      title: '操作', key: 'action', width: 140,
+      title: '操作', key: 'action', width: 220,
       render: (_: unknown, r: NotificationChannel) => (
         <Space>
+          <Button type="link" size="small" onClick={() => handleTestSend(r)}>测试发送</Button>
           <Button type="link" size="small" onClick={() => openEdit(r)}>编辑</Button>
           <Button type="link" danger size="small" onClick={() => handleDelete(r.id)}>删除</Button>
         </Space>

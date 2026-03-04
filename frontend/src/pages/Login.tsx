@@ -6,7 +6,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Form, Input, Button, Card, Typography, message, Tabs, Row, Col, Space } from 'antd';
+import { Form, Input, Button, Card, Typography, message, Tabs, Row, Col, Space, Modal } from 'antd';
 import { UserOutlined, LockOutlined, MailOutlined, RocketOutlined, RobotOutlined, ThunderboltOutlined, DashboardOutlined, SafetyCertificateOutlined, GlobalOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { authService } from '../services/auth';
@@ -65,6 +65,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   /** 当前激活的 Tab（login | register） */
   const [activeTab, setActiveTab] = useState('login');
+  /** 忘记密码弹窗 */
+  const [forgotModalOpen, setForgotModalOpen] = useState(false);
   /** 是否移动端 */
   const [isMobile, setIsMobile] = useState(false);
   const navigate = useNavigate();
@@ -428,12 +430,17 @@ export default function Login() {
                 <Form.Item name="password" rules={[{ required: true, message: t('login.validation.passwordRequired') }]}>
                   <Input.Password prefix={<LockOutlined />} placeholder={t('login.passwordPlaceholder')} />
                 </Form.Item>
+                <div style={{ textAlign: 'right', marginTop: -16, marginBottom: 12 }}>
+                  <Button type="link" size="small" style={{ padding: 0 }} onClick={() => setForgotModalOpen(true)}>
+                    忘记密码？
+                  </Button>
+                </div>
                 <Form.Item>
-                  <Button 
-                    type="primary" 
-                    htmlType="submit" 
-                    loading={loading} 
-                    block 
+                  <Button
+                    type="primary"
+                    htmlType="submit"
+                    loading={loading}
+                    block
                     size="large"
                     style={{
                       height: 48,
@@ -595,11 +602,20 @@ export default function Login() {
           </Col>
         </Row>
       </Card>
-      <div style={{ 
-        marginTop: 32, 
-        textAlign: 'center', 
-        color: 'rgba(255,255,255,0.8)', 
-        fontSize: 14, 
+      <Modal
+        title="忘记密码"
+        open={forgotModalOpen}
+        onCancel={() => setForgotModalOpen(false)}
+        onOk={() => setForgotModalOpen(false)}
+        cancelButtonProps={{ style: { display: 'none' } }}
+      >
+        <p>请联系管理员重置密码。</p>
+      </Modal>
+      <div style={{
+        marginTop: 32,
+        textAlign: 'center',
+        color: 'rgba(255,255,255,0.8)',
+        fontSize: 14,
         lineHeight: 1.6,
         zIndex: 1,
         position: 'relative',

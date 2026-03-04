@@ -361,9 +361,27 @@ export default function AIAnalysis() {
           background: '#f5f7fa', borderRadius: 8, padding: 16, minHeight: 200, maxHeight: 400, overflowY: 'auto', marginBottom: 16,
         }}>
           {messages.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
+            <div style={{ textAlign: 'center', padding: '32px 0', color: '#999' }}>
               <RobotOutlined style={{ fontSize: 40, marginBottom: 12 }} />
-              <div>向 AI 提问，了解系统运行状况</div>
+              <div style={{ marginBottom: 20 }}>向 AI 提问，了解系统运行状况</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+                {[
+                  '试试问：系统健康状况如何？',
+                  '试试问：最近有什么异常？',
+                  '试试问：服务器 CPU 为何飙升？',
+                ].map(hint => (
+                  <Button
+                    key={hint}
+                    size="small"
+                    type="dashed"
+                    icon={<ThunderboltOutlined />}
+                    onClick={() => sendChat(hint.replace(/^试试问：/, ''))}
+                    style={{ color: '#595959', borderColor: '#d9d9d9' }}
+                  >
+                    {hint}
+                  </Button>
+                ))}
+              </div>
             </div>
           )}
           {messages.map((msg) => (

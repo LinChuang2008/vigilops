@@ -6,8 +6,8 @@
  * 2. Agent Token 管理 - 管理用于 Agent 接入的 API Token，支持创建和吊销
  */
 import { useEffect, useState } from 'react';
-import { Card, Form, InputNumber, Button, Typography, Spin, message, Tabs, Table, Tag, Space, Modal, Input } from 'antd';
-import { PlusOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
+import { Card, Form, InputNumber, Button, Typography, Spin, message, Tabs, Table, Tag, Space, Modal, Input, Tooltip } from 'antd';
+import { PlusOutlined, ExclamationCircleOutlined, CopyOutlined, CheckOutlined } from '@ant-design/icons';
 import api from '../services/api';
 
 /** Agent Token 数据结构 */
@@ -39,6 +39,39 @@ export default function Settings() {
 
   const [form] = Form.useForm();
   const [messageApi, contextHolder] = message.useMessage();
+  /** 已复制的 token id，用于显示对勾图标 */
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  /** 复制文本到剪贴板，兼容不支持 navigator.clipboard 的环境 */
+  const copyToClipboard = (text: string, id: string) => {
+    const succeed = () => {
+      setCopiedId(id);
+      messageApi.success('已复制');
+      setTimeout(() => setCopiedId(null), 2000);
+    };
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(succeed).catch(() => execCommandCopy(text, id, succeed));
+    } else {
+      execCommandCopy(text, id, succeed);
+    }
+  };
+
+  const execCommandCopy = (text: string, _id: string, succeed: () => void) => {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.cssText = 'position:fixed;top:-9999px;left:-9999px';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    try {
+      document.execCommand('copy');
+      succeed();
+    } catch {
+      messageApi.error('复制失败，请手动复制');
+    } finally {
+      document.body.removeChild(textarea);
+    }
+  };
 
   /** 获取系统配置项并填充表单 */
   const fetchSettings = async () => {
@@ -105,7 +138,22 @@ export default function Settings() {
   /** Token 列表表格列定义 */
   const tokenColumns = [
     { title: '名称', dataIndex: 'name' },
-    { title: 'Token', dataIndex: 'token', render: (t: string) => <Typography.Text copyable code>{t?.substring(0, 16)}...</Typography.Text> },
+    {
+      title: 'Token', dataIndex: 'token',
+      render: (t: string, record: AgentToken) => (
+        <Space>
+          <Typography.Text code>{t?.substring(0, 16)}...</Typography.Text>
+          <Tooltip title={copiedId === record.id ? '已复制' : '复制完整 Token'}>
+            <Button
+              type="text"
+              size="small"
+              icon={copiedId === record.id ? <CheckOutlined style={{ color: '#52c41a' }} /> : <CopyOutlined />}
+              onClick={() => copyToClipboard(t, record.id)}
+            />
+          </Tooltip>
+        </Space>
+      ),
+    },
     { title: '状态', dataIndex: 'is_active', render: (v: boolean) => <Tag color={v ? 'success' : 'default'}>{v ? '活跃' : '已吊销'}</Tag> },
     { title: '创建时间', dataIndex: 'created_at', render: (t: string) => new Date(t).toLocaleString() },
     {
