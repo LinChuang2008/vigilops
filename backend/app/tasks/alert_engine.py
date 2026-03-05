@@ -153,7 +153,7 @@ async def _evaluate_rule(db, redis, rule: AlertRule, host: Host, metrics: dict):
             finally:
                 sync_db.close()
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         should_create_alert, dedup_info = await loop.run_in_executor(None, _run_dedup_host)
 
         if not should_create_alert:
@@ -291,7 +291,7 @@ async def _evaluate_service_rule(db, redis, rule: AlertRule, service: Service):
             finally:
                 sync_db.close()
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         should_create, dedup_info = await loop.run_in_executor(None, _run_dedup_service)
 
         if not should_create:
