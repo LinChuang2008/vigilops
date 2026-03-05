@@ -38,6 +38,7 @@ const zh = {
     view: '查看',
     copy: '复制',
     copied: '已复制',
+    copyFailed: '复制失败，请手动复制',
     online: '在线',
     offline: '离线',
     healthy: '健康',
@@ -411,6 +412,7 @@ const zh = {
     slaNotMet: '未达标',
     slaNoData: '无数据',
     checkHistoryTitle: '检查历史',
+    slaNotConfigured: '未配置',
   },
 
   // ========== 日志管理 ==========
@@ -997,6 +999,10 @@ const zh = {
     columnCreatedAt: '创建时间',
     columnActions: '操作',
     revokeAction: '吊销',
+    agentAddedMsg: '主机添加成功',
+    agentAddedDesc: '建议为该主机配置告警规则，及时发现异常',
+    agentAddedBtn: '立即配置',
+    copyFullToken: '复制完整 Token',
   },
 
   // ========== 拓扑图 ==========
@@ -1138,6 +1144,8 @@ const zh = {
     categoryMq: '消息队列',
     categoryApi: 'API',
     categoryOther: '其他',
+    categoryRegistry: '注册中心',
+    categoryOlap: '分析引擎',
   },
 
   // ========== 通用状态组件 ==========

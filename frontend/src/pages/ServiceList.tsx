@@ -16,6 +16,7 @@ import {
   CloudServerOutlined, DatabaseOutlined, AppstoreOutlined,
   ApiOutlined, DesktopOutlined, ReloadOutlined,
 } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 import { serviceService } from '../services/services';
 import type { Service } from '../services/services';
 import api from '../services/api';
@@ -52,8 +53,23 @@ const CATEGORY_CONFIG: Record<string, { label: string; color: string; icon: Reac
  * 支持中间件、业务系统、基础设施三种预定义分类，未知分类显示为默认样式
  */
 const CategoryTag = ({ category }: { category?: string }) => {
-  const config = CATEGORY_CONFIG[category || ''] || { label: category || '未分类', color: 'default', icon: <ApiOutlined /> };
-  return <Tag color={config.color} icon={config.icon} style={{ marginRight: 0 }}>{config.label}</Tag>;
+  const { t } = useTranslation();
+  const config = CATEGORY_CONFIG[category || ''];
+  const labelMap: Record<string, string> = {
+    middleware: t('services.middleware'),
+    business: t('services.business'),
+    infrastructure: t('services.infrastructure'),
+  };
+  const label = category ? (labelMap[category] || category) : t('services.uncategorized');
+  return (
+    <Tag
+      color={config?.color || 'default'}
+      icon={config?.icon || <ApiOutlined />}
+      style={{ marginRight: 0 }}
+    >
+      {label}
+    </Tag>
+  );
 };
 
 /** 状态颜色映射 (Status color mapping)
@@ -77,6 +93,7 @@ const statusText = (s: string) => {
 /* ==================== 组件 ==================== */
 
 export default function ServiceList() {
+  const { t } = useTranslation();
   const [, setServices] = useState<ServiceItem[]>([]);
   const [hostGroups, setHostGroups] = useState<HostGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,7 +145,7 @@ export default function ServiceList() {
    */
   const columns = [
     {
-      title: '服务名',
+      title: t('services.serviceName'),
       dataIndex: 'name',
       key: 'name',
       // 服务名渲染为可点击链接，跳转到服务详情页
@@ -139,7 +156,7 @@ export default function ServiceList() {
       ),
     },
     {
-      title: '分类',
+      title: t('services.category'),
       dataIndex: 'category',
       key: 'category',
       width: 110,
@@ -147,7 +164,7 @@ export default function ServiceList() {
       render: (cat: string) => <CategoryTag category={cat} />,
     },
     {
-      title: '目标地址',
+      title: t('services.target'),
       key: 'url',
       ellipsis: true,
       // 显示服务的目标地址或URL，兼容不同字段名
@@ -156,7 +173,7 @@ export default function ServiceList() {
       ),
     },
     {
-      title: '类型',
+      title: t('services.checkType'),
       key: 'check_type',
       width: 80,
       // 显示检查类型（HTTP、TCP等），转换为大写
@@ -165,15 +182,20 @@ export default function ServiceList() {
       ),
     },
     {
-      title: '状态',
+      title: t('common.status'),
       dataIndex: 'status',
       key: 'status',
       width: 80,
       // 状态标签：健康=绿色，异常=红色，降级=橙色
-      render: (s: string) => <Tag color={statusColor(s)}>{statusText(s)}</Tag>,
+      render: (s: string) => {
+        const text = (s === 'healthy' || s === 'up') ? t('services.healthy')
+          : (s === 'degraded') ? t('services.degraded')
+          : t('common.unhealthy');
+        return <Tag color={statusColor(s)}>{text}</Tag>;
+      },
     },
     {
-      title: '可用率 (24h)',
+      title: t('services.uptime24h'),
       dataIndex: 'uptime_percent',
       key: 'uptime',
       width: 150,
@@ -187,12 +209,12 @@ export default function ServiceList() {
       ),
     },
     {
-      title: '最后检查',
+      title: t('services.lastCheck'),
       dataIndex: 'last_check',
       key: 'last_check',
       width: 170,
       // 最后检查时间本地化显示
-      render: (t: string) => t ? new Date(t).toLocaleString() : '-',
+      render: (v: string) => v ? new Date(v).toLocaleString() : '-',
     },
     {
       title: 'SLA',
@@ -200,11 +222,11 @@ export default function ServiceList() {
       width: 90,
       render: (_: unknown, r: ServiceItem) => {
         const status = slaMap[String(r.id)];
-        if (status === undefined) return <Tag color="default">未配置</Tag>;
-        if (status === 'compliant' || status === 'met') return <Tag color="green">达标</Tag>;
-        if (status === 'non_compliant' || status === 'violated' || status === 'breached') return <Tag color="red">未达标</Tag>;
+        if (status === undefined) return <Tag color="default">{t('services.slaNotConfigured')}</Tag>;
+        if (status === 'compliant' || status === 'met') return <Tag color="green">{t('services.slaMet')}</Tag>;
+        if (status === 'non_compliant' || status === 'violated' || status === 'breached') return <Tag color="red">{t('services.slaNotMet')}</Tag>;
         if (status === 'no_data') return <Tag>-</Tag>;
-        return <Tag color="default">未配置</Tag>;
+        return <Tag color="default">{t('services.slaNotConfigured')}</Tag>;
       },
     },
   ];
@@ -243,7 +265,7 @@ export default function ServiceList() {
           <DesktopOutlined style={{ fontSize: 18, color: isOnline ? '#52c41a' : '#ff4d4f' }} />
           <span style={{ fontWeight: 600, fontSize: 15 }}>{group.hostname}</span>
           {group.ip && <Text type="secondary">({group.ip})</Text>}
-          <Tag color={isOnline ? 'success' : 'error'}>{isOnline ? '在线' : '离线'}</Tag>
+          <Tag color={isOnline ? 'success' : 'error'}>{isOnline ? t('common.online') : t('common.offline')}</Tag>
         </Space>
         <Space size={12}>
           {/* 健康服务数徽章：全部健康=绿色，否则=橙色 */}
@@ -252,8 +274,8 @@ export default function ServiceList() {
             style={{ backgroundColor: healthyCount === totalCount ? '#52c41a' : '#faad14' }}
           />
           {/* 分类标签：只显示存在的分类 */}
-          {mwCount > 0 && <Tag color="purple">中间件 {mwCount}</Tag>}
-          {bizCount > 0 && <Tag color="blue">业务 {bizCount}</Tag>}
+          {mwCount > 0 && <Tag color="purple">{t('services.middleware')} {mwCount}</Tag>}
+          {bizCount > 0 && <Tag color="blue">{t('services.business')} {bizCount}</Tag>}
         </Space>
       </Space>
     );
@@ -263,30 +285,30 @@ export default function ServiceList() {
     <div>
       {/* 标题 + 统计 */}
       <PageHeader
-        title="服务监控"
-        tags={<Tag icon={<DesktopOutlined />} color="default">{hostCount} 台服务器</Tag>}
+        title={t('services.title')}
+        tags={<Tag icon={<DesktopOutlined />} color="default">{hostCount} {t('services.servers')}</Tag>}
         extra={
           <Space size={20}>
-            <Statistic title="总服务" value={globalStats.total} valueStyle={{ fontSize: 18 }} />
+            <Statistic title={t('services.totalServices')} value={globalStats.total} valueStyle={{ fontSize: 18 }} />
             <Statistic
-              title="中间件"
+              title={t('services.middleware')}
               value={globalStats.middleware}
               prefix={<DatabaseOutlined />}
               valueStyle={{ fontSize: 18, color: '#722ed1' }}
             />
             <Statistic
-              title="业务系统"
+              title={t('services.business')}
               value={globalStats.business}
               prefix={<AppstoreOutlined />}
               valueStyle={{ fontSize: 18, color: '#1890ff' }}
             />
             <Statistic
-              title="健康"
+              title={t('common.healthy')}
               value={globalStats.healthy}
               valueStyle={{ fontSize: 18, color: '#52c41a' }}
             />
             <Statistic
-              title="异常"
+              title={t('common.unhealthy')}
               value={globalStats.unhealthy}
               valueStyle={{ fontSize: 18, color: globalStats.unhealthy > 0 ? '#ff4d4f' : '#d9d9d9' }}
             />
@@ -299,33 +321,33 @@ export default function ServiceList() {
         <Col>
           <Space>
             <Select
-              placeholder="服务分类"
+              placeholder={t('services.serviceCategoryFilter')}
               allowClear
               style={{ width: 130 }}
               value={categoryFilter}
               onChange={(v) => setCategoryFilter(v || undefined)}
               options={[
-                { label: '🗄️ 中间件', value: 'middleware' },
-                { label: '📦 业务系统', value: 'business' },
-                { label: '☁️ 基础设施', value: 'infrastructure' },
+                { label: `🗄️ ${t('services.middleware')}`, value: 'middleware' },
+                { label: `📦 ${t('services.business')}`, value: 'business' },
+                { label: `☁️ ${t('services.infrastructure')}`, value: 'infrastructure' },
               ]}
             />
             <Select
-              placeholder="运行状态"
+              placeholder={t('services.runningStatusFilter')}
               allowClear
               style={{ width: 120 }}
               value={statusFilter}
               onChange={(v) => setStatusFilter(v || undefined)}
               options={[
-                { label: '✅ 健康', value: 'up' },
-                { label: '❌ 异常', value: 'down' },
+                { label: `✅ ${t('services.healthy')}`, value: 'up' },
+                { label: `❌ ${t('common.unhealthy')}`, value: 'down' },
               ]}
             />
           </Space>
         </Col>
         <Col>
           <Button icon={<ReloadOutlined />} onClick={fetchData} loading={loading}>
-            刷新
+            {t('common.refresh')}
           </Button>
         </Col>
       </Row>
@@ -334,7 +356,7 @@ export default function ServiceList() {
       {loading ? (
         <Card loading />
       ) : hostGroups.length === 0 ? (
-        <Card><Empty description="暂无服务" /></Card>
+        <Card><Empty description={t('services.noServices')} /></Card>
       ) : (
         <Collapse
           defaultActiveKey={[]}

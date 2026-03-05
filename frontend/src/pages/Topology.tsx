@@ -18,6 +18,7 @@ import {
   BulbOutlined, UnorderedListOutlined,
 } from '@ant-design/icons';
 import * as echarts from 'echarts';
+import { useTranslation } from 'react-i18next';
 import { EmptyState, ErrorState } from '../components/StateComponents';
 
 const { Title, Text, Paragraph } = Typography;
@@ -56,12 +57,12 @@ const GROUP_CONFIG: Record<string, { label: string; color: string; bgColor: stri
   cache:    { label: '⚡ 缓存',    color: '#9ACD32', bgColor: 'rgba(154,205,50,0.08)',   order: 7, stage: 3 },
 };
 
-/** 管道阶段定义（从左到右） */
+/** 管道阶段定义（从左到右） —— label 存储 i18n key，在组件内翻译 */
 const PIPELINE_STAGES = [
-  { key: 0, label: '接入层', color: '#FFB800' },
-  { key: 1, label: '应用层', color: '#FF7F50' },
-  { key: 2, label: '中间件', color: '#AB47BC' },
-  { key: 3, label: '数据层', color: '#7B68EE' },
+  { key: 0, label: 'topology.stageAccess', color: '#FFB800' },
+  { key: 1, label: 'topology.stageApp', color: '#FF7F50' },
+  { key: 2, label: 'topology.stageMiddleware', color: '#AB47BC' },
+  { key: 3, label: 'topology.stageData', color: '#7B68EE' },
 ];
 
 const STATUS_COLORS: Record<string, string> = {
@@ -144,7 +145,23 @@ const computePipelinePositions = (nodes: TopoNode[], w: number, h: number) => {
 /* ==================== 组件 ==================== */
 
 export default function Topology() {
+  const { t } = useTranslation();
   const { isMobile } = useResponsive();
+
+  /** 分组类型 → i18n 翻译 */
+  const getGroupLabel = (group: string) => {
+    const keyMap: Record<string, string> = {
+      web:      'topology.categoryWeb',
+      api:      'topology.categoryApi',
+      app:      'topology.categoryApp',
+      registry: 'topology.categoryRegistry',
+      mq:       'topology.categoryMq',
+      olap:     'topology.categoryOlap',
+      database: 'topology.categoryDb',
+      cache:    'topology.categoryCache',
+    };
+    return keyMap[group] ? t(keyMap[group]) : (GROUP_CONFIG[group]?.label || group);
+  };
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
   const [loading, setLoading] = useState(true);
@@ -218,8 +235,8 @@ export default function Topology() {
         body: JSON.stringify({ positions }),
       });
       if (!res.ok) throw new Error();
-      message.success('布局已保存');
-    } catch { message.error('保存布局失败'); }
+      message.success(t('topology.saveLayoutSuccess'));
+    } catch { message.error(t('topology.saveLayoutFailed')); }
   };
 
   /** 重置为默认布局 (Reset to default layout)
@@ -229,9 +246,9 @@ export default function Topology() {
   const resetLayout = async () => {
     try {
       await fetch('/api/v1/topology/layout', { method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` } });
-      message.success('布局已重置');
+      message.success(t('topology.resetLayoutSuccess'));
       fetchData();
-    } catch { message.error('重置失败'); }
+    } catch { message.error(t('topology.resetLayoutFailed')); }
   };
 
   /** 手动添加服务依赖 (Manually add service dependency)
@@ -239,8 +256,8 @@ export default function Topology() {
    * 验证源服务和目标服务选择，避免自环依赖
    */
   const addDependency = async () => {
-    if (!addSource || !addTarget) { message.warning('请选择源服务和目标服务'); return; }
-    if (addSource === addTarget) { message.warning('不能连接自己'); return; }
+    if (!addSource || !addTarget) { message.warning(t('topology.selectSource')); return; }
+    if (addSource === addTarget) { message.warning(t('topology.selfLoop')); return; }
     try {
       const res = await fetch('/api/v1/topology/dependencies', {
         method: 'POST',
@@ -256,11 +273,11 @@ export default function Topology() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || '添加失败');
       }
-      message.success('依赖已添加');
+      message.success(t('topology.depAdded'));
       setAddSource(undefined);
       setAddTarget(undefined);
       fetchData();
-    } catch (e: any) { message.error(e.message || '添加失败'); }
+    } catch (e: any) { message.error(e.message || t('topology.addFailed')); }
   };
 
   /** 删除依赖 */
@@ -269,9 +286,9 @@ export default function Topology() {
       await fetch(`/api/v1/topology/dependencies/${depId}`, {
         method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` },
       });
-      message.success('已删除');
+      message.success(t('topology.deleted'));
       fetchData();
-    } catch { message.error('删除失败'); }
+    } catch { message.error(t('topology.deleteFailed')); }
   };
 
   /** 清空依赖 */
@@ -280,9 +297,9 @@ export default function Topology() {
       await fetch('/api/v1/topology/dependencies', {
         method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` },
       });
-      message.success('已清空，回退到自动推断');
+      message.success(t('topology.cleared'));
       fetchData();
-    } catch { message.error('清空失败'); }
+    } catch { message.error(t('topology.clearFailed')); }
   };
 
   /** AI 推荐 */
@@ -311,10 +328,10 @@ export default function Topology() {
         body: JSON.stringify({ source_service_id: s.source, target_service_id: s.target, dependency_type: s.type, description: s.description }),
       });
       if (!res.ok) throw new Error();
-      message.success('已应用');
+      message.success(t('topology.applied'));
       setAiSuggestions(prev => prev.filter(x => !(x.source === s.source && x.target === s.target)));
       fetchData();
-    } catch { message.error('应用失败'); }
+    } catch { message.error(t('topology.applyFailed')); }
   };
 
   /** 应用全部 AI 建议 */
@@ -330,10 +347,10 @@ export default function Topology() {
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      message.success(`已应用 ${data.created} 条`);
+      message.success(t('topology.batchApplied', { count: data.created }));
       setAiSuggestions([]);
       fetchData();
-    } catch { message.error('批量应用失败'); }
+    } catch { message.error(t('topology.batchApplyFailed')); }
   };
 
   /** 渲染图表 */
@@ -356,7 +373,7 @@ export default function Topology() {
 
     const categoryNames = Array.from(new Set(data.nodes.map(n => n.group)));
     const categories = categoryNames.map(g => ({
-      name: GROUP_CONFIG[g]?.label || g, itemStyle: { color: GROUP_CONFIG[g]?.color || '#999' },
+      name: getGroupLabel(g), itemStyle: { color: GROUP_CONFIG[g]?.color || '#999' },
     }));
 
     const nodes = data.nodes.map(n => {
@@ -371,9 +388,9 @@ export default function Topology() {
         label: { show: true, position: 'bottom' as const, fontSize: 11, color: '#555' },
         tooltip: {
           formatter: `<div style="font-weight:600;margin-bottom:4px">${n.name}</div>` +
-            `<div>类型: ${GROUP_CONFIG[n.group]?.label || n.group}</div>` +
-            `<div>状态: <span style="color:${getStatusColor(n.status)}">●</span> ${n.status}</div>` +
-            `<div>主机: ${n.host || '—'}</div>`,
+            `<div>${t('common.type')}: ${getGroupLabel(n.group)}</div>` +
+            `<div>${t('common.status')}: <span style="color:${getStatusColor(n.status)}">●</span> ${n.status}</div>` +
+            `<div>${t('databases.host')}: ${n.host || '—'}</div>`,
         },
         category: categoryNames.indexOf(n.group),
       };
@@ -405,7 +422,7 @@ export default function Topology() {
         graphics.push({
           type: 'text', left: box.x + box.width / 2, top: 18, z: 0, silent: true,
           style: {
-            text: box.label, fontSize: 15, fontWeight: 'bold' as const,
+            text: t(box.label), fontSize: 15, fontWeight: 'bold' as const,
             fill: box.color, textAlign: 'center' as const,
           },
         });
@@ -468,21 +485,21 @@ export default function Topology() {
       {/* 标题栏 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <Space>
-          <Title level={4} style={{ margin: 0 }}>服务拓扑</Title>
-          <Tag color="blue">{stats.nodes} 个服务</Tag>
-          <Tag color="orange">{stats.edges} 条依赖</Tag>
-          {topoData.current?.has_custom_deps && <Tag color="green">自定义依赖</Tag>}
+          <Title level={4} style={{ margin: 0 }}>{t('topology.serviceTopology')}</Title>
+          <Tag color="blue">{stats.nodes} {t('topology.services')}</Tag>
+          <Tag color="orange">{stats.edges} {t('topology.dependencies')}</Tag>
+          {topoData.current?.has_custom_deps && <Tag color="green">{t('topology.customDeps')}</Tag>}
         </Space>
         <Space>
           <Radio.Group value={layout} onChange={e => handleLayoutChange(e.target.value)}
             optionType="button" buttonStyle="solid" size="small">
-            <Radio.Button value="grouped"><ApartmentOutlined /> 管道</Radio.Button>
-            <Radio.Button value="force"><NodeIndexOutlined /> 力导向</Radio.Button>
+            <Radio.Button value="grouped"><ApartmentOutlined /> {t('topology.pipeline')}</Radio.Button>
+            <Radio.Button value="force"><NodeIndexOutlined /> {t('topology.force')}</Radio.Button>
           </Radio.Group>
-          <Tooltip title="保存节点位置"><Button icon={<SaveOutlined />} onClick={saveLayout}>保存布局</Button></Tooltip>
-          <Tooltip title="重置为自动布局"><Button icon={<UndoOutlined />} onClick={resetLayout}>重置</Button></Tooltip>
-          <Button type="primary" icon={<EditOutlined />} onClick={() => setPanelOpen(true)}>编辑依赖</Button>
-          <Button icon={<ReloadOutlined />} onClick={fetchData} loading={loading}>刷新</Button>
+          <Tooltip title={t('topology.saveLayout')}><Button icon={<SaveOutlined />} onClick={saveLayout}>{t('topology.saveLayout')}</Button></Tooltip>
+          <Tooltip title={t('topology.resetLayout')}><Button icon={<UndoOutlined />} onClick={resetLayout}>{t('topology.resetLayout')}</Button></Tooltip>
+          <Button type="primary" icon={<EditOutlined />} onClick={() => setPanelOpen(true)}>{t('topology.editDeps')}</Button>
+          <Button icon={<ReloadOutlined />} onClick={fetchData} loading={loading}>{t('common.refresh')}</Button>
         </Space>
       </div>
 
@@ -490,12 +507,12 @@ export default function Topology() {
       <div style={{ marginBottom: 8 }}>
         <Space size={16}>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            连线: <span style={{ color: '#1890ff' }}>━</span> API 调用　<span style={{ color: '#faad14' }}>╌╌</span> 依赖
+            连线: <span style={{ color: '#1890ff' }}>━</span> {t('topology.legendApiCall')}　<span style={{ color: '#faad14' }}>╌╌</span> {t('topology.legendDep')}
           </Text>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            边框: <span style={{ color: '#52c41a' }}>●</span> 正常　<span style={{ color: '#ff4d4f' }}>●</span> 异常
+            边框: <span style={{ color: '#52c41a' }}>●</span> {t('topology.legendNormal')}　<span style={{ color: '#ff4d4f' }}>●</span> {t('topology.legendAbnormal')}
           </Text>
-          <Text type="secondary" style={{ fontSize: 12 }}>💡 拖拽节点调整位置，点「保存布局」持久化</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>💡 {t('topology.dragTip')}</Text>
         </Space>
       </div>
 
@@ -516,7 +533,7 @@ export default function Topology() {
 
       {/* ===== 编辑面板 (Drawer) ===== */}
       <Drawer
-        title="编辑依赖关系"
+        title={t('topology.editDepsTitle')}
         open={panelOpen}
         onClose={() => setPanelOpen(false)}
         width={isMobile ? '100%' : 500}
@@ -525,46 +542,46 @@ export default function Topology() {
         <Radio.Group value={aiTab} onChange={e => setAiTab(e.target.value)} style={{ marginBottom: 16, width: '100%' }}
           optionType="button" buttonStyle="solid">
           <Radio.Button value="deps" style={{ width: '50%', textAlign: 'center' }}>
-            <UnorderedListOutlined /> 依赖管理
+            <UnorderedListOutlined /> {t('topology.depsManagement')}
           </Radio.Button>
           <Radio.Button value="ai" style={{ width: '50%', textAlign: 'center' }}>
-            <RobotOutlined /> AI 推荐
+            <RobotOutlined /> {t('topology.aiRecommendation')}
           </Radio.Button>
         </Radio.Group>
 
         {aiTab === 'deps' ? (
           <>
             {/* 添加依赖 */}
-            <Card size="small" title={<><PlusOutlined /> 添加依赖</>} style={{ marginBottom: 16 }}>
+            <Card size="small" title={<><PlusOutlined /> {t('topology.addDep')}</>} style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div>
-                  <Text type="secondary" style={{ fontSize: 12 }}>源服务（从）</Text>
+                  <Text type="secondary" style={{ fontSize: 12 }}>{t('topology.sourceService')}</Text>
                   <Select
-                    value={addSource} onChange={setAddSource} placeholder="选择源服务"
+                    value={addSource} onChange={setAddSource} placeholder={t('topology.sourceService')}
                     style={{ width: '100%' }} showSearch optionFilterProp="label"
                     options={nodeOptions}
                   />
                 </div>
                 <div style={{ textAlign: 'center', color: '#999' }}>↓</div>
                 <div>
-                  <Text type="secondary" style={{ fontSize: 12 }}>目标服务（到）</Text>
+                  <Text type="secondary" style={{ fontSize: 12 }}>{t('topology.targetService')}</Text>
                   <Select
-                    value={addTarget} onChange={setAddTarget} placeholder="选择目标服务"
+                    value={addTarget} onChange={setAddTarget} placeholder={t('topology.targetService')}
                     style={{ width: '100%' }} showSearch optionFilterProp="label"
                     options={nodeOptions}
                   />
                 </div>
                 <div>
-                  <Text type="secondary" style={{ fontSize: 12 }}>依赖类型</Text>
+                  <Text type="secondary" style={{ fontSize: 12 }}>{t('topology.depType')}</Text>
                   <Select value={addType} onChange={setAddType} style={{ width: '100%' }}
                     options={[
-                      { label: '━ API 调用 (calls)', value: 'calls' },
-                      { label: '╌ 依赖关系 (depends_on)', value: 'depends_on' },
+                      { label: `━ ${t('topology.legendApiCall')} (calls)`, value: 'calls' },
+                      { label: `╌ ${t('topology.legendDep')} (depends_on)`, value: 'depends_on' },
                     ]}
                   />
                 </div>
                 <Button type="primary" icon={<PlusOutlined />} onClick={addDependency} block>
-                  添加依赖
+                  {t('topology.addDepButton')}
                 </Button>
               </div>
             </Card>
@@ -573,16 +590,16 @@ export default function Topology() {
 
             {/* 依赖列表 */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Text strong>当前依赖 ({currentEdges.length})</Text>
+              <Text strong>{t('topology.currentDeps', { count: currentEdges.length })}</Text>
               {currentEdges.some(e => e.manual) && (
-                <Popconfirm title="清空所有自定义依赖？" onConfirm={clearAllDeps} okText="清空" okType="danger">
-                  <Button size="small" danger icon={<DeleteOutlined />}>清空自定义</Button>
+                <Popconfirm title={t('topology.confirmClearDeps')} onConfirm={clearAllDeps} okText={t('common.delete')} okType="danger">
+                  <Button size="small" danger icon={<DeleteOutlined />}>{t('topology.clearCustom')}</Button>
                 </Popconfirm>
               )}
             </div>
 
             {currentEdges.length === 0 ? (
-              <Empty description="暂无依赖关系" />
+              <Empty description={t('topology.noDeps')} />
             ) : (
               <List
                 size="small"
@@ -590,17 +607,17 @@ export default function Topology() {
                 renderItem={(edge) => (
                   <List.Item
                     actions={edge.manual && edge.id ? [
-                      <Popconfirm key="del" title="删除此依赖？" onConfirm={() => deleteDependency(edge.id!)} okText="删除" okType="danger">
+                      <Popconfirm key="del" title={t('topology.confirmClearDeps')} onConfirm={() => deleteDependency(edge.id!)} okText={t('common.delete')} okType="danger">
                         <Button type="link" danger size="small" icon={<DeleteOutlined />} />
                       </Popconfirm>,
-                    ] : [<Tag key="auto" style={{ fontSize: 11 }}>自动</Tag>]}
+                    ] : [<Tag key="auto" style={{ fontSize: 11 }}>{t('topology.autoLabel')}</Tag>]}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
                       <Text ellipsis style={{ maxWidth: 140 }}>{shortName(nodeNameMap.current.get(edge.source) || String(edge.source))}</Text>
                       <span style={{ color: '#999' }}>→</span>
                       <Text ellipsis style={{ maxWidth: 140 }}>{shortName(nodeNameMap.current.get(edge.target) || String(edge.target))}</Text>
                       <Tag color={edge.type === 'calls' ? 'blue' : 'orange'} style={{ marginLeft: 'auto', flexShrink: 0 }}>
-                        {edge.type === 'calls' ? '调用' : '依赖'}
+                        {edge.type === 'calls' ? t('topology.typeCall') : t('topology.typeDep')}
                       </Tag>
                     </div>
                   </List.Item>
@@ -615,21 +632,21 @@ export default function Topology() {
               type="primary" icon={<RobotOutlined />} onClick={requestAISuggest}
               loading={aiLoading} block style={{ marginBottom: 16, background: '#36cfc9', borderColor: '#36cfc9' }}
             >
-              {aiLoading ? 'AI 分析中...' : '开始 AI 分析'}
+              {aiLoading ? t('topology.aiAnalyzing') : t('topology.aiAnalyzeButton')}
             </Button>
 
             {aiMessage && <Paragraph type="secondary"><BulbOutlined /> {aiMessage}</Paragraph>}
 
             {aiSuggestions.length > 0 && (
               <Button type="primary" ghost icon={<CheckOutlined />} onClick={applyAllSuggestions} block style={{ marginBottom: 12 }}>
-                全部应用 ({aiSuggestions.length} 条)
+                {t('topology.applyAll', { count: aiSuggestions.length })}
               </Button>
             )}
 
             {aiLoading ? (
-              <div style={{ textAlign: 'center', padding: 40 }}><Spin size="large" /><Paragraph style={{ marginTop: 16 }}>AI 正在分析服务关系...</Paragraph></div>
+              <div style={{ textAlign: 'center', padding: 40 }}><Spin size="large" /><Paragraph style={{ marginTop: 16 }}>{t('topology.aiAnalyzingService')}</Paragraph></div>
             ) : aiSuggestions.length === 0 ? (
-              <Empty description="暂无推荐，点击上方按钮开始分析" />
+              <Empty description={t('topology.noRecommendations')} />
             ) : (
               <List
                 size="small"
@@ -637,9 +654,9 @@ export default function Topology() {
                 renderItem={(item) => (
                   <List.Item
                     actions={[
-                      <Button key="apply" type="link" icon={<CheckOutlined />} onClick={() => applyOneSuggestion(item)}>应用</Button>,
+                      <Button key="apply" type="link" icon={<CheckOutlined />} onClick={() => applyOneSuggestion(item)}>{t('topology.applyButton')}</Button>,
                       <Button key="ignore" type="link" danger icon={<CloseOutlined />}
-                        onClick={() => setAiSuggestions(prev => prev.filter(x => x !== item))}>忽略</Button>,
+                        onClick={() => setAiSuggestions(prev => prev.filter(x => x !== item))}>{t('topology.ignoreButton')}</Button>,
                     ]}
                   >
                     <List.Item.Meta
@@ -649,7 +666,7 @@ export default function Topology() {
                           <span style={{ color: '#999' }}>→</span>
                           <Text strong style={{ fontSize: 13 }}>{shortName(nodeNameMap.current.get(item.target) || '')}</Text>
                           <Tag color={item.type === 'calls' ? 'blue' : 'orange'} style={{ fontSize: 11 }}>
-                            {item.type === 'calls' ? '调用' : '依赖'}
+                            {item.type === 'calls' ? t('topology.typeCall') : t('topology.typeDep')}
                           </Tag>
                         </Space>
                       }

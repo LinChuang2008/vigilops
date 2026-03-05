@@ -1,20 +1,5 @@
 /**
  * 自动修复详情页 (Remediation Detail Page)
- *
- * 功能：展示单个修复任务的完整信息，包括 AI 诊断结果、命令执行日志、审批操作
- * 数据源：GET /api/v1/remediations/:id
- * 路由参数：id - 修复任务ID
- *
- * 页面结构：
- *   1. 基本信息卡片 - 告警名称、主机、状态、风险级别、Runbook、审批人等
- *   2. AI 诊断结果 - 展示 AI 引擎对告警的分析和修复建议（monospace 格式）
- *   3. 命令执行日志 - Timeline 形式展示每条命令的执行状态、输出（终端风格渲染）
- *   4. 操作按钮 - pending 状态显示审批/拒绝，failed 状态显示重试
- *
- * 交互操作：
- *   - approve: 审批通过 → 触发自动执行修复命令
- *   - reject: 拒绝修复
- *   - retry: 失败后重新执行
  */
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -28,11 +13,13 @@ import {
   RobotOutlined,
   CodeOutlined,
 } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 import { remediationService } from '../services/remediation';
 import type { Remediation } from '../services/remediation';
 import { RemediationStatusTag, RiskLevelTag } from '../components/RemediationBadge';
 
 export default function RemediationDetail() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [data, setData] = useState<Remediation | null>(null);
@@ -40,71 +27,78 @@ export default function RemediationDetail() {
   const [actionLoading, setActionLoading] = useState(false);
   const [messageApi, contextHolder] = message.useMessage();
 
-  const fetch = async () => {
+  const fetchDetail = async () => {
     if (!id) return;
     setLoading(true);
     try {
       const { data: res } = await remediationService.get(id);
       setData(res);
     } catch {
-      messageApi.error('获取详情失败');
+      messageApi.error(t('remediation.fetchFailed'));
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { fetch(); }, [id]);
+  useEffect(() => { fetchDetail(); }, [id]);
 
   const handleAction = async (action: 'approve' | 'reject' | 'retry') => {
     if (!id) return;
-    const labels = { approve: '审批通过', reject: '拒绝', retry: '重新执行' };
+    const confirmMap = {
+      approve: t('remediation.confirmApprove'),
+      reject: t('remediation.confirmReject'),
+      retry: t('remediation.confirmRetry'),
+    };
+    const labelMap = {
+      approve: t('remediation.approve'),
+      reject: t('remediation.reject'),
+      retry: t('remediation.retry'),
+    };
     Modal.confirm({
-      title: `确认${labels[action]}？`,
+      title: confirmMap[action],
       onOk: async () => {
         setActionLoading(true);
         try {
           await remediationService[action](id);
-          messageApi.success(`${labels[action]}成功`);
-          fetch();
+          messageApi.success(`${labelMap[action]} OK`);
+          fetchDetail();
         } catch {
-          messageApi.error(`${labels[action]}失败`);
+          messageApi.error(`${labelMap[action]} ${t('common.failed')}`);
         } finally { setActionLoading(false); }
       },
     });
   };
 
   if (loading) return <div style={{ textAlign: 'center', padding: 80 }}><Spin size="large" /></div>;
-  if (!data) return <Typography.Text type="danger">未找到修复记录</Typography.Text>;
+  if (!data) return <Typography.Text type="danger">{t('remediation.notFound')}</Typography.Text>;
 
   return (
     <div>
       {contextHolder}
-      <PageBreadcrumb items={[{ label: '自动修复', path: '/remediations' }, { label: '修复详情' }]} />
+      <PageBreadcrumb items={[{ label: t('remediation.title'), path: '/remediations' }, { label: t('remediation.detailTitle') }]} />
       <Space style={{ marginBottom: 16 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/remediations')}>返回列表</Button>
+        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/remediations')}>{t('common.backToList')}</Button>
       </Space>
 
-      <Typography.Title level={4}>修复详情</Typography.Title>
+      <Typography.Title level={4}>{t('remediation.detailTitle')}</Typography.Title>
 
-      {/* 基本信息 */}
       <Card style={{ marginBottom: 16 }}>
         <Descriptions column={2} bordered size="small">
-          <Descriptions.Item label="告警名称">{data.alert_name}</Descriptions.Item>
-          <Descriptions.Item label="主机">{data.host}</Descriptions.Item>
-          <Descriptions.Item label="状态"><RemediationStatusTag status={data.status} /></Descriptions.Item>
-          <Descriptions.Item label="风险级别"><RiskLevelTag level={data.risk_level} /></Descriptions.Item>
-          <Descriptions.Item label="Runbook">{data.runbook_name}</Descriptions.Item>
-          <Descriptions.Item label="创建时间">{new Date(data.created_at).toLocaleString()}</Descriptions.Item>
+          <Descriptions.Item label={t('remediation.alertNameLabel')}>{data.alert_name}</Descriptions.Item>
+          <Descriptions.Item label={t('remediation.hostLabel')}>{data.host}</Descriptions.Item>
+          <Descriptions.Item label={t('remediation.statusLabel')}><RemediationStatusTag status={data.status} /></Descriptions.Item>
+          <Descriptions.Item label={t('remediation.riskLevelLabel')}><RiskLevelTag level={data.risk_level} /></Descriptions.Item>
+          <Descriptions.Item label={t('remediation.runbookLabel')}>{data.runbook_name}</Descriptions.Item>
+          <Descriptions.Item label={t('remediation.createdAtLabel')}>{new Date(data.created_at).toLocaleString()}</Descriptions.Item>
           {data.approved_by && (
-            <Descriptions.Item label="审批人">{data.approved_by}</Descriptions.Item>
+            <Descriptions.Item label={t('remediation.approvedByLabel')}>{data.approved_by}</Descriptions.Item>
           )}
           {data.approved_at && (
-            <Descriptions.Item label="审批时间">{new Date(data.approved_at).toLocaleString()}</Descriptions.Item>
+            <Descriptions.Item label={t('remediation.approvedAtLabel')}>{new Date(data.approved_at).toLocaleString()}</Descriptions.Item>
           )}
         </Descriptions>
       </Card>
 
-      {/* AI 诊断结果 */}
       <Card
-        title={<><RobotOutlined style={{ marginRight: 8 }} />AI 诊断结果</>}
+        title={<><RobotOutlined style={{ marginRight: 8 }} />{t('remediation.aiDiagnosis')}</>}
         style={{ marginBottom: 16 }}
       >
         <div style={{
@@ -116,13 +110,12 @@ export default function RemediationDetail() {
           fontSize: 13,
           lineHeight: 1.6,
         }}>
-          {data.diagnosis || '暂无诊断信息'}
+          {data.diagnosis || t('remediation.noDiagnosis')}
         </div>
       </Card>
 
-      {/* 命令执行日志 */}
       <Card
-        title={<><CodeOutlined style={{ marginRight: 8 }} />命令执行日志</>}
+        title={<><CodeOutlined style={{ marginRight: 8 }} />{t('remediation.commandLogs')}</>}
         style={{ marginBottom: 16 }}
       >
         {data.commands && data.commands.length > 0 ? (
@@ -169,11 +162,10 @@ export default function RemediationDetail() {
             }))}
           />
         ) : (
-          <Typography.Text type="secondary">暂无执行记录</Typography.Text>
+          <Typography.Text type="secondary">{t('remediation.noCommands')}</Typography.Text>
         )}
       </Card>
 
-      {/* 操作按钮 */}
       <Card>
         <Space>
           {data.status === 'pending' && (
@@ -184,7 +176,7 @@ export default function RemediationDetail() {
                 loading={actionLoading}
                 onClick={() => handleAction('approve')}
               >
-                审批通过
+                {t('remediation.approve')}
               </Button>
               <Button
                 danger
@@ -192,7 +184,7 @@ export default function RemediationDetail() {
                 loading={actionLoading}
                 onClick={() => handleAction('reject')}
               >
-                拒绝
+                {t('remediation.reject')}
               </Button>
             </>
           )}
@@ -202,7 +194,7 @@ export default function RemediationDetail() {
               loading={actionLoading}
               onClick={() => handleAction('retry')}
             >
-              重新执行
+              {t('remediation.retry')}
             </Button>
           )}
         </Space>

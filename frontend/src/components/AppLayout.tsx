@@ -261,7 +261,12 @@ export default function AppLayout() {
         letterSpacing: 2,
         borderBottom: inDrawer ? '1px solid #f0f0f0' : undefined,
       }}>
-        {(inDrawer || !collapsed) ? 'VigilOps' : 'VO'}
+        <svg width={collapsed && !inDrawer ? 28 : 24} height={collapsed && !inDrawer ? 28 : 24} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: (inDrawer || !collapsed) ? 8 : 0, flexShrink: 0 }}>
+          <rect width="40" height="40" rx="8" fill="#1677ff"/>
+          <circle cx="20" cy="21" r="11.5" fill="none" stroke="white" strokeWidth="2.2"/>
+          <path d="M13 15.5L20 26.5L27 15.5" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        {(inDrawer || !collapsed) ? 'VigilOps' : ''}
       </div>
       <Menu
         theme={inDrawer ? 'light' : 'dark'}

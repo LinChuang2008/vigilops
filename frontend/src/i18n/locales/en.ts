@@ -38,6 +38,7 @@ const en = {
     view: 'View',
     copy: 'Copy',
     copied: 'Copied',
+    copyFailed: 'Copy failed, please copy manually',
     online: 'Online',
     offline: 'Offline',
     healthy: 'Healthy',
@@ -411,6 +412,7 @@ const en = {
     slaNotMet: 'Not Met',
     slaNoData: 'No Data',
     checkHistoryTitle: 'Check History',
+    slaNotConfigured: 'Not Configured',
   },
 
   // ========== Logs ==========
@@ -997,6 +999,10 @@ const en = {
     columnCreatedAt: 'Created At',
     columnActions: 'Actions',
     revokeAction: 'Revoke',
+    agentAddedMsg: 'Host Added Successfully',
+    agentAddedDesc: 'Consider configuring alert rules for this host to detect anomalies promptly.',
+    agentAddedBtn: 'Configure Now',
+    copyFullToken: 'Copy Full Token',
   },
 
   // ========== Topology ==========
@@ -1138,6 +1144,8 @@ const en = {
     categoryMq: 'Message Queue',
     categoryApi: 'API',
     categoryOther: 'Other',
+    categoryRegistry: 'Registry',
+    categoryOlap: 'Analytics',
   },
 
   // ========== State Components ==========

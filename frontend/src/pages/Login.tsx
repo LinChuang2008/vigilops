@@ -246,13 +246,11 @@ export default function Login() {
           boxShadow: 'none',
           backdropFilter: 'blur(10px)',
         }}>
-          {/* VigilOps Shield+Eye Logo */}
-          <svg width="48" height="48" viewBox="0 0 64 64" fill="none">
-            <path d="M32 4L8 16v16c0 14.4 10.24 27.84 24 32 13.76-4.16 24-17.6 24-32V16L32 4z" fill="#1677ff"/>
-            <path d="M32 8L12 18v14c0 12.6 8.96 24.36 20 28 11.04-3.64 20-15.4 20-28V18L32 8z" fill="#e6f4ff"/>
-            <ellipse cx="32" cy="34" rx="12" ry="8" fill="#1677ff"/>
-            <circle cx="32" cy="34" r="4" fill="#fff"/>
-            <circle cx="32" cy="34" r="2" fill="#0958d9"/>
+          {/* VigilOps VO Logo */}
+          <svg width="48" height="48" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="40" height="40" rx="10" fill="rgba(255,255,255,0.2)"/>
+            <circle cx="20" cy="21" r="11.5" fill="none" stroke="white" strokeWidth="2.2"/>
+            <path d="M13 15.5L20 26.5L27 15.5" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </div>
         <Title level={2} style={{ 
@@ -321,8 +319,10 @@ export default function Login() {
                   fontWeight: 600,
                   boxShadow: '0 4px 16px rgba(22,119,255,0.3)'
                 }}>
-                  <svg width="20" height="20" viewBox="0 0 64 64" fill="none">
-                    <path d="M32 4L8 16v16c0 14.4 10.24 27.84 24 32 13.76-4.16 24-17.6 24-32V16L32 4z" fill="currentColor"/>
+                  <svg width="20" height="20" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="40" height="40" rx="8" fill="currentColor" fillOpacity="0.25"/>
+                    <circle cx="20" cy="21" r="11.5" fill="none" stroke="currentColor" strokeWidth="2.2"/>
+                    <path d="M13 15.5L20 26.5L27 15.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                   {t('login.features.tagline')}
                 </div>
