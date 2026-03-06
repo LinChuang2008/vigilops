@@ -215,6 +215,7 @@ const en = {
     networkBandwidth: 'Network (KB/s)',
     // ZONE A: AI Insight + Health Score
     aiInsightTitle: 'AI Smart Insights',
+    aiNoData: 'No AI insights yet',
     aiAnalyzing: 'AI is analyzing, please wait...',
     viewFullAnalysis: 'View Full AI Analysis →',
     scoreHealthy: 'Healthy',

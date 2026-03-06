@@ -22,7 +22,7 @@ import {
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
-import api from '../services/api';
+import api, { aiApi } from '../services/api';
 import { aiFeedbackService } from '../services/aiFeedback';
 
 const { Title, Text, Paragraph } = Typography;
@@ -193,7 +193,7 @@ export default function AIAnalysis() {
     setMessages(prev => [...prev, userMessage]);
     setChatLoading(true);
     try {
-      const { data } = await api.post('/ai/chat', { question: q });
+      const { data } = await aiApi.post('/ai/chat', { question: q });
       const aiMessage: ChatMessage = {
         id: `ai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         role: 'ai',
@@ -218,7 +218,7 @@ export default function AIAnalysis() {
   const handleAnalyze = async () => {
     setAnalyzeLoading(true);
     try {
-      await api.post('/ai/analyze-logs', { hours: 1 });
+      await aiApi.post('/ai/analyze-logs', { hours: 1 });
       messageApi.success(t('aiAnalysis.analyzeSuccess'));
       fetchInsights();
     } catch {

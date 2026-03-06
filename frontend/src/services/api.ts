@@ -9,37 +9,48 @@ const api = axios.create({
   baseURL: '/api/v1',
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
-  // P0-2 骨架：启用 withCredentials，允许浏览器发送 httpOnly cookie
-  // 后端登录接口已同步设置 httpOnly cookie，前端逐步迁移 localStorage → cookie
+  withCredentials: true,
+});
+
+/**
+ * AI 专用 Axios 实例：超时设为 60s
+ * AI 分析/Chat 接口响应时间较长（20-30s），需要单独配置
+ */
+export const aiApi = axios.create({
+  baseURL: '/api/v1',
+  timeout: 60000,
+  headers: { 'Content-Type': 'application/json' },
   withCredentials: true,
 });
 
 /** 请求拦截器：自动附加 JWT 令牌到请求头 */
-api.interceptors.request.use((config) => {
+const attachToken = (config: any) => {
   const token = localStorage.getItem('access_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
-});
+};
+
+api.interceptors.request.use(attachToken);
+aiApi.interceptors.request.use(attachToken);
 
 /**
  * 响应拦截器：统一处理 401 未授权错误
  * 清除本地存储的令牌并跳转到登录页
  */
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      // 避免在登录页重复跳转
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
-      }
+const handleAuthError = (error: any) => {
+  if (error.response?.status === 401) {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
     }
-    return Promise.reject(error);
   }
-);
+  return Promise.reject(error);
+};
+
+api.interceptors.response.use((response) => response, handleAuthError);
+aiApi.interceptors.response.use((response) => response, handleAuthError);
 
 export default api;

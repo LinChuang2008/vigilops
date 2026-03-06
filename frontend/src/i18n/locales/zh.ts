@@ -215,6 +215,7 @@ const zh = {
     networkBandwidth: '网络带宽 (KB/s)',
     // ZONE A: AI 洞察 + 健康评分
     aiInsightTitle: 'AI 智能洞察',
+    aiNoData: '暂无 AI 洞察数据',
     aiAnalyzing: 'AI 正在分析中，请稍后...',
     viewFullAnalysis: '查看 AI 完整分析 →',
     scoreHealthy: '健康',
