@@ -179,14 +179,12 @@ export default function AppLayout() {
    */
   const handleLogout = async () => {
     try {
-      // P0-2 骨架：清除后端 httpOnly cookie（使用 withCredentials）
+      // 清除后端 httpOnly cookie（JWT 已迁移至 cookie，无法从 JS 直接删除）
       await fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'include' });
     } catch {
       // 即使请求失败也继续本地清理，不阻塞退出流程
     }
-    // TODO P0-2 完整实现：移除以下 localStorage 操作，改为纯 cookie 模式
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    // 清除非敏感显示信息（access_token/refresh_token 不再存 localStorage）
     localStorage.removeItem('user_name');
     localStorage.removeItem('user_role');
     navigate('/login');

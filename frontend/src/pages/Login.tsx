@@ -98,14 +98,12 @@ export default function Login() {
     fetchAuthProviders();
   }, []);
 
-  /** 处理登录：调用登录接口，存储 token，获取用户信息后跳转首页 */
+  /** 处理登录：JWT 已迁移至 httpOnly Cookie，后端自动 set-cookie，无需前端手动存储 */
   const handleLogin = async (values: { email: string; password: string }) => {
     setLoading(true);
     try {
-      const { data } = await authService.login(values);
-      localStorage.setItem('access_token', data.access_token);
-      localStorage.setItem('refresh_token', data.refresh_token);
-      // 获取用户信息并存储用户名
+      await authService.login(values);
+      // Cookie 由后端 set-cookie 自动写入，仅缓存非敏感显示信息
       const { data: user } = await authService.me();
       localStorage.setItem('user_name', user.name);
       localStorage.setItem('user_role', user.role);
@@ -119,13 +117,11 @@ export default function Login() {
     }
   };
 
-  /** 处理注册：调用注册接口，流程与登录类似 */
+  /** 处理注册：JWT 已迁移至 httpOnly Cookie，流程与登录类似 */
   const handleRegister = async (values: { email: string; name: string; password: string }) => {
     setLoading(true);
     try {
-      const { data } = await authService.register(values);
-      localStorage.setItem('access_token', data.access_token);
-      localStorage.setItem('refresh_token', data.refresh_token);
+      await authService.register(values);
       const { data: user } = await authService.me();
       localStorage.setItem('user_name', user.name);
       localStorage.setItem('user_role', user.role);
@@ -165,9 +161,8 @@ export default function Login() {
         throw new Error(error.detail || t('login.ldapLoginFailed'));
       }
       
-      const { access_token, refresh_token } = await response.json();
-      localStorage.setItem('access_token', access_token);
-      localStorage.setItem('refresh_token', refresh_token);
+      // LDAP 登录：Cookie 由后端 set-cookie 自动写入
+      await response.json();
       
       // 获取用户信息
       const { data: user } = await authService.me();

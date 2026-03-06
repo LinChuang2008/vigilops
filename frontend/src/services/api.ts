@@ -23,26 +23,16 @@ export const aiApi = axios.create({
   withCredentials: true,
 });
 
-/** 请求拦截器：自动附加 JWT 令牌到请求头 */
-const attachToken = (config: any) => {
-  const token = localStorage.getItem('access_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-};
-
-api.interceptors.request.use(attachToken);
-aiApi.interceptors.request.use(attachToken);
-
 /**
  * 响应拦截器：统一处理 401 未授权错误
- * 清除本地存储的令牌并跳转到登录页
+ * JWT 已迁移至 httpOnly Cookie，无需手动附加 Authorization header。
+ * Cookie 由浏览器自动携带（withCredentials: true），此处仅处理 401 跳转。
  */
 const handleAuthError = (error: any) => {
   if (error.response?.status === 401) {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    // 清除非敏感的显示信息（token 已在 httpOnly cookie 中，无法从 JS 删除）
+    localStorage.removeItem('user_name');
+    localStorage.removeItem('user_role');
     if (window.location.pathname !== '/login') {
       window.location.href = '/login';
     }
