@@ -36,6 +36,7 @@ BUILTIN_RULES = [
     # 场景：检测主机CPU资源压力，预防性能瓶颈
     {
         "name": "CPU 使用率过高",
+        "name_en": "High CPU Usage",
         "description": "CPU 使用率超过阈值持续一段时间",
         "severity": "warning",           # 警告级别：给运维团队缓冲时间处理
         "metric": "cpu_percent",         # 监控指标：CPU使用率百分比
@@ -49,6 +50,7 @@ BUILTIN_RULES = [
     # 场景：检测内存资源不足，预防OOM和交换区频繁使用
     {
         "name": "内存使用率过高",
+        "name_en": "High Memory Usage",
         "description": "内存使用率超过阈值",
         "severity": "warning",           # 警告级别：内存不足影响性能但不立即崩溃
         "metric": "memory_percent",      # 监控指标：内存使用率百分比
@@ -58,11 +60,12 @@ BUILTIN_RULES = [
         "target_type": "host",           # 目标类型：主机级别监控
         "is_builtin": True,              # 内置规则标记
     },
-    
+
     # 3. 磁盘使用率监控规则 (Disk Usage Rate Monitoring Rule)
     # 场景：检测存储空间不足，预防应用崩溃和数据丢失
     {
         "name": "磁盘使用率过高",
+        "name_en": "High Disk Usage",
         "description": "磁盘使用率超过阈值",
         "severity": "critical",          # 严重级别：磁盘满可能导致服务停止
         "metric": "disk_percent",        # 监控指标：磁盘使用率百分比
@@ -76,6 +79,7 @@ BUILTIN_RULES = [
     # 场景：检测主机连通性，识别硬件故障或网络中断
     {
         "name": "主机离线",
+        "name_en": "Host Offline",
         "description": "主机心跳丢失",
         "severity": "critical",          # 严重级别：主机离线影响所有运行服务
         "metric": "host_offline",        # 监控指标：主机离线状态标识
@@ -85,11 +89,12 @@ BUILTIN_RULES = [
         "target_type": "host",           # 目标类型：主机级别监控
         "is_builtin": True,              # 内置规则标记
     },
-    
+
     # 5. 服务不可用监控规则 (Service Unavailable Monitoring Rule)
     # 场景：检测应用服务健康状态，识别服务故障
     {
         "name": "服务不可用",
+        "name_en": "Service Unavailable",
         "description": "服务健康检查失败",
         "severity": "critical",          # 严重级别：服务不可用直接影响业务
         "metric": "service_down",        # 监控指标：服务下线状态标识

@@ -25,8 +25,10 @@ const severityColor: Record<string, string> = { critical: 'red', warning: 'orang
 const statusColor: Record<string, string> = { firing: 'red', resolved: 'green', acknowledged: 'blue' };
 
 export default function AlertList() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { isMobile } = useResponsive();
+  const getAlertTitle = (alert: Alert) =>
+    i18n.language === 'en' && alert.title_en ? alert.title_en : alert.title;
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -156,7 +158,7 @@ export default function AlertList() {
   };
 
   const alertColumns = [
-    { title: t('alerts.title_field'), dataIndex: 'title', key: 'title', ellipsis: true },
+    { title: t('alerts.title_field'), key: 'title', ellipsis: true, render: (_: unknown, record: Alert) => getAlertTitle(record) },
     { title: t('alerts.severity'), dataIndex: 'severity', render: (s: string) => <Tag color={severityColor[s]}>{t(`alerts.severityLevels.${s}`) || s}</Tag> },
     { title: t('alerts.status'), dataIndex: 'status', render: (s: string) => <Tag color={statusColor[s]}>{t(`alerts.statusTypes.${s}`) || s}</Tag> },
     { title: t('alerts.triggeredAt'), dataIndex: 'fired_at', render: (val: string) => new Date(val).toLocaleString() },
@@ -196,7 +198,7 @@ export default function AlertList() {
       key: 'info',
       render: (_: unknown, record: Alert) => (
         <div>
-          <div style={{ fontWeight: 500, marginBottom: 4 }}>{record.title}</div>
+          <div style={{ fontWeight: 500, marginBottom: 4 }}>{getAlertTitle(record)}</div>
           <Space size="small" wrap>
             <Tag color={severityColor[record.severity]}>{record.severity}</Tag>
             <Tag color={statusColor[record.status]}>{record.status}</Tag>
@@ -364,7 +366,7 @@ export default function AlertList() {
         {selectedAlert && (
           <>
             <Descriptions column={1} bordered size="small">
-              <Descriptions.Item label={t('alerts.title_field')}>{selectedAlert.title}</Descriptions.Item>
+              <Descriptions.Item label={t('alerts.title_field')}>{getAlertTitle(selectedAlert)}</Descriptions.Item>
               <Descriptions.Item label={t('alerts.message_field')}>{selectedAlert.message}</Descriptions.Item>
               <Descriptions.Item label={t('alerts.severity')}><Tag color={severityColor[selectedAlert.severity]}>{selectedAlert.severity}</Tag></Descriptions.Item>
               <Descriptions.Item label={t('alerts.status')}><Tag color={statusColor[selectedAlert.status]}>{selectedAlert.status}</Tag></Descriptions.Item>

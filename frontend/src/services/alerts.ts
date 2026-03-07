@@ -20,6 +20,8 @@ export interface Alert {
   status: string;
   /** 告警标题 */
   title: string;
+  /** 英文告警标题 */
+  title_en?: string | null;
   /** 告警详细信息 */
   message: string;
   /** 触发时间 */

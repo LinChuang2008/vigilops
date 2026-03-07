@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 interface AlertItem {
   id: string;
   title: string;
+  title_en?: string | null;
   severity: string;
   status: string;
   fired_at: string;
@@ -29,7 +30,9 @@ export default function AlertsList({
   onAIAnalyze,
   onViewLogs,
 }: AlertsListProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const getAlertTitle = (alert: AlertItem) =>
+    i18n.language === 'en' && alert.title_en ? alert.title_en : alert.title;
 
   const severityColor: Record<string, string> = {
     critical: 'red',
@@ -40,8 +43,8 @@ export default function AlertsList({
   const columns = [
     {
       title: t('dashboard.alertTitle'),
-      dataIndex: 'title',
       key: 'title',
+      render: (_: unknown, record: AlertItem) => getAlertTitle(record),
     },
     {
       title: t('dashboard.alertSeverity'),

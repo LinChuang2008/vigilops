@@ -140,7 +140,9 @@ async def _evaluate_rule(db, redis, rule: AlertRule, host: Host, metrics: dict):
             await redis.delete(redis_key)
 
         # 告警去重和聚合检查
+        rule_name_en = rule.name_en or rule.name
         alert_title = f"{rule.name} - {host.hostname}"
+        alert_title_en = f"{rule_name_en} - {host.hostname}"
 
         # 用 run_in_executor 包装同步 DB 调用，避免阻塞事件循环
         def _run_dedup_host():
@@ -169,6 +171,7 @@ async def _evaluate_rule(db, redis, rule: AlertRule, host: Host, metrics: dict):
             severity=rule.severity,
             status="firing",
             title=alert_title,
+            title_en=alert_title_en,
             message=f"{rule.metric} = {current_value} {rule.operator} {rule.threshold}",
             metric_value=float(current_value),
             threshold=rule.threshold,
@@ -278,7 +281,9 @@ async def _evaluate_service_rule(db, redis, rule: AlertRule, service: Service):
             await redis.delete(redis_key)
 
         # 告警去重
+        rule_name_en = rule.name_en or rule.name
         alert_title = f"{rule.name} - {service.name}"
+        alert_title_en = f"{rule_name_en} - {service.name}"
 
         # 用 run_in_executor 包装同步 DB 调用，避免阻塞事件循环
         def _run_dedup_service():
@@ -307,6 +312,7 @@ async def _evaluate_service_rule(db, redis, rule: AlertRule, service: Service):
             severity=rule.severity,
             status="firing",
             title=alert_title,
+            title_en=alert_title_en,
             message=f"Service {service.name} is {service.status}",
             metric_value=float(current_value),
             threshold=rule.threshold,

@@ -32,6 +32,7 @@ class AlertRule(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)  # 主键 ID (Primary Key ID)
     name: Mapped[str] = mapped_column(String(255), nullable=False)  # 告警规则名称 (Alert Rule Name)
+    name_en: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # 英文名称，用于 EN 语言模式 (English Name for EN locale)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 告警规则描述 (Alert Rule Description)
     severity: Mapped[str] = mapped_column(String(20), nullable=False, default="warning")  # 严重程度：严重/警告/信息 (Severity: critical/warning/info)
     metric: Mapped[str] = mapped_column(String(100), nullable=False)  # 监控指标名称，如 cpu_percent, memory_percent (Metric Name)
@@ -82,6 +83,7 @@ class Alert(Base):
     severity: Mapped[str] = mapped_column(String(20), nullable=False)  # 严重程度：严重/警告/信息 (Severity: critical/warning/info)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="firing")  # 状态：触发/解决/确认/已修复 (Status: firing/resolved/acknowledged/remediated)
     title: Mapped[str] = mapped_column(String(500), nullable=False)  # 告警标题 (Alert Title)
+    title_en: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # 英文告警标题 (English Alert Title)
     message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 告警详细消息 (Alert Message)
     metric_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # 触发时的指标值 (Metric Value at Trigger)
     threshold: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # 触发时的阈值 (Threshold at Trigger)

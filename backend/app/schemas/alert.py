@@ -60,6 +60,7 @@ class AlertRuleResponse(BaseModel):
     """告警规则响应体。"""
     id: int
     name: str
+    name_en: Optional[str] = None
     description: Optional[str]
     severity: str
     metric: str
@@ -96,6 +97,7 @@ class AlertResponse(BaseModel):
     severity: str
     status: str
     title: str
+    title_en: Optional[str] = None
     message: Optional[str]
     metric_value: Optional[float]
     threshold: Optional[float]
