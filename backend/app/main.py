@@ -216,7 +216,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="VigilOps",
     description="AI-powered infrastructure monitoring platform | AI 驱动的基础设施监控平台",
-    version="0.1.0",
+    version="0.9.1",
     lifespan=lifespan,
 )
 

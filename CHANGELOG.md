@@ -4,6 +4,18 @@ All notable changes to VigilOps will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.9.1] - 2026-03-07
+
+### Added
+- **i18n Full Coverage**: Settings page internationalized — 100% of UI now supports EN/ZH switching
+
+### Fixed
+- **JWT Security**: Migrated from localStorage to httpOnly Cookie, eliminating XSS token exposure
+- **Auto-Remediation**: Alert name and host columns in remediation list now display correctly (was blank)
+
+### Improved
+- Demo environment: AI Chat timeout increased to 60s, new users default to operator role
+
 ## [0.9.0] - 2026-02-20
 
 ### Added
