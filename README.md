@@ -75,8 +75,8 @@ The result: fewer alerts that wake you up, faster resolution when something real
 **Alert List — with AI-powered triage and auto-remediation status**
 ![Alerts](docs/screenshots/alerts.jpg)
 
-**Service Topology — visualize dependencies and failure propagation**
-![Topology](docs/screenshots/topology.jpg)
+**Auto-Remediation — automated runbook execution with audit trail**
+![Auto-Remediation](docs/screenshots/topology.jpg)
 
 </div>
 
