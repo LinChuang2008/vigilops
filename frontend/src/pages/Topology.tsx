@@ -185,8 +185,6 @@ export default function Topology() {
   // 节点名映射
   const nodeNameMap = useRef<Map<number, string>>(new Map());
 
-  const getToken = () => localStorage.getItem('access_token') || '';
-
   /** 获取拓扑图数据 (Fetch topology data)
    * 从后端加载节点、边和已保存的布局位置信息
    * 构建节点名称映射表，用于快速查找和显示
@@ -196,7 +194,7 @@ export default function Topology() {
     setLoadError(null);
     try {
       const res = await fetch('/api/v1/topology', {
-        headers: { Authorization: `Bearer ${getToken()}` },
+        credentials: 'include',
       });
       if (!res.ok) throw new Error();
       const data: TopologyData = await res.json();
@@ -231,7 +229,8 @@ export default function Topology() {
     try {
       const res = await fetch('/api/v1/topology/layout', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ positions }),
       });
       if (!res.ok) throw new Error();
@@ -245,7 +244,7 @@ export default function Topology() {
    */
   const resetLayout = async () => {
     try {
-      await fetch('/api/v1/topology/layout', { method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` } });
+      await fetch('/api/v1/topology/layout', { method: 'DELETE', credentials: 'include' });
       message.success(t('topology.resetLayoutSuccess'));
       fetchData();
     } catch { message.error(t('topology.resetLayoutFailed')); }
@@ -261,7 +260,8 @@ export default function Topology() {
     try {
       const res = await fetch('/api/v1/topology/dependencies', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           source_service_id: addSource,
           target_service_id: addTarget,
@@ -284,7 +284,7 @@ export default function Topology() {
   const deleteDependency = async (depId: number) => {
     try {
       await fetch(`/api/v1/topology/dependencies/${depId}`, {
-        method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` },
+        method: 'DELETE', credentials: 'include',
       });
       message.success(t('topology.deleted'));
       fetchData();
@@ -295,7 +295,7 @@ export default function Topology() {
   const clearAllDeps = async () => {
     try {
       await fetch('/api/v1/topology/dependencies', {
-        method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` },
+        method: 'DELETE', credentials: 'include',
       });
       message.success(t('topology.cleared'));
       fetchData();
@@ -309,7 +309,8 @@ export default function Topology() {
     try {
       const res = await fetch('/api/v1/topology/ai-suggest', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || t('topology.aiAnalysisFailed'));
       const data = await res.json();
@@ -324,7 +325,8 @@ export default function Topology() {
     try {
       const res = await fetch('/api/v1/topology/dependencies', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source_service_id: s.source, target_service_id: s.target, dependency_type: s.type, description: s.description }),
       });
       if (!res.ok) throw new Error();
@@ -342,7 +344,8 @@ export default function Topology() {
     try {
       const res = await fetch('/api/v1/topology/ai-suggest/apply', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error();
