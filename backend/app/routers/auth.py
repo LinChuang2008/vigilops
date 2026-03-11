@@ -41,7 +41,7 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str)
     将 JWT 令牌写入 httpOnly Cookie（P0-2 骨架）。
     
     Set JWT tokens as httpOnly cookies.
-    - access_token：短期（2h），路径 /api 限制范围
+    - access_token：短期（2h），路径 / 限制范围
     - refresh_token：长期（7d），路径 /api/v1/auth/refresh 限制调用
     """
     # 访问令牌 cookie：2 小时
@@ -52,7 +52,7 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str)
         secure=_COOKIE_SECURE,
         samesite="lax",
         max_age=settings.jwt_access_token_expire_minutes * 60,
-        path="/api",
+        path="/",
     )
     # 刷新令牌 cookie：7 天，路径限制到刷新接口
     response.set_cookie(
@@ -222,7 +222,7 @@ async def logout(response: Response):
     Note：服务端无状态 JWT 无法真正撤销，建议后续引入 Redis 黑名单实现真正撤销。
     TODO P0-2 完整实现：在 Redis 维护 token 黑名单（jti claim）。
     """
-    response.delete_cookie(key=_COOKIE_ACCESS, path="/api")
+    response.delete_cookie(key=_COOKIE_ACCESS, path="/")
     response.delete_cookie(key=_COOKIE_REFRESH, path="/api/v1/auth/refresh")
 
 

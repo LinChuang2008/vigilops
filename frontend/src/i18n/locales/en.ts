@@ -1003,7 +1003,9 @@ const en = {
     agentAddedMsg: 'Host Added Successfully',
     agentAddedDesc: 'Consider configuring alert rules for this host to detect anomalies promptly.',
     agentAddedBtn: 'Configure Now',
+    copyTokenPrefix: 'Copy Token Prefix',
     copyFullToken: 'Copy Full Token',
+    tokenWarning: 'Please save this Token immediately. You will not be able to view the full Token again after closing this window.',
   },
 
   // ========== Topology ==========

@@ -1003,7 +1003,9 @@ const zh = {
     agentAddedMsg: '主机添加成功',
     agentAddedDesc: '建议为该主机配置告警规则，及时发现异常',
     agentAddedBtn: '立即配置',
+    copyTokenPrefix: '复制 Token 前缀',
     copyFullToken: '复制完整 Token',
+    tokenWarning: '请立即保存此 Token，关闭此窗口后将无法再次查看完整 Token。',
   },
 
   // ========== 拓扑图 ==========
