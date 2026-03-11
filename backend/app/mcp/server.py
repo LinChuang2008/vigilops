@@ -95,10 +95,10 @@ def get_servers_health(
             server_info = {
                 "id": host.id,
                 "hostname": host.hostname,
-                "ip": host.ip,
+                "ip": host.ip_address,
                 "status": host.status,
                 "os": host.os,
-                "last_seen": host.last_seen.isoformat() if host.last_seen else None,
+                "last_seen": host.last_heartbeat.isoformat() if host.last_heartbeat else None,
                 "metrics": {}
             }
             
@@ -499,6 +499,7 @@ def get_topology(
 def start_mcp_server(host: str = "127.0.0.1", port: int = 8003):
     """Start the MCP server with optional Bearer Token authentication"""
     import uvicorn
+    import asyncio
     from starlette.responses import JSONResponse
 
     api_key = settings.vigilops_mcp_api_key
@@ -506,7 +507,8 @@ def start_mcp_server(host: str = "127.0.0.1", port: int = 8003):
 
     if not api_key:
         logger.warning("VIGILOPS_MCP_API_KEY not set — MCP server running without authentication")
-        mcp_server.run(host=host, port=port)
+        # Use streamable HTTP transport without authentication
+        asyncio.run(mcp_server.run_http_async(host=host, port=port))
         return
 
     logger.info("Bearer Token auth enabled for MCP server")
@@ -534,6 +536,14 @@ def stop_mcp_server():
     """Stop the MCP server"""
     logger.info("Stopping VigilOps MCP Server")
     vigilops_mcp.close_db()
+
+
+if __name__ == "__main__":
+    import os
+
+    host = os.environ.get("VIGILOPS_MCP_HOST", "0.0.0.0")
+    port = int(os.environ.get("VIGILOPS_MCP_PORT", "8003"))
+    start_mcp_server(host=host, port=port)
 
 
 # Export the server instance

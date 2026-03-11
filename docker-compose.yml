@@ -82,6 +82,29 @@ services:
       - ./backend:/app
     restart: unless-stopped
 
+  # MCP Server - 独立运行的 Model Context Protocol 服务 (MCP Server - Standalone service)
+  mcp:
+    build: ./backend
+    ports:
+      - "${MCP_PORT:-8003}:8003"
+    env_file: .env
+    environment:
+      # MCP 环境变量
+      VIGILOPS_MCP_ENABLED: "true"
+      VIGILOPS_MCP_HOST: "0.0.0.0"
+      VIGILOPS_MCP_PORT: "8003"
+      REDIS_PORT: 6379
+      POSTGRES_PORT: 5432
+    command: ["python", "-m", "app.mcp.server"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+
   frontend:
     build: ./frontend
     ports:
