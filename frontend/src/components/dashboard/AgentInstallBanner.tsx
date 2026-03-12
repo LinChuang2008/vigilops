@@ -54,7 +54,24 @@ export default function AgentInstallBanner() {
     setDismissed(true);
   };
 
-  const serverUrl = `${window.location.protocol}//${window.location.hostname}:8001`;
+  const getServerUrl = () => {
+    const currentPort = window.location.port;
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+    
+    // 如果当前端口是3001（前端开发），映射到8001
+    if (currentPort === '3001') {
+      return `${protocol}//${hostname}:8001`;
+    }
+    // 如果是80（Docker nginx），映射到8000
+    if (currentPort === '80' || currentPort === '') {
+      return `${protocol}//${hostname}:8000`;
+    }
+    // 否则用当前host
+    return `${protocol}//${hostname}${currentPort ? `:${currentPort}` : ''}`;
+  };
+  
+  const serverUrl = getServerUrl();
   const tokenDisplay = token || '<YOUR_TOKEN>';
   // 使用 GitHub raw URL 提供安装脚本，避免 404 错误
   const installCmdGithub = `curl -fsSL https://raw.githubusercontent.com/LinChuang2008/vigilops/main/scripts/install-agent.sh | VIGILOPS_SERVER=${serverUrl} AGENT_TOKEN=${tokenDisplay} bash`;
@@ -64,9 +81,7 @@ export default function AgentInstallBanner() {
   const installCmd = selectedCmd === 'github' ? installCmdGithub : installCmdLocal;
 
   const copyToClipboard = () => {
-    const text = token
-      ? `curl -fsSL ${serverUrl}/agent/install.sh | VIGILOPS_SERVER=${serverUrl} AGENT_TOKEN=${tokenDisplay} bash`
-      : installCmd;
+    const text = installCmd;
     const succeed = () => {
       setCopied(true);
       messageApi.success(t('common.copied'));

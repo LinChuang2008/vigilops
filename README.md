@@ -194,7 +194,7 @@ curl -fsSL https://raw.githubusercontent.com/LinChuang2008/vigilops/main/scripts
   bash
 
 # Option 2 (Fallback): Using local server endpoint
-curl -fsSL http://your-vigilops-server:8001/agent/install.sh | \
+curl -fsSL http://your-vigilops-server:8001/api/v1/agent/install.sh | \
   VIGILOPS_SERVER=http://your-vigilops-server:8001 \
   AGENT_TOKEN=your-token-from-ui \
   bash
