@@ -16,7 +16,7 @@ Competitive advantage: Native AI integration with monitoring data.
 """
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any, Union
 
 from fastmcp import FastMCP
@@ -126,7 +126,7 @@ def get_servers_health(
                 "offline": offline_hosts,
                 "queried_count": len(servers_data)
             },
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
     except Exception as e:
@@ -157,7 +157,7 @@ def get_alerts(
         db = vigilops_mcp.get_db()
         
         # Time filter
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours_back)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours_back)
         
         # Build query
         query = db.query(Alert).filter(Alert.fired_at > cutoff_time)
@@ -216,7 +216,7 @@ def get_alerts(
                 "returned_count": len(alerts_data),
                 "time_range_hours": hours_back
             },
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
     except Exception as e:
@@ -251,7 +251,7 @@ def search_logs(
         db = vigilops_mcp.get_db()
         
         # Time filter
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours_back)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours_back)
         
         # Build query
         query = db.query(LogEntry).filter(
@@ -308,7 +308,7 @@ def search_logs(
                     "level": level
                 }
             },
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
     except Exception as e:
@@ -393,7 +393,7 @@ def analyze_incident(
             "type": "incident_analysis",
             "description": description or "Automated incident analysis",
             "context": context_data,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
         # Call AI engine for analysis
@@ -411,7 +411,7 @@ def analyze_incident(
                 "Monitor related services",
                 "Verify network connectivity"
             ],
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
     except Exception as e:
@@ -487,7 +487,7 @@ def get_topology(
         
         return {
             "topology": topology_data,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
     except Exception as e:

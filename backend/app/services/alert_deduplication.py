@@ -11,7 +11,7 @@ based on time windows, similarity rules, and host/service dimensions.
 import hashlib
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import select, and_, or_
@@ -113,7 +113,7 @@ class AlertDeduplicationService:
             Tuple[bool, Optional[AlertDeduplication]]: (是否去重, 现有去重记录)
         """
         dedup_window = self.get_config(DEDUP_WINDOW_KEY, DEFAULT_DEDUPLICATION_WINDOW)
-        cutoff_time = datetime.utcnow() - timedelta(seconds=dedup_window)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(seconds=dedup_window)
 
         # 查找近期的去重记录
         existing_dedup = self.db.query(AlertDeduplication).filter(
@@ -142,7 +142,7 @@ class AlertDeduplicationService:
             AlertGroup: 告警聚合组
         """
         aggregation_window = self.get_config(AGGREGATION_WINDOW_KEY, DEFAULT_AGGREGATION_WINDOW)
-        window_start = datetime.utcnow() - timedelta(seconds=aggregation_window)
+        window_start = datetime.now(timezone.utc) - timedelta(seconds=aggregation_window)
 
         # 查找活跃的聚合组
         existing_group = self.db.query(AlertGroup).filter(
@@ -155,8 +155,8 @@ class AlertDeduplicationService:
 
         if existing_group:
             # 更新现有组
-            existing_group.last_occurrence = datetime.utcnow()
-            existing_group.window_end = datetime.utcnow() + timedelta(seconds=aggregation_window)
+            existing_group.last_occurrence = datetime.now(timezone.utc)
+            existing_group.window_end = datetime.now(timezone.utc) + timedelta(seconds=aggregation_window)
             existing_group.alert_count += 1
             
             # 更新涉及的资源列表
@@ -195,9 +195,9 @@ class AlertDeduplicationService:
                 rule_ids=[rule_id],
                 host_ids=[host_id] if host_id else [],
                 service_ids=[service_id] if service_id else [],
-                window_start=datetime.utcnow(),
-                window_end=datetime.utcnow() + timedelta(seconds=aggregation_window),
-                last_occurrence=datetime.utcnow()
+                window_start=datetime.now(timezone.utc),
+                window_end=datetime.now(timezone.utc) + timedelta(seconds=aggregation_window),
+                last_occurrence=datetime.now(timezone.utc)
             )
             self.db.add(new_group)
             self.db.flush()
@@ -227,7 +227,7 @@ class AlertDeduplicationService:
         
         if should_dedup and existing_dedup:
             # 更新现有去重记录
-            existing_dedup.last_occurrence = datetime.utcnow()
+            existing_dedup.last_occurrence = datetime.now(timezone.utc)
             existing_dedup.occurrence_count += 1
             self.db.commit()
             
@@ -254,7 +254,7 @@ class AlertDeduplicationService:
 
         # 创建或更新去重记录
         if existing_dedup:
-            existing_dedup.last_occurrence = datetime.utcnow()
+            existing_dedup.last_occurrence = datetime.now(timezone.utc)
             existing_dedup.occurrence_count += 1
             existing_dedup.alert_group_id = alert_group.id
         else:
@@ -263,8 +263,8 @@ class AlertDeduplicationService:
                 rule_id=rule.id,
                 host_id=host_id,
                 service_id=service_id,
-                first_occurrence=datetime.utcnow(),
-                last_occurrence=datetime.utcnow(),
+                first_occurrence=datetime.now(timezone.utc),
+                last_occurrence=datetime.now(timezone.utc),
                 occurrence_count=1,
                 alert_group_id=alert_group.id
             )
@@ -283,7 +283,7 @@ class AlertDeduplicationService:
         dedup_window = self.get_config(DEDUP_WINDOW_KEY, DEFAULT_DEDUPLICATION_WINDOW)
         aggregation_window = self.get_config(AGGREGATION_WINDOW_KEY, DEFAULT_AGGREGATION_WINDOW)
         
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         dedup_cutoff = now - timedelta(seconds=dedup_window * 2)  # 保留时间更长一些
         aggregation_cutoff = now - timedelta(seconds=aggregation_window * 2)
 
@@ -314,7 +314,7 @@ class AlertDeduplicationService:
         """获取去重和聚合统计信息"""
         # 活跃的去重记录数
         active_dedup_count = self.db.query(AlertDeduplication).filter(
-            AlertDeduplication.last_occurrence > datetime.utcnow() - timedelta(hours=1)
+            AlertDeduplication.last_occurrence > datetime.now(timezone.utc) - timedelta(hours=1)
         ).count()
 
         # 活跃的聚合组数
@@ -323,7 +323,7 @@ class AlertDeduplicationService:
         ).count()
 
         # 去重率统计（最近24小时）
-        yesterday = datetime.utcnow() - timedelta(hours=24)
+        yesterday = datetime.now(timezone.utc) - timedelta(hours=24)
         total_occurrences = self.db.query(AlertDeduplication).filter(
             AlertDeduplication.last_occurrence > yesterday
         ).count()
