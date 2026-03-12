@@ -24,6 +24,7 @@
     - 状态跟踪：完整的发送日志和状态记录
     - 配置灵活：每个渠道独立配置和启用控制
 """
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -33,11 +34,13 @@ import urllib.parse
 from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from urllib.parse import urlparse
 
 import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.redis import get_redis
 from app.models.alert import Alert, AlertRule
 from app.models.notification import NotificationChannel, NotificationLog
@@ -45,12 +48,370 @@ from app.models.notification_template import NotificationTemplate
 
 logger = logging.getLogger(__name__)
 
-# 通知发送配置常量 (Notification Configuration Constants)
-MAX_RETRIES = 3  # 发送失败时的最大重试次数，平衡可靠性和性能
+# 通知发送配置常量 (从配置文件读取) (Notification Configuration Constants from Settings)
+MAX_RETRIES = settings.notification_max_retries  # 发送失败时的最大重试次数
+TEMPLATE_CACHE_TTL = settings.notification_template_cache_ttl  # 模板缓存 TTL（秒）
+CHANNEL_CACHE_TTL = settings.notification_channel_cache_ttl  # 渠道配置缓存 TTL（秒）
+DEFAULT_COOLDOWN = settings.notification_default_cooldown  # 默认冷却时间（秒）
+
+
+# ---------------------------------------------------------------------------
+# URL 安全验证模块 (URL Security Validation Module)
+# 防止 SSRF 攻击，验证 Webhook URL 是否在白名单内
+# ---------------------------------------------------------------------------
+
+def _validate_webhook_url(url: str) -> tuple[bool, str | None]:
+    """
+    Webhook URL 安全验证器 (Webhook URL Security Validator)
+
+    功能描述:
+        防止服务端请求伪造（SSRF）攻击，验证目标 URL 是否安全。
+        检查 URL 格式、协议、域名白名单等安全要素。
+
+    Args:
+        url: 待验证的 Webhook URL
+
+    Returns:
+        tuple: (is_valid, error_message)
+            - is_valid: True 表示 URL 安全，False 表示不安全
+            - error_message: 验证失败时的错误信息，成功时为 None
+
+    验证规则 (Validation Rules):
+        1. URL 格式必须合法
+        2. 协议必须是 http 或 https
+        3. 生产环境下域名必须在白名单内（如果配置了白名单）
+        4. 禁止访问内网地址（127.0.0.1, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16）
+    """
+    try:
+        parsed = urlparse(url)
+    except Exception as e:
+        return False, f"URL 格式无效: {str(e)}"
+
+    # 1. 协议检查
+    if parsed.scheme not in ("http", "https"):
+        return False, f"不支持的协议: {parsed.scheme}，仅允许 http 和 https"
+
+    # 2. 域名存在性检查
+    if not parsed.netloc:
+        return False, "URL 缺少域名"
+
+    # 3. 内网地址检查（防止 SSRF 攻击）
+    hostname = parsed.hostname
+    if not hostname:
+        return False, "无法解析主机名"
+
+    # 禁止访问的内网地址列表
+    forbidden_patterns = [
+        "127.",           # Loopback
+        "localhost",      # Loopback
+        "0.0.0.0",        # All interfaces
+        "10.",            # Private Class A
+        "172.16.",        # Private Class B (start)
+        "172.17.",        # Private Class B
+        "172.18.",        # Private Class B
+        "172.19.",        # Private Class B
+        "172.20.",        # Private Class B
+        "172.21.",        # Private Class B
+        "172.22.",        # Private Class B
+        "172.23.",        # Private Class B
+        "172.24.",        # Private Class B
+        "172.25.",        # Private Class B
+        "172.26.",        # Private Class B
+        "172.27.",        # Private Class B
+        "172.28.",        # Private Class B
+        "172.29.",        # Private Class B
+        "172.30.",        # Private Class B
+        "172.31.",        # Private Class B
+        "192.168.",       # Private Class C
+    ]
+
+    for pattern in forbidden_patterns:
+        if hostname.startswith(pattern) or hostname == pattern.replace(".", ""):
+            return False, f"禁止访问内网地址: {hostname}"
+
+    # 4. 白名单检查（生产环境）
+    if settings.environment.lower() == "production" and settings.webhook_allowed_domains:
+        allowed_domains = [d.strip() for d in settings.webhook_allowed_domains.split(",")]
+        if hostname not in allowed_domains:
+            return False, f"域名 {hostname} 不在白名单中，允许的域名: {', '.join(allowed_domains)}"
+
+    return True, None
 
 
 # ---------------------------------------------------------------------------
 # 自动修复结果通知模块 (Auto-Remediation Result Notification Module)
+# 供 remediation agent 调用，通知修复执行结果
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# 测试通知发送模块 (Test Notification Module)
+# 用于验证通知渠道配置是否正确
+# ---------------------------------------------------------------------------
+
+async def send_test_notification_to_channel(channel: NotificationChannel) -> bool:
+    """
+    测试通知发送函数 (Test Notification Sender)
+
+    功能描述:
+        向指定渠道发送测试通知，用于验证渠道配置是否正确。
+        发送固定的测试消息，不依赖实际的告警对象。
+
+    Args:
+        channel: 待测试的通知渠道配置
+
+    Returns:
+        bool: 发送成功返回 True，失败返回 False
+
+    测试消息内容:
+        - 标题: "VigilOps 测试通知"
+        - 内容: 包含渠道类型、发送时间等信息的测试消息
+    """
+    from datetime import datetime
+
+    test_title = "VigilOps 测试通知"
+    test_message = f"这是一条测试通知，用于验证 {channel.name} ({channel.type}) 渠道配置是否正确。"
+    test_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # 构建测试模板变量
+    test_variables = {
+        "title": test_title,
+        "severity": "info",
+        "message": test_message,
+        "metric_value": "N/A",
+        "threshold": "N/A",
+        "host_id": "0",
+        "fired_at": test_time
+    }
+
+    try:
+        if channel.type == "webhook":
+            return await _send_test_webhook(channel, test_variables)
+        elif channel.type == "email":
+            return await _send_test_email(channel, test_variables)
+        elif channel.type == "dingtalk":
+            return await _send_test_dingtalk(channel, test_variables)
+        elif channel.type == "feishu":
+            return await _send_test_feishu(channel, test_variables)
+        elif channel.type == "wecom":
+            return await _send_test_wecom(channel, test_variables)
+        else:
+            logger.warning(f"Unsupported channel type for test: {channel.type}")
+            return False
+    except Exception as e:
+        logger.error(f"Test notification failed for channel {channel.name}: {e}")
+        return False
+
+
+async def _send_test_webhook(channel: NotificationChannel, variables: dict) -> bool:
+    """发送 Webhook 测试通知。"""
+    url = channel.config.get("url")
+    if not url:
+        logger.warning(f"Webhook test notification failed: url is empty for channel {channel.name}")
+        return False
+
+    # SSRF 防护：验证 URL 安全性
+    is_valid, error_msg = _validate_webhook_url(url)
+    if not is_valid:
+        logger.warning(f"Webhook URL validation failed for channel {channel.name}: {error_msg}")
+        return False
+
+    headers = channel.config.get("headers", {})
+    headers.setdefault("Content-Type", "application/json")
+
+    payload = {
+        "test": True,
+        "text": f"**{variables['title']}**\n\n{variables['message']}\n\n发送时间: {variables['fired_at']}"
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10, verify=settings.webhook_enable_ssl_verification) as client:
+            resp = await client.post(url, json=payload, headers=headers)
+        logger.info(f"Webhook test notification response for {channel.name}: status={resp.status_code}, body={resp.text[:200]}")
+        return 200 <= resp.status_code < 300
+    except Exception as e:
+        logger.error(f"Webhook test notification failed for channel {channel.name}: {e}", exc_info=True)
+        return False
+
+
+async def _send_test_email(channel: NotificationChannel, variables: dict) -> bool:
+    """发送邮件测试通知。"""
+    import aiosmtplib
+
+    config = channel.config
+    smtp_host = config.get("smtp_host", "")
+    smtp_port = config.get("smtp_port", 465)
+    smtp_user = config.get("smtp_user", "")
+    smtp_password = config.get("smtp_password", "")
+    use_ssl = config.get("smtp_ssl", True)
+    recipients = config.get("recipients", [])
+
+    if not recipients:
+        logger.warning(f"Email test notification failed: recipients is empty for channel {channel.name}")
+        return False
+
+    subject = f"🧪 {variables['title']}"
+    body = f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;">
+      <div style="background:#4CAF50;color:#fff;padding:16px 24px;">
+        <h2 style="margin:0;">🧪 VigilOps 测试通知</h2>
+      </div>
+      <div style="padding:24px;">
+        <p>这是一条<strong>测试通知</strong>，用于验证邮件配置是否正确。</p>
+        <p><strong>渠道名称:</strong> {channel.name}</p>
+        <p><strong>渠道类型:</strong> {channel.type}</p>
+        <p><strong>发送时间:</strong> {variables['fired_at']}</p>
+        <p style="color:#888;">如果您收到此邮件，说明邮件通知配置正确！</p>
+      </div>
+    </div>
+    """
+
+    msg = MIMEMultipart("alternative")
+    msg["From"] = smtp_user
+    msg["To"] = ", ".join(recipients)
+    msg["Subject"] = subject
+    msg.attach(MIMEText(body, "html", "utf-8"))
+
+    kwargs = {
+        "hostname": smtp_host,
+        "port": smtp_port,
+        "username": smtp_user,
+        "password": smtp_password,
+    }
+    if use_ssl:
+        kwargs["use_tls"] = True
+    else:
+        kwargs["start_tls"] = True
+
+    try:
+        await aiosmtplib.send(msg, **kwargs)
+        logger.info(f"Email test notification sent successfully to {recipients} for channel {channel.name}")
+        return True
+    except Exception as e:
+        logger.error(f"Email test notification failed for channel {channel.name}: {e}", exc_info=True)
+        return False
+
+
+async def _send_test_dingtalk(channel: NotificationChannel, variables: dict) -> bool:
+    """发送钉钉测试通知。"""
+    config = channel.config
+    webhook_url = config.get("webhook_url", "")
+    secret = config.get("secret")
+
+    if not webhook_url:
+        logger.warning(f"DingTalk test notification failed: webhook_url is empty for channel {channel.name}")
+        return False
+
+    # 签名
+    if secret:
+        ts, sign = _dingtalk_sign(secret)
+        sep = "&" if "?" in webhook_url else "?"
+        webhook_url = f"{webhook_url}{sep}timestamp={ts}&sign={sign}"
+
+    body = (
+        f"## 🧪 VigilOps 测试通知\n\n"
+        f"这是一条测试通知，用于验证钉钉配置是否正确。\n\n"
+        f"**渠道名称**: {channel.name}\n"
+        f"**发送时间**: {variables['fired_at']}\n\n"
+        f"如果收到此消息，说明钉钉通知配置正确！"
+    )
+
+    payload = {
+        "msgtype": "markdown",
+        "markdown": {
+            "title": "VigilOps 测试通知",
+            "text": body,
+        },
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10, verify=settings.webhook_enable_ssl_verification) as client:
+            resp = await client.post(webhook_url, json=payload)
+        logger.info(f"DingTalk test notification response for {channel.name}: status={resp.status_code}, body={resp.text[:200]}")
+        return 200 <= resp.status_code < 300
+    except Exception as e:
+        logger.error(f"DingTalk test notification failed for channel {channel.name}: {e}", exc_info=True)
+        return False
+
+
+async def _send_test_feishu(channel: NotificationChannel, variables: dict) -> bool:
+    """发送飞书测试通知。"""
+    config = channel.config
+    webhook_url = config.get("webhook_url", "")
+    secret = config.get("secret")
+
+    if not webhook_url:
+        logger.warning(f"Feishu test notification failed: webhook_url is empty for channel {channel.name}")
+        return False
+
+    body = (
+        f"**渠道名称**: {channel.name}\n"
+        f"**发送时间**: {variables['fired_at']}\n"
+        f"这是一条测试通知，用于验证飞书配置是否正确。"
+    )
+
+    payload: dict = {
+        "msg_type": "interactive",
+        "card": {
+            "header": {
+                "title": {"tag": "plain_text", "content": "🧪 VigilOps 测试通知"},
+                "template": "green",
+            },
+            "elements": [
+                {
+                    "tag": "div",
+                    "text": {"tag": "lark_md", "content": body},
+                }
+            ],
+        },
+    }
+
+    # 签名
+    if secret:
+        ts, sign = _feishu_sign(secret)
+        payload["timestamp"] = ts
+        payload["sign"] = sign
+
+    try:
+        async with httpx.AsyncClient(timeout=10, verify=settings.webhook_enable_ssl_verification) as client:
+            resp = await client.post(webhook_url, json=payload)
+        logger.info(f"Feishu test notification response for {channel.name}: status={resp.status_code}, body={resp.text[:200]}")
+        return 200 <= resp.status_code < 300
+    except Exception as e:
+        logger.error(f"Feishu test notification failed for channel {channel.name}: {e}", exc_info=True)
+        return False
+
+
+async def _send_test_wecom(channel: NotificationChannel, variables: dict) -> bool:
+    """发送企业微信测试通知。"""
+    config = channel.config
+    webhook_url = config.get("webhook_url", "")
+
+    if not webhook_url:
+        logger.warning(f"WeCom test notification failed: webhook_url is empty for channel {channel.name}")
+        return False
+
+    body = (
+        f"## <font color='info'>🧪 VigilOps 测试通知</font>\n"
+        f"> 这是一条测试通知，用于验证企业微信配置是否正确。\n"
+        f"> **渠道名称**: {channel.name}\n"
+        f"> **发送时间**: {variables['fired_at']}\n\n"
+        f"如果收到此消息，说明企业微信通知配置正确！"
+    )
+
+    payload = {
+        "msgtype": "markdown",
+        "markdown": {"content": body},
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10, verify=settings.webhook_enable_ssl_verification) as client:
+            resp = await client.post(webhook_url, json=payload)
+        logger.info(f"WeCom test notification response: status={resp.status_code}, body={resp.text[:200]}")
+        return 200 <= resp.status_code < 300
+    except Exception as e:
+        logger.error(f"WeCom test notification failed for channel {channel.name}: {e}", exc_info=True)
+        return False
 # 供 remediation agent 调用，通知修复执行结果
 # ---------------------------------------------------------------------------
 
@@ -172,19 +533,20 @@ async def send_remediation_notification(
     else:  # "failure" 或其他情况
         body = _remediation_failure_message(alert_name, host, reason)
 
-    # 2. 查询所有已启用的通知渠道
-    result = await db.execute(
-        select(NotificationChannel).where(NotificationChannel.is_enabled == True)  # noqa: E712
-    )
-    channels = result.scalars().all()
+    # 2. 查询所有已启用的通知渠道（使用缓存）
+    channels = await _get_enabled_channels(db)
 
-    # 3. 并发向所有渠道发送修复结果通知
-    for channel in channels:
-        try:
-            await _send_remediation_to_channel(channel, body)
-        except Exception:
-            # 4. 容错处理：单个渠道失败不影响其他渠道
-            logger.exception("Failed to send remediation notification to channel %s", channel.name)
+    # 3. 使用 asyncio.gather 并发向所有渠道发送修复结果通知
+    # return_exceptions=True 确保单个渠道失败不影响其他渠道
+    if channels:
+        tasks = [_send_remediation_to_channel(channel, body) for channel in channels]
+        await asyncio.gather(*tasks, return_exceptions=True)
+        # 记录发送异常
+        for task, channel in zip(tasks, channels):
+            if isinstance(task, Exception):
+                logger.exception(
+                    "Failed to send remediation notification to channel %s", channel.name
+                )
 
 
 async def _send_remediation_to_channel(channel: NotificationChannel, body: str) -> None:
@@ -195,7 +557,7 @@ async def _send_remediation_to_channel(channel: NotificationChannel, body: str) 
         url = config.get("url", "")
         if not url:
             return
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=10, verify=settings.webhook_enable_ssl_verification) as client:
             await client.post(url, json={"text": body}, headers={"Content-Type": "application/json"})
 
     elif channel.type == "dingtalk":
@@ -208,7 +570,7 @@ async def _send_remediation_to_channel(channel: NotificationChannel, body: str) 
             sep = "&" if "?" in webhook_url else "?"
             webhook_url = f"{webhook_url}{sep}timestamp={ts}&sign={sign}"
         payload = {"msgtype": "markdown", "markdown": {"title": "VigilOps 修复通知", "text": body}}
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=10, verify=settings.webhook_enable_ssl_verification) as client:
             await client.post(webhook_url, json=payload)
 
     elif channel.type == "feishu":
@@ -227,7 +589,7 @@ async def _send_remediation_to_channel(channel: NotificationChannel, body: str) 
             ts, sign = _feishu_sign(secret)
             payload["timestamp"] = ts
             payload["sign"] = sign
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=10, verify=settings.webhook_enable_ssl_verification) as client:
             await client.post(webhook_url, json=payload)
 
     elif channel.type == "wecom":
@@ -235,7 +597,7 @@ async def _send_remediation_to_channel(channel: NotificationChannel, body: str) 
         if not webhook_url:
             return
         payload = {"msgtype": "markdown", "markdown": {"content": body}}
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=10, verify=settings.webhook_enable_ssl_verification) as client:
             await client.post(webhook_url, json=payload)
 
     elif channel.type == "email":
@@ -302,25 +664,43 @@ def _build_template_vars(alert: Alert) -> dict:
 
 async def _get_default_template(db: AsyncSession, channel_type: str):
     """
-    默认通知模板查找器 (Default Notification Template Finder)
-    
+    默认通知模板查找器（带缓存）(Default Notification Template Finder with Cache)
+
     功能描述:
-        按优先级查找指定渠道类型的默认通知模板。
+        按优先级查找指定渠道类型的默认通知模板，支持Redis缓存。
         实现模板继承机制，支持通用模板作为后备。
-        
+
     Args:
         db: 数据库会话
         channel_type: 渠道类型（webhook/email/dingtalk/feishu/wecom）
-        
+
     Returns:
         NotificationTemplate对象或None
-        
+
     查找策略:
-        1. 优先查找精确匹配的渠道类型默认模板
-        2. 未找到时回退到"all"类型的通用默认模板
-        3. 支持模板继承和复用机制
+        1. 优先从缓存查找
+        2. 缓存未命中时查询数据库
+        3. 精确匹配查找：特定渠道类型的默认模板
+        4. 回退查找：通用"all"类型的默认模板
+        5. 查询结果写入缓存
     """
-    # 1. 精确匹配查找：特定渠道类型的默认模板
+    redis = await get_redis()
+    cache_key = f"notification:template:{channel_type}"
+
+    # 1. 尝试从缓存获取
+    cached = await redis.get(cache_key)
+    if cached:
+        import json
+        try:
+            template_data = json.loads(cached)
+            # 构造模板对象（简化版，仅包含必要字段）
+            from types import SimpleNamespace
+            return SimpleNamespace(**template_data)
+        except Exception:
+            pass  # 缓存解析失败，继续查询数据库
+
+    # 2. 缓存未命中，查询数据库
+    # 2.1 精确匹配查找：特定渠道类型的默认模板
     result = await db.execute(
         select(NotificationTemplate).where(
             NotificationTemplate.channel_type == channel_type,
@@ -329,35 +709,59 @@ async def _get_default_template(db: AsyncSession, channel_type: str):
     )
     template = result.scalar_one_or_none()
     if template:
-        return template  # 找到精确匹配的模板，优先使用
+        # 写入缓存
+        template_dict = {
+            "id": template.id,
+            "name": template.name,
+            "channel_type": template.channel_type,
+            "subject_template": template.subject_template,
+            "body_template": template.body_template,
+            "is_default": template.is_default,
+        }
+        await redis.setex(cache_key, TEMPLATE_CACHE_TTL, json.dumps(template_dict))
+        return template
 
-    # 2. 回退查找：通用"all"类型的默认模板
+    # 2.2 回退查找：通用"all"类型的默认模板
     result = await db.execute(
         select(NotificationTemplate).where(
             NotificationTemplate.channel_type == "all",
             NotificationTemplate.is_default == True,  # noqa: E712
         )
     )
-    return result.scalar_one_or_none()  # 返回通用模板或None
+    template = result.scalar_one_or_none()
+    if template:
+        # 写入缓存（使用 "all" 类型的缓存键）
+        cache_key_all = f"notification:template:all"
+        template_dict = {
+            "id": template.id,
+            "name": template.name,
+            "channel_type": template.channel_type,
+            "subject_template": template.subject_template,
+            "body_template": template.body_template,
+            "is_default": template.is_default,
+        }
+        await redis.setex(cache_key_all, TEMPLATE_CACHE_TTL, json.dumps(template_dict))
+
+    return template
 
 
 def _render_template(template, variables: dict) -> tuple[str | None, str]:
     """
     模板渲染引擎 (Template Rendering Engine)
-    
+
     功能描述:
         使用Python字符串格式化语法渲染通知模板。
         支持主题和正文模板的独立渲染，容错处理变量缺失。
-        
+
     Args:
         template: 通知模板对象，包含subject_template和body_template字段
         variables: 模板变量字典，包含{title}、{severity}等占位符对应值
-        
+
     Returns:
         tuple: (subject, body) 元组
             - subject: 渲染后的主题（可能为None，如邮件以外渠道）
             - body: 渲染后的正文内容
-            
+
     容错机制:
         - 变量缺失时使用原始模板内容
         - 格式化异常时保持模板不变
@@ -365,7 +769,7 @@ def _render_template(template, variables: dict) -> tuple[str | None, str]:
     """
     subject = None
     # 1. 主题模板渲染（主要用于邮件渠道）
-    if template.subject_template:
+    if template and template.subject_template:
         try:
             subject = template.subject_template.format(**variables)
         except (KeyError, IndexError):
@@ -373,13 +777,70 @@ def _render_template(template, variables: dict) -> tuple[str | None, str]:
             subject = template.subject_template
 
     # 2. 正文模板渲染（所有渠道必需）
-    try:
-        body = template.body_template.format(**variables)
-    except (KeyError, IndexError):
-        # 变量缺失或格式错误时，保持原始模板
-        body = template.body_template
+    if template:
+        try:
+            body = template.body_template.format(**variables)
+        except (KeyError, IndexError):
+            # 变量缺失或格式错误时，保持原始模板
+            body = template.body_template
+    else:
+        # 没有模板时使用默认消息
+        body = f"告警: {variables.get('title', 'N/A')}\n严重级别: {variables.get('severity', 'N/A')}"
 
     return subject, body
+
+
+async def _get_enabled_channels(db: AsyncSession):
+    """
+    获取已启用的通知渠道列表（带缓存）(Get Enabled Channels with Cache)
+
+    功能描述:
+        从数据库获取所有已启用的通知渠道，支持Redis缓存。
+        缓存渠道列表以减少数据库查询频率。
+
+    Args:
+        db: 数据库会话
+
+    Returns:
+        list[NotificationChannel]: 已启用的通知渠道列表
+    """
+    redis = await get_redis()
+    cache_key = "notification:channels:enabled"
+
+    # 1. 尝试从缓存获取
+    cached = await redis.get(cache_key)
+    if cached:
+        import json
+        try:
+            channels_data = json.loads(cached)
+            # 从缓存数据重建渠道对象列表
+            from types import SimpleNamespace
+            channels = [SimpleNamespace(**ch) for ch in channels_data]
+            return channels
+        except Exception:
+            pass  # 缓存解析失败，继续查询数据库
+
+    # 2. 缓存未命中，查询数据库
+    result = await db.execute(
+        select(NotificationChannel).where(NotificationChannel.is_enabled == True)  # noqa: E712
+    )
+    channels = result.scalars().all()
+
+    # 3. 写入缓存
+    channels_data = [
+        {
+            "id": ch.id,
+            "name": ch.name,
+            "type": ch.type,
+            "config": ch.config,
+            "is_enabled": ch.is_enabled,
+        }
+        for ch in channels
+    ]
+    import json
+    await redis.setex(cache_key, CHANNEL_CACHE_TTL, json.dumps(channels_data))
+
+    return channels
 
 
 # ---------------------------------------------------------------------------
@@ -430,12 +891,12 @@ async def send_alert_notification(db: AsyncSession, alert: Alert):
                 logger.info(f"Alert {alert.id} silenced (current time in silence window)")
                 return  # 跨日静默期内，直接返回
 
-    # 3. 冷却时间检查 (Cooldown Check) - 降噪机制第二层  
+    # 3. 冷却时间检查 (Cooldown Check) - 降噪机制第二层
     # 防止相同规则的告警短时间内重复发送，避免告警风暴
     redis = await get_redis()
-    cooldown = rule.cooldown_seconds if rule else 300  # 默认5分钟冷却期
+    cooldown = rule.cooldown_seconds if rule else DEFAULT_COOLDOWN  # 使用配置的默认冷却期
     cooldown_key = f"alert:cooldown:{alert.rule_id}"  # Redis键：按规则ID隔离
-    
+
     if await redis.get(cooldown_key):
         # 3.1 冷却期内：增加抑制计数器，记录被过滤的告警数量
         await redis.incr(f"alert:cooldown:count:{alert.rule_id}")
@@ -444,14 +905,20 @@ async def send_alert_notification(db: AsyncSession, alert: Alert):
 
     # 4. 多渠道并发通知发送 (Multi-channel Concurrent Notification)
     # 通过降噪检查后，向所有启用的通知渠道发送告警
-    result = await db.execute(
-        select(NotificationChannel).where(NotificationChannel.is_enabled == True)  # noqa: E712
-    )
-    channels = result.scalars().all()
+    # 使用缓存的渠道查询函数
+    channels = await _get_enabled_channels(db)
 
-    # 4.1 并发向所有已启用渠道发送通知
-    for channel in channels:
-        await _send_to_channel(db, alert, channel)  # 每个渠道独立处理，失败不互相影响
+    # 4.1 使用 asyncio.gather 并发向所有已启用渠道发送通知
+    # return_exceptions=True 确保单个渠道失败不影响其他渠道
+    if channels:
+        tasks = [_send_to_channel(db, alert, channel) for channel in channels]
+        await asyncio.gather(*tasks, return_exceptions=True)
+        # 记录发送异常（gather 会返回异常对象）
+        for task, channel in zip(tasks, channels):
+            if isinstance(task, Exception):
+                logger.warning(
+                    f"Notification send failed for channel {channel.name}: {task}"
+                )
 
     # 5. 冷却期设置 (Cooldown Setup) - 发送后立即设置冷却标记
     # 防止后续相同规则的告警在冷却期内重复发送
@@ -508,20 +975,28 @@ async def _send_to_channel(db: AsyncSession, alert: Alert, channel: Notification
 
     # 4. 带重试机制的发送循环 (Retry-enabled Send Loop)
     # 网络异常、服务暂时不可用等情况的容错处理
+    full_error = None  # 保存完整错误信息用于日志记录
     for attempt in range(MAX_RETRIES):
         try:
             # 4.1 调用对应渠道的发送函数
             resp_code = await handler(alert, channel, template, variables)
             log.response_code = resp_code
-            
+
             # 4.2 检查HTTP状态码判断是否发送成功
             if resp_code and 200 <= resp_code < 300:
                 log.status = "sent"
                 break  # 发送成功，跳出重试循环
             log.error = f"HTTP {resp_code}"
         except Exception as e:
-            # 4.3 捕获异常信息，限制长度避免日志过大
-            log.error = str(e)[:500]
+            # 4.3 完整记录异常到日志系统
+            full_error = str(e)
+            logger.error(
+                f"Notification send error (attempt {attempt + 1}/{MAX_RETRIES}) "
+                f"for alert {alert.id} to channel {channel.name}: {full_error}",
+                exc_info=True  # 记录完整的堆栈跟踪
+            )
+            # 数据库只存储摘要（限制长度）
+            log.error = full_error[:500] if full_error else "Unknown error"
         log.retries = attempt + 1  # 记录重试次数
 
     # 5. 记录发送状态到数据库 (Record Send Status to Database)
@@ -531,9 +1006,15 @@ async def _send_to_channel(db: AsyncSession, alert: Alert, channel: Notification
 
     # 6. 发送结果日志记录 (Send Result Logging)
     if log.status == "sent":
-        logger.info(f"Notification sent for alert {alert.id} to channel {channel.name}")
+        logger.info(
+            f"Notification sent successfully for alert {alert.id} to channel {channel.name} "
+            f"(attempts: {log.retries})"
+        )
     else:
-        logger.warning(f"Notification failed for alert {alert.id} to channel {channel.name}: {log.error}")
+        logger.error(
+            f"Notification failed for alert {alert.id} to channel {channel.name} "
+            f"after {log.retries} attempts. Last error: {full_error or log.error}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -543,10 +1024,16 @@ async def _send_to_channel(db: AsyncSession, alert: Alert, channel: Notification
 async def _send_webhook(
     alert: Alert, channel: NotificationChannel, template, variables: dict
 ) -> int | None:
-    """发送 Webhook 通知，保持向后兼容的原有逻辑。"""
+    """发送 Webhook 通知，支持 SSRF 防护和 URL 白名单验证。"""
     url = channel.config.get("url")
     if not url:
         return None
+
+    # SSRF 防护：验证 URL 安全性
+    is_valid, error_msg = _validate_webhook_url(url)
+    if not is_valid:
+        logger.warning(f"Webhook URL 验证失败: {error_msg}")
+        raise ValueError(f"不安全的 Webhook URL: {error_msg}")
 
     headers = channel.config.get("headers", {})
     headers.setdefault("Content-Type", "application/json")
@@ -570,7 +1057,7 @@ async def _send_webhook(
             "resolved_at": alert.resolved_at.isoformat() if alert.resolved_at else None,
         }
 
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(timeout=10, verify=settings.webhook_enable_ssl_verification) as client:
         resp = await client.post(url, json=payload, headers=headers)
     return resp.status_code
 
@@ -738,7 +1225,7 @@ async def _send_dingtalk(
         },
     }
 
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(timeout=10, verify=settings.webhook_enable_ssl_verification) as client:
         resp = await client.post(webhook_url, json=payload)
     return resp.status_code
 
@@ -751,40 +1238,42 @@ async def _send_dingtalk(
 def _feishu_sign(secret: str) -> tuple[str, str]:
     """
     飞书Webhook签名计算器 (Feishu Webhook Signature Calculator)
-    
+
     功能描述:
         实现飞书官方Webhook签名算法，与钉钉略有差异。
         使用秒级时间戳和HMAC-SHA256算法进行签名。
-        
+
     Args:
         secret: 飞书机器人的加签密钥
-        
+
     Returns:
         tuple: (timestamp, sign) 时间戳和签名字符串
-        
+
     签名算法差异:
         - 飞书使用秒级时间戳（与钉钉的毫秒级不同）
         - HMAC签名后直接Base64编码（无需URL转义）
         - 签名字符串格式与钉钉相同：timestamp + "\n" + secret
-        
-    注意事项:
-        飞书签名算法参数顺序与标准HMAC不同，需特别注意
+        - HMAC参数顺序：secret作为key，string_to_sign作为message
+
+    安全说明:
+        签名机制防止恶意请求，确保只有拥有密钥的应用能发送消息
     """
     # 1. 获取当前秒级时间戳（飞书使用秒精度，与钉钉不同）
     timestamp = str(int(time.time()))
-    
+
     # 2. 构建待签名字符串（与钉钉格式相同）
     string_to_sign = f"{timestamp}\n{secret}"
-    
-    # 3. HMAC-SHA256签名计算（注意：飞书的参数顺序特殊）
+
+    # 3. HMAC-SHA256签名计算（使用secret作为key）
     hmac_code = hmac.new(
-        string_to_sign.encode("utf-8"),  # 飞书：待签名字符串作为key
+        secret.encode("utf-8"),      # secret作为key
+        string_to_sign.encode("utf-8"),  # 待签名字符串作为message
         digestmod=hashlib.sha256
     ).digest()
-    
+
     # 4. Base64编码（无需URL转义，与钉钉不同）
     sign = base64.b64encode(hmac_code).decode()
-    
+
     return timestamp, sign
 
 
@@ -832,7 +1321,7 @@ async def _send_feishu(
         payload["timestamp"] = ts
         payload["sign"] = sign
 
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(timeout=10, verify=settings.webhook_enable_ssl_verification) as client:
         resp = await client.post(webhook_url, json=payload)
     return resp.status_code
 
@@ -868,6 +1357,6 @@ async def _send_wecom(
         "markdown": {"content": body},
     }
 
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(timeout=10, verify=settings.webhook_enable_ssl_verification) as client:
         resp = await client.post(webhook_url, json=payload)
     return resp.status_code

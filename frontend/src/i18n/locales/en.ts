@@ -755,6 +755,9 @@ const en = {
     updatedSuccess: 'Updated',
     testSend: 'Test Send',
     testSendComingSoon: 'Feature under development, stay tuned.',
+    sendingTest: 'Sending test notification...',
+    testSendSuccess: 'Test notification sent successfully',
+    testSendFailed: 'Failed to send test notification, please check configuration',
     // Logs
     logManagement: 'Notification Log Management',
     totalNotifications: 'Total Notifications',

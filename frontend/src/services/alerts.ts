@@ -86,7 +86,7 @@ export interface NotificationChannel {
   /** 渠道配置（JSON 格式，不同类型结构不同） */
   config: Record<string, unknown>;
   /** 是否启用 */
-  enabled: boolean;
+  is_enabled: boolean;
   created_at: string;
 }
 
@@ -142,13 +142,15 @@ export const notificationService = {
   /** 获取所有通知渠道 */
   listChannels: () => api.get<NotificationChannel[]>('/notification-channels'),
   /** 创建通知渠道 */
-  createChannel: (data: { name: string; type: string; config: Record<string, unknown>; enabled?: boolean }) =>
+  createChannel: (data: { name: string; type: string; config: Record<string, unknown>; is_enabled?: boolean }) =>
     api.post<NotificationChannel>('/notification-channels', data),
   /** 更新通知渠道 */
-  updateChannel: (id: number, data: Partial<{ name: string; type: string; config: Record<string, unknown>; enabled: boolean }>) =>
+  updateChannel: (id: number, data: Partial<{ name: string; type: string; config: Record<string, unknown>; is_enabled: boolean }>) =>
     api.put<NotificationChannel>(`/notification-channels/${id}`, data),
   /** 删除通知渠道 */
   deleteChannel: (id: number) => api.delete(`/notification-channels/${id}`),
+  /** 测试通知渠道发送 */
+  testChannel: (id: number) => api.post<{ success: boolean; message: string; channel_type: string; channel_name: string }>(`/notification-channels/${id}/test`),
   /** 获取通知发送日志 */
   listLogs: (params?: Record<string, unknown>) => api.get<NotificationLog[]>('/notification-channels/logs', { params }),
 };

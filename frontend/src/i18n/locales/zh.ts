@@ -755,6 +755,9 @@ const zh = {
     updatedSuccess: '已更新',
     testSend: '测试发送',
     testSendComingSoon: '功能开发中，敬请期待。',
+    sendingTest: '正在发送测试通知...',
+    testSendSuccess: '测试通知发送成功',
+    testSendFailed: '测试通知发送失败，请检查配置',
     // 通知日志
     logManagement: '通知日志管理',
     totalNotifications: '总通知数',
