@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     # Redis 配置 (Redis Configuration)
     redis_host: str = "localhost"  # Redis 主机地址 (Redis Host)
     redis_port: int = 6379  # Redis 端口号 (Redis Port)
+    redis_password: str = ""  # Redis 密码 (Redis Password)
 
     # AI 配置 (AI Service Configuration)
     ai_provider: str = "deepseek"  # AI 服务提供商 (AI Service Provider)
@@ -149,6 +150,8 @@ class Settings(BaseSettings):
         Generates a standard Redis connection string based on configured Redis parameters.
         Defaults to database 0, used for caching and session storage.
         """
+        if self.redis_password:
+            return f"redis://:{self.redis_password}@{self.redis_host}:{self.redis_port}/0"
         return f"redis://{self.redis_host}:{self.redis_port}/0"
 
     @property
