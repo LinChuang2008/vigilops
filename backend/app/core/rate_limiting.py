@@ -16,7 +16,16 @@ frequency control to prevent abuse and DDoS attacks.
 import hashlib
 import json
 import time
+from ipaddress import ip_address, ip_network
 from typing import Dict, Optional, List, Tuple
+
+# 受信任的代理 IP 网段（只有来自这些网段的直连 IP 才信任 X-Forwarded-For）
+TRUSTED_PROXY_NETWORKS = [
+    ip_network("10.0.0.0/8"),
+    ip_network("172.16.0.0/12"),
+    ip_network("192.168.0.0/16"),
+    ip_network("127.0.0.0/8"),
+]
 
 from fastapi import Request, HTTPException, status
 from starlette.middleware.base import BaseHTTPMiddleware
