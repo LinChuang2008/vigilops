@@ -128,12 +128,12 @@ class AIEngine:
     def _parse_json_response(self, text: str) -> Dict[str, Any]:
         cleaned = text.strip()
         if cleaned.startswith("```"):
-            lines = cleaned.split("\n")
-            lines = lines[1:]
-            if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
-            cleaned = "\n".join(lines)
-        return json.loads(cleaned)
+            first_newline = cleaned.find("\n")
+            if first_newline != -1:
+                cleaned = cleaned[first_newline + 1:]
+            if cleaned.rstrip().endswith("```"):
+                cleaned = cleaned.rstrip()[:-3].rstrip()
+        return json.loads(cleaned.strip())
 
     async def analyze_logs(self, logs: List[dict], context: str = "") -> dict:
         if not logs:
@@ -394,10 +394,22 @@ class AIEngine:
             result_text = await self._call_api(messages)
             try:
                 result = self._parse_json_response(result_text)
+                
+                # 修复 P1-5: AI confidence 类型混用，将字符串映射为浮点数
+                # Fix P1-5: AI confidence type mismatch, map strings to floats
+                confidence_str = result.get("confidence", "low")
+                if isinstance(confidence_str, str):
+                    confidence_mapping = {
+                        "high": 0.8,
+                        "medium": 0.6, 
+                        "low": 0.3
+                    }
+                    result["confidence"] = confidence_mapping.get(confidence_str.lower(), 0.3)
+                    
             except json.JSONDecodeError:
                 result = {
                     "root_cause": result_text,
-                    "confidence": "low",
+                    "confidence": 0.3,  # 改为浮点数 (Change to float)
                     "evidence": [],
                     "recommendations": [],
                 }

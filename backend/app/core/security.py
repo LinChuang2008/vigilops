@@ -9,6 +9,7 @@ and JWT token generation/parsing. Uses industry-standard bcrypt algorithm for pa
 encryption and JWT for user authentication and session management.
 """
 from datetime import datetime, timedelta, timezone
+import uuid
 
 import jwt
 from passlib.context import CryptContext
@@ -76,8 +77,9 @@ def create_access_token(subject: str) -> str:
         str: JWT 访问令牌字符串 (JWT access token string)
     """
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_access_token_expire_minutes)
+    jti = str(uuid.uuid4())  # P1-3 安全修复：添加 JWT ID 用于令牌撤销
     return jwt.encode(
-        {"sub": subject, "exp": expire, "type": "access"}, 
+        {"sub": subject, "exp": expire, "type": "access", "jti": jti}, 
         settings.jwt_secret_key, 
         algorithm=settings.jwt_algorithm
     )
@@ -101,8 +103,9 @@ def create_refresh_token(subject: str) -> str:
         str: JWT 刷新令牌字符串 (JWT refresh token string)
     """
     expire = datetime.now(timezone.utc) + timedelta(days=settings.jwt_refresh_token_expire_days)
+    jti = str(uuid.uuid4())  # P1-3 安全修复：添加 JWT ID 用于令牌撤销
     return jwt.encode(
-        {"sub": subject, "exp": expire, "type": "refresh"}, 
+        {"sub": subject, "exp": expire, "type": "refresh", "jti": jti}, 
         settings.jwt_secret_key, 
         algorithm=settings.jwt_algorithm
     )

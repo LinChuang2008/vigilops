@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import shlex
 import time
 
 from .models import CommandResult, RunbookStep
@@ -237,9 +238,10 @@ class CommandExecutor:
         start = time.monotonic()  # 记录开始时间用于计算耗时 (Record start time for duration calculation)
         
         try:
-            # 创建异步子进程执行 shell 命令 (Create async subprocess to execute shell command)
-            proc = await asyncio.create_subprocess_shell(
-                step.command,
+            # 安全地创建异步子进程，防止 Shell 注入 (Safely create async subprocess to prevent shell injection)
+            cmd_args = shlex.split(step.command)  # 安全解析命令参数 (Safely parse command arguments)
+            proc = await asyncio.create_subprocess_exec(
+                *cmd_args,  # 使用参数列表而非 shell 命令 (Use argument list instead of shell command)
                 stdout=asyncio.subprocess.PIPE,  # 捕获标准输出 (Capture stdout)
                 stderr=asyncio.subprocess.PIPE,  # 捕获标准错误 (Capture stderr)
             )

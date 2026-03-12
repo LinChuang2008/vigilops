@@ -573,4 +573,10 @@ class LogBackendFactory:
         """获取默认配置的日志后端"""
         from app.core.config import settings
         backend_type = getattr(settings, 'log_backend_type', LogBackendType.POSTGRESQL)
+        
+        # 启动时校验：检查配置的后端是否受支持
+        SUPPORTED_LOG_BACKENDS = {"postgresql", "clickhouse"}
+        if backend_type not in SUPPORTED_LOG_BACKENDS:
+            raise RuntimeError(f"Log backend '{backend_type}' is not supported yet. Supported backends: {', '.join(sorted(SUPPORTED_LOG_BACKENDS))}")
+        
         return await cls.create_backend(LogBackendType(backend_type), **kwargs)

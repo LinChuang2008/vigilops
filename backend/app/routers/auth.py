@@ -13,19 +13,27 @@ API端点：POST /register, POST /login, POST /refresh, GET /me
 
 Author: VigilOps Team
 """
+from datetime import datetime, timezone
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
+from app.core.redis import get_redis
 from app.core.security import hash_password, verify_password, create_access_token, create_refresh_token, decode_token
 from app.models.user import User
 from app.schemas.auth import UserRegister, UserLogin, TokenResponse, TokenRefresh, UserResponse
 from app.services.audit import log_audit
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+# P1-3 安全修复：Bearer Token 认证方案用于 logout
+security = HTTPBearer(auto_error=False)
 
 # ── Cookie 配置常量 (Cookie Configuration Constants) ───────────────────────────
 # P0-2 骨架：统一 cookie 参数，便于后续全量迁移时统一调整
@@ -90,28 +98,38 @@ async def register(data: UserRegister, request: Request, response: Response, db:
         HTTPException 409: 邮箱已被注册
         HTTPException 429: 注册请求过于频繁
     """
-    # 检查邮箱唯一性约束 (Check email uniqueness constraint)
-    existing = await db.execute(select(User).where(User.email == data.email))
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+    # 修复 P1-6: 使用 PostgreSQL advisory lock 防止并发创建多个 admin
+    # Fix P1-6: Use PostgreSQL advisory lock to prevent concurrent creation of multiple admins
+    try:
+        # 获取 advisory lock (lock_id=1001 for user registration)
+        await db.execute("SELECT pg_advisory_lock(1001)")
+        
+        # 检查邮箱唯一性约束 (Check email uniqueness constraint)
+        existing = await db.execute(select(User).where(User.email == data.email))
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
-    # 第一个用户自动设为管理员，后续用户默认为 operator（可访问所有功能页面，不含用户管理）
-    count_result = await db.execute(select(func.count()).select_from(User))
-    user_count = count_result.scalar()
-    role = "admin" if user_count == 0 else "operator"
+        # 第一个用户自动设为管理员，后续用户默认为 operator（可访问所有功能页面，不含用户管理）
+        count_result = await db.execute(select(func.count()).select_from(User))
+        user_count = count_result.scalar()
+        role = "admin" if user_count == 0 else "operator"
 
-    user = User(
-        email=data.email,
-        name=data.name,
-        hashed_password=hash_password(data.password),
-        role=role,
-    )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
+        user = User(
+            email=data.email,
+            name=data.name,
+            hashed_password=hash_password(data.password),
+            role=role,
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
 
-    access_token = create_access_token(str(user.id))
-    refresh_token = create_refresh_token(str(user.id))
+        access_token = create_access_token(str(user.id))
+        refresh_token = create_refresh_token(str(user.id))
+
+    finally:
+        # 释放 advisory lock (Release advisory lock)
+        await db.execute("SELECT pg_advisory_unlock(1001)")
 
     # P0-2 骨架：同步设置 httpOnly cookie（与 body 响应并行，前端逐步迁移）
     _set_auth_cookies(response, access_token, refresh_token)
@@ -212,16 +230,60 @@ async def refresh(request: Request, response: Response, data: TokenRefresh | Non
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(response: Response):
+async def logout(
+    request: Request, 
+    response: Response,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+):
     """
     登出接口 (Logout)
     
-    清除 httpOnly cookie，使客户端 cookie 中的 JWT 失效。
-    P0-2 骨架：前端调用此接口登出，同时前端负责清理 localStorage。
-
-    Note：服务端无状态 JWT 无法真正撤销，建议后续引入 Redis 黑名单实现真正撤销。
-    TODO P0-2 完整实现：在 Redis 维护 token 黑名单（jti claim）。
+    P1-3 安全修复：实现真正的 JWT 撤销功能。
+    1. 清除 httpOnly cookie
+    2. 将访问令牌和刷新令牌的 JTI 加入 Redis 黑名单
+    3. 黑名单 TTL 设置为令牌剩余有效期，避免内存泄漏
+    
+    Args:
+        request: HTTP请求对象（用于读取 cookie）
+        response: HTTP响应对象（用于清除 cookie）
+        credentials: Bearer token 认证凭据（可选）
     """
+    redis_client = await get_redis()
+    
+    # 收集需要撤销的令牌
+    tokens_to_revoke = []
+    
+    # 1. 从 Bearer header 获取访问令牌
+    if credentials and credentials.credentials:
+        tokens_to_revoke.append(credentials.credentials)
+    
+    # 2. 从 httpOnly cookie 获取访问令牌
+    access_token_cookie = request.cookies.get(_COOKIE_ACCESS)
+    if access_token_cookie:
+        tokens_to_revoke.append(access_token_cookie)
+    
+    # 3. 从 httpOnly cookie 获取刷新令牌
+    refresh_token_cookie = request.cookies.get(_COOKIE_REFRESH)
+    if refresh_token_cookie:
+        tokens_to_revoke.append(refresh_token_cookie)
+    
+    # 撤销所有找到的令牌
+    for token in tokens_to_revoke:
+        payload = decode_token(token)
+        if payload and payload.get("jti"):
+            jti = payload["jti"]
+            exp = payload.get("exp")
+            
+            if exp:
+                # 计算令牌剩余有效期
+                now = datetime.now(timezone.utc).timestamp()
+                ttl = int(exp - now)
+                
+                if ttl > 0:
+                    # 将 JTI 加入黑名单，TTL 为令牌剩余有效期
+                    await redis_client.setex(f"jwt_blacklist:{jti}", ttl, "revoked")
+    
+    # 清除 httpOnly cookies
     response.delete_cookie(key=_COOKIE_ACCESS, path="/api")
     response.delete_cookie(key=_COOKIE_REFRESH, path="/api/v1/auth/refresh")
 

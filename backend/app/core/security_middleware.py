@@ -281,6 +281,9 @@ class RequestSizeMiddleware(BaseHTTPMiddleware):
         """
         检查请求大小并处理 (Check Request Size and Process)
         
+        支持 Content-Length 和 chunked 传输编码的大小限制检查
+        Supports size limit checks for both Content-Length and chunked transfer encoding
+        
         Args:
             request: HTTP 请求对象 (HTTP request object)
             call_next: 下一个处理函数 (Next handler function)
@@ -288,14 +291,15 @@ class RequestSizeMiddleware(BaseHTTPMiddleware):
         Returns:
             Response: HTTP 响应对象 (HTTP response object)
         """
+        max_allowed = self._get_max_size_for_path(request.url.path)
+        
         # 获取 Content-Length 头 (Get Content-Length header)
         content_length = request.headers.get("content-length")
+        transfer_encoding = request.headers.get("transfer-encoding", "").lower()
         
         if content_length:
             try:
                 size = int(content_length)
-                max_allowed = self._get_max_size_for_path(request.url.path)
-                
                 if size > max_allowed:
                     return Response(
                         content=f"Request entity too large. Max allowed: {max_allowed} bytes",
@@ -309,6 +313,10 @@ class RequestSizeMiddleware(BaseHTTPMiddleware):
                     status_code=400,
                     headers={"Content-Type": "text/plain"}
                 )
+        elif "chunked" in transfer_encoding:
+            # 处理 chunked 传输编码，通过包装请求体进行大小检查
+            # Handle chunked transfer encoding by wrapping request body for size checking
+            request = self._wrap_request_for_size_check(request, max_allowed)
         
         return await call_next(request)
     
@@ -327,6 +335,53 @@ class RequestSizeMiddleware(BaseHTTPMiddleware):
                 return limit
         
         return self.max_size
+    
+    def _wrap_request_for_size_check(self, request: Request, max_allowed: int) -> Request:
+        """
+        包装请求以支持 chunked 传输的大小检查 (Wrap Request for Chunked Transfer Size Check)
+        
+        Args:
+            request: 原始请求对象 (Original request object)
+            max_allowed: 最大允许大小 (Maximum allowed size)
+            
+        Returns:
+            Request: 包装后的请求对象 (Wrapped request object)
+        """
+        import asyncio
+        from starlette.requests import Request as StarletteRequest
+        
+        class SizeLimitedStream:
+            """大小限制的流包装器 (Size-limited stream wrapper)"""
+            
+            def __init__(self, stream, max_size: int):
+                self.stream = stream
+                self.max_size = max_size
+                self.bytes_read = 0
+            
+            async def receive(self):
+                """接收数据并检查大小限制"""
+                message = await self.stream.receive()
+                
+                if message["type"] == "http.request" and "body" in message:
+                    body_chunk = message.get("body", b"")
+                    self.bytes_read += len(body_chunk)
+                    
+                    if self.bytes_read > self.max_size:
+                        # 超过大小限制，返回错误消息
+                        raise ValueError(f"Request body too large: {self.bytes_read} bytes, max allowed: {self.max_size} bytes")
+                
+                return message
+        
+        # 创建大小限制的接收器
+        size_limited_receive = SizeLimitedStream(request._receive, max_allowed)
+        
+        # 创建新的请求对象，使用包装的接收器
+        wrapped_request = Request(
+            scope=request.scope,
+            receive=size_limited_receive.receive
+        )
+        
+        return wrapped_request
 
 
 # 工厂函数 (Factory Functions)

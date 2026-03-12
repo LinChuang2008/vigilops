@@ -95,6 +95,15 @@ FORBIDDEN_PATTERNS: list[str] = [
 # 预编译正则表达式以提高匹配性能，大小写不敏感 (Pre-compile regex for performance, case-insensitive)
 _FORBIDDEN_RE = [re.compile(p, re.IGNORECASE) for p in FORBIDDEN_PATTERNS]
 
+# === Shell 元字符检测 (Shell Metacharacter Detection) ===
+#
+# 检测可能导致 Shell 注入攻击的危险元字符
+# Detect dangerous metacharacters that could lead to shell injection attacks
+#
+# 包含的危险字符 (Included dangerous characters):
+# ; | & ` $ < > \ ( ) \n \r $( ${
+SHELL_META_CHARS = re.compile(r'[;&|`$<>\\()\n\r]|\$\(|\${')
+
 # === 安全命令白名单 (Safe Command Whitelist) ===
 #
 # 只有以下前缀开头的命令才被允许执行，这是双重安全保障
@@ -192,6 +201,10 @@ def check_command_safety(cmd: str) -> tuple[bool, str]:
     for pattern in _FORBIDDEN_RE:
         if pattern.search(cmd_stripped):  # 使用正则搜索匹配危险模式
             return False, f"Matches forbidden pattern: {pattern.pattern}"
+
+    # 检查 2.5: Shell 元字符检测 - 防止命令注入攻击 (Check 2.5: Shell metacharacter detection - prevent command injection)
+    if SHELL_META_CHARS.search(cmd_stripped):
+        return False, f"Shell metacharacters detected in command: {cmd_stripped}"
 
     # 检查 3: 白名单前缀验证 - 只允许预定义的安全命令 (Check 3: Whitelist prefix validation - only allow predefined safe commands)
     cmd_lower = cmd_stripped.lower()  # 转为小写进行大小写不敏感匹配

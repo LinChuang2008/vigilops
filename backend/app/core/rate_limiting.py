@@ -286,10 +286,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     
     def _get_client_ip(self, request: Request) -> str:
         """
-        获取客户端真实 IP 地址 (Get Client Real IP Address)
+        安全获取客户端真实 IP 地址 (Securely Get Client Real IP Address)
         
-        考虑代理服务器转发头，获取客户端的真实 IP 地址。
-        优先使用 X-Forwarded-For 等标准头。
+        只有当直连 IP 是受信任代理时，才信任 X-Forwarded-For 头。
+        防止 IP 伪造攻击绕过限流机制。
         
         Args:
             request: HTTP 请求对象 (HTTP request object)
@@ -297,18 +297,44 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         Returns:
             str: 客户端 IP 地址 (Client IP address)
         """
-        # 优先使用代理头 (Prioritize proxy headers)
-        forwarded_for = request.headers.get("X-Forwarded-For")
-        if forwarded_for:
-            # X-Forwarded-For 可能包含多个 IP，取第一个 (May contain multiple IPs, take first)
-            return forwarded_for.split(",")[0].strip()
+        # 获取直连 IP (Get direct connection IP)
+        direct_ip = request.client.host if request.client else None
         
-        real_ip = request.headers.get("X-Real-IP")
-        if real_ip:
-            return real_ip.strip()
+        # 只有直连 IP 是受信任代理时，才处理代理头 (Only trust proxy headers from trusted proxies)
+        if direct_ip and self._is_trusted_proxy(direct_ip):
+            # 检查 X-Forwarded-For 头 (Check X-Forwarded-For header)
+            forwarded_for = request.headers.get("X-Forwarded-For")
+            if forwarded_for:
+                # 解析 IP 链，从右往左找第一个非代理 IP (Parse IP chain, find first non-proxy IP from right)
+                ips = [ip.strip() for ip in forwarded_for.split(",")]
+                for ip in reversed(ips):
+                    if not self._is_trusted_proxy(ip):
+                        return ip
+            
+            # 检查 X-Real-IP 头 (Check X-Real-IP header)
+            real_ip = request.headers.get("X-Real-IP")
+            if real_ip and not self._is_trusted_proxy(real_ip.strip()):
+                return real_ip.strip()
         
-        # 回退到直连 IP (Fallback to direct connection IP)
-        return request.client.host if request.client else "unknown"
+        # 返回直连 IP 或未知 (Return direct IP or unknown)
+        return direct_ip or "unknown"
+    
+    def _is_trusted_proxy(self, ip_str: str) -> bool:
+        """
+        检查 IP 是否为受信任的代理 (Check if IP is a trusted proxy)
+        
+        Args:
+            ip_str: IP 地址字符串 (IP address string)
+            
+        Returns:
+            bool: 是否为受信任代理 (Whether it's a trusted proxy)
+        """
+        try:
+            addr = ip_address(ip_str)
+            return any(addr in network for network in TRUSTED_PROXY_NETWORKS)
+        except ValueError:
+            # 无效 IP 地址不被信任 (Invalid IP addresses are not trusted)
+            return False
     
     async def _get_user_id_from_request(self, request: Request) -> Optional[str]:
         """
