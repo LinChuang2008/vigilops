@@ -7,8 +7,8 @@
  */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Form, InputNumber, Button, Typography, Spin, message, notification, Tabs, Table, Tag, Space, Modal, Input, Tooltip } from 'antd';
-import { PlusOutlined, ExclamationCircleOutlined, CopyOutlined, CheckOutlined } from '@ant-design/icons';
+import { Card, Form, InputNumber, Button, Typography, Spin, message, notification, Tabs, Table, Tag, Space, Modal, Input } from 'antd';
+import { PlusOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import PageHeader from '../components/PageHeader';
@@ -41,27 +41,24 @@ export default function Settings() {
   const [tokensLoading, setTokensLoading] = useState(false);
   const [tokenModalOpen, setTokenModalOpen] = useState(false);
   const [newTokenName, setNewTokenName] = useState('');
+  const [createdToken, setCreatedToken] = useState<string | null>(null);  // 存储刚创建的完整 token
 
   const [form] = Form.useForm();
   const [messageApi, contextHolder] = message.useMessage();
-  /** 已复制的 token id，用于显示对勾图标 */
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   /** 复制文本到剪贴板，兼容不支持 navigator.clipboard 的环境 */
-  const copyToClipboard = (text: string, id: string) => {
+  const copyToClipboard = (text: string) => {
     const succeed = () => {
-      setCopiedId(id);
       messageApi.success(t('common.copied'));
-      setTimeout(() => setCopiedId(null), 2000);
     };
     if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text).then(succeed).catch(() => execCommandCopy(text, id, succeed));
+      navigator.clipboard.writeText(text).then(succeed).catch(() => execCommandCopy(text, succeed));
     } else {
-      execCommandCopy(text, id, succeed);
+      execCommandCopy(text, succeed);
     }
   };
 
-  const execCommandCopy = (text: string, _id: string, succeed: () => void) => {
+  const execCommandCopy = (text: string, succeed: () => void) => {
     const textarea = document.createElement('textarea');
     textarea.value = text;
     textarea.style.cssText = 'position:fixed;top:-9999px;left:-9999px';
@@ -115,11 +112,26 @@ export default function Settings() {
 
   /** 创建新的 Agent Token */
   const handleCreateToken = async () => {
+    if (createdToken) {
+      // 如果已有创建的 token，关闭弹窗
+      setTokenModalOpen(false);
+      setCreatedToken(null);
+      return;
+    }
     if (!newTokenName.trim()) return;
     try {
       const { data } = await api.post('/agent-tokens', { name: newTokenName });
-      messageApi.success(t('settings.tokenCreated'));
-      setTokenModalOpen(false);
+      const fullToken = (data as { token?: string }).token;
+      if (fullToken) {
+        // 保存完整 token，在弹窗中显示
+        setCreatedToken(fullToken);
+        // 自动复制到剪贴板
+        copyToClipboard(fullToken);
+        messageApi.success(t('settings.tokenCreated') + ' ' + t('common.copied'));
+      } else {
+        messageApi.success(t('settings.tokenCreated'));
+        setTokenModalOpen(false);
+      }
       setNewTokenName('');
       fetchTokens();
       const tokenId = data?.id || newTokenName;
@@ -152,19 +164,9 @@ export default function Settings() {
   const tokenColumns = [
     { title: t('settings.columnName'), dataIndex: 'name' },
     {
-      title: t('settings.columnToken'), dataIndex: 'token',
-      render: (tok: string, record: AgentToken) => (
-        <Space>
-          <Typography.Text code>{tok?.substring(0, 16)}...</Typography.Text>
-          <Tooltip title={copiedId === record.id ? t('common.copied') : t('settings.copyFullToken')}>
-            <Button
-              type="text"
-              size="small"
-              icon={copiedId === record.id ? <CheckOutlined style={{ color: '#52c41a' }} /> : <CopyOutlined />}
-              onClick={() => copyToClipboard(tok, record.id)}
-            />
-          </Tooltip>
-        </Space>
+      title: t('settings.columnToken'), dataIndex: 'token_prefix',
+      render: (prefix: string) => (
+        <Typography.Text code>{prefix}...</Typography.Text>
       ),
     },
     { title: t('settings.columnStatus'), dataIndex: 'is_active', render: (v: boolean) => <Tag color={v ? 'success' : 'default'}>{v ? t('settings.active') : t('settings.revoked')}</Tag> },
@@ -213,8 +215,31 @@ export default function Settings() {
                 <Table dataSource={tokens} columns={tokenColumns} rowKey="id" loading={tokensLoading} pagination={false} />
               </Card>
               {/* 创建 Token 弹窗 */}
-              <Modal title={t('settings.createTokenModal')} open={tokenModalOpen} onCancel={() => setTokenModalOpen(false)} onOk={handleCreateToken}>
-                <Input placeholder={t('settings.tokenNamePlaceholder')} value={newTokenName} onChange={e => setNewTokenName(e.target.value)} />
+              <Modal
+                title={createdToken ? t('settings.tokenCreated') : t('settings.createTokenModal')}
+                open={tokenModalOpen}
+                onCancel={() => { setTokenModalOpen(false); setCreatedToken(null); }}
+                onOk={handleCreateToken}
+                okText={createdToken ? t('common.close') : t('common.confirm')}
+              >
+                {createdToken ? (
+                  <Space direction="vertical" style={{ width: '100%' }}>
+                    <Typography.Text type="secondary" style={{ fontSize: 14 }}>
+                      {t('settings.tokenCreated')} {t('common.copied')}
+                    </Typography.Text>
+                    <Input.TextArea
+                      value={createdToken}
+                      readOnly
+                      autoSize={{ minRows: 2, maxRows: 4 }}
+                      style={{ fontFamily: 'monospace', fontSize: 16, marginTop: 16 }}
+                    />
+                    <Typography.Text type="warning" style={{ fontSize: 12 }}>
+                      ⚠️ {t('settings.tokenWarning')}
+                    </Typography.Text>
+                  </Space>
+                ) : (
+                  <Input placeholder={t('settings.tokenNamePlaceholder')} value={newTokenName} onChange={e => setNewTokenName(e.target.value)} />
+                )}
               </Modal>
             </>
           ),
