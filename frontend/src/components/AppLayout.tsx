@@ -242,11 +242,11 @@ export default function AppLayout() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: inDrawer ? 'inherit' : '#fff',
+        color: inDrawer ? (isDark ? '#fff' : 'inherit') : '#fff',
         fontSize: (inDrawer || !collapsed) ? 20 : 16,
         fontWeight: 'bold',
         letterSpacing: 2,
-        borderBottom: inDrawer ? '1px solid #f0f0f0' : undefined,
+        borderBottom: inDrawer ? `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#f0f0f0'}` : undefined,
       }}>
         <svg width={collapsed && !inDrawer ? 28 : 24} height={collapsed && !inDrawer ? 28 : 24} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: (inDrawer || !collapsed) ? 8 : 0, flexShrink: 0 }}>
           <rect width="40" height="40" rx="8" fill="#1677ff"/>
@@ -256,7 +256,7 @@ export default function AppLayout() {
         {(inDrawer || !collapsed) ? 'VigilOps' : ''}
       </div>
       <Menu
-        theme={inDrawer ? 'light' : 'dark'}
+        theme={inDrawer ? (isDark ? 'dark' : 'light') : 'dark'}
         mode="inline"
         selectedKeys={[selectedKey]}
         openKeys={menuOpenKeys}
@@ -284,8 +284,9 @@ export default function AppLayout() {
           closable={false}
           onClose={() => setDrawerVisible(false)}
           open={drawerVisible}
-          bodyStyle={{ padding: 0 }}
+          bodyStyle={{ padding: 0, background: isDark ? '#141414' : undefined }}
           width={280}
+          styles={{ header: { background: isDark ? '#141414' : undefined }, body: { background: isDark ? '#141414' : undefined } }}
         >
           {renderMenuContent(true)}
         </Drawer>

@@ -7,6 +7,7 @@
  * 3. AI 洞察列表 - 展示 AI 自动分析产生的异常检测、根因分析等结果
  */
 import { useEffect, useState, useRef } from 'react';
+import { useTheme } from '../contexts/ThemeContext';
 import { Row, Col, Card, Statistic, Typography, Tag, Table, Button, Input, Space, Select, Progress, Collapse, Spin, message, Tooltip, Rate } from 'antd';
 import {
   CloudServerOutlined,
@@ -73,6 +74,7 @@ const severityColor: Record<string, string> = { critical: 'red', high: 'orange',
 
 export default function AIAnalysis() {
   const { t } = useTranslation();
+  const { isDark } = useTheme();
 
   const insightTypeLabel: Record<string, string> = {
     anomaly: t('aiAnalysis.insightTypeAnomaly'),
@@ -302,7 +304,7 @@ export default function AIAnalysis() {
       {/* AI 对话区域 */}
       <Card title={<><RobotOutlined /> {t('aiAnalysis.aiChat')}</>} style={{ marginTop: 16 }}>
         <div style={{
-          background: '#f5f7fa', borderRadius: 8, padding: 16, minHeight: 200, maxHeight: 400, overflowY: 'auto', marginBottom: 16,
+          background: isDark ? '#1a1a1a' : '#f5f7fa', borderRadius: 8, padding: 16, minHeight: 200, maxHeight: 400, overflowY: 'auto', marginBottom: 16,
         }}>
           {messages.length === 0 && (
             <div style={{ textAlign: 'center', padding: '24px 20px', position: 'relative' }}>
@@ -354,24 +356,41 @@ export default function AIAnalysis() {
           )}
           {messages.map((msg) => (
             <div key={msg.id} style={{
-              display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: 12,
+              display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: 16, gap: 10,
+              flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
             }}>
+              {/* 头像 */}
+              <div style={{
+                width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: msg.role === 'user'
+                  ? 'linear-gradient(135deg, #1677ff, #4096ff)'
+                  : 'linear-gradient(135deg, #36cfc9, #13c2c2)',
+                boxShadow: msg.role === 'user'
+                  ? '0 2px 8px rgba(22, 119, 255, 0.3)'
+                  : '0 2px 8px rgba(54, 207, 201, 0.3)',
+              }}>
+                {msg.role === 'user'
+                  ? <UserOutlined style={{ color: '#fff', fontSize: 16 }} />
+                  : <RobotOutlined style={{ color: '#fff', fontSize: 16 }} />}
+              </div>
               <div style={{
                 maxWidth: '70%',
-                padding: '10px 14px',
-                borderRadius: 12,
-                background: msg.role === 'user' ? '#1677ff' : '#fff',
-                color: msg.role === 'user' ? '#fff' : '#333',
-                border: msg.role === 'ai' ? '1px solid #e8e8e8' : 'none',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                padding: '12px 16px',
+                borderRadius: msg.role === 'user' ? '12px 2px 12px 12px' : '2px 12px 12px 12px',
+                background: msg.role === 'user' ? 'linear-gradient(135deg, #1677ff, #4096ff)' : (isDark ? '#2a2a2a' : '#fff'),
+                color: msg.role === 'user' ? '#fff' : (isDark ? '#e8e8e8' : '#333'),
+                border: msg.role === 'ai' ? `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#e8e8e8'}` : 'none',
+                boxShadow: msg.role === 'user'
+                  ? '0 2px 8px rgba(22, 119, 255, 0.15)'
+                  : '0 2px 8px rgba(0,0,0,0.06)',
               }}>
-                <div style={{ marginBottom: 4 }}>
-                  {msg.role === 'user' ? <UserOutlined /> : <RobotOutlined />}
-                  <Text style={{ marginLeft: 6, color: msg.role === 'user' ? '#fff' : '#666', fontSize: 12 }}>
+                <div style={{ marginBottom: 6, fontSize: 12, opacity: 0.8 }}>
+                  <Text style={{ color: msg.role === 'user' ? 'rgba(255,255,255,0.85)' : '#36cfc9', fontSize: 12, fontWeight: 500 }}>
                     {msg.role === 'user' ? t('aiAnalysis.youLabel') : t('aiAnalysis.aiAssistant')}
                   </Text>
                 </div>
-                <Paragraph style={{ margin: 0, color: msg.role === 'user' ? '#fff' : '#333', whiteSpace: 'pre-wrap' }}>
+                <Paragraph style={{ margin: 0, color: msg.role === 'user' ? '#fff' : (isDark ? '#e8e8e8' : '#333'), whiteSpace: 'pre-wrap' }}>
                   {msg.content}
                 </Paragraph>
                 {msg.sources && msg.sources.length > 0 && (

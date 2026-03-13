@@ -337,7 +337,10 @@ export default function AlertList() {
   };
 
   const alertColumns = [
-    { title: t('alerts.title_field'), key: 'title', ellipsis: true, render: (_: unknown, record: Alert) => getAlertTitle(record) },
+    { title: t('alerts.title_field'), key: 'title', ellipsis: true, render: (_: unknown, record: Alert) => {
+      const title = getAlertTitle(record);
+      return <Tooltip title={title}><span>{title}</span></Tooltip>;
+    }},
     { title: t('alerts.severity'), dataIndex: 'severity', render: (s: string) => <Tag color={severityColor[s]}>{t(`alerts.severityLevels.${s}`) || s}</Tag> },
     { title: t('alerts.status'), dataIndex: 'status', render: (s: string) => <Tag color={statusColor[s]}>{t(`alerts.statusTypes.${s}`) || s}</Tag> },
     { title: t('alerts.triggeredAt'), dataIndex: 'fired_at', render: (val: string) => new Date(val).toLocaleString() },
@@ -402,7 +405,7 @@ export default function AlertList() {
       key: 'info',
       render: (_: unknown, record: Alert) => (
         <div>
-          <div style={{ fontWeight: 500, marginBottom: 4 }}>{getAlertTitle(record)}</div>
+          <Tooltip title={getAlertTitle(record)}><div style={{ fontWeight: 500, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getAlertTitle(record)}</div></Tooltip>
           <Space size="small" wrap>
             <Tag color={severityColor[record.severity]}>{record.severity}</Tag>
             <Tag color={statusColor[record.status]}>{record.status}</Tag>
