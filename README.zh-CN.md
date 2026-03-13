@@ -11,6 +11,10 @@
 
 [Live Demo](https://demo.lchuangnet.com/login) | [English](README.md) | [安装指南](#-本地部署5分钟) | [文档](#-文档)
 
+<br/>
+
+![VigilOps 演示 — 告警 → AI分析 → 自动修复 47秒](docs/screenshots/demo-animation.svg)
+
 </div>
 
 ---

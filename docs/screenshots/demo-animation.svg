@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420">
+  <style>
+    @keyframes typing { from { width: 0 } to { width: 100% } }
+    @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+    @keyframes blink { 0%,100% { opacity: 1 } 50% { opacity: 0 } }
+    .terminal { font-family: 'Menlo', 'Monaco', 'Courier New', monospace; font-size: 13px; }
+    .prompt { fill: #50fa7b; }
+    .command { fill: #f8f8f2; }
+    .alert { fill: #ff5555; }
+    .ai { fill: #8be9fd; }
+    .fix { fill: #50fa7b; }
+    .info { fill: #bd93f9; }
+    .dim { fill: #6272a4; }
+    .line1 { animation: fadeIn 0.3s 0.5s both; }
+    .line2 { animation: fadeIn 0.3s 1.5s both; }
+    .line3 { animation: fadeIn 0.3s 2.0s both; }
+    .line4 { animation: fadeIn 0.3s 2.5s both; }
+    .line5 { animation: fadeIn 0.3s 3.5s both; }
+    .line6 { animation: fadeIn 0.3s 4.0s both; }
+    .line7 { animation: fadeIn 0.3s 4.5s both; }
+    .line8 { animation: fadeIn 0.3s 5.5s both; }
+    .line9 { animation: fadeIn 0.3s 6.0s both; }
+    .line10 { animation: fadeIn 0.3s 6.5s both; }
+    .line11 { animation: fadeIn 0.3s 7.0s both; }
+    .line12 { animation: fadeIn 0.3s 8.0s both; }
+    .line13 { animation: fadeIn 0.3s 8.5s both; }
+    .cursor { animation: blink 1s step-end infinite; fill: #f8f8f2; }
+  </style>
+
+  <!-- Terminal window -->
+  <rect width="800" height="420" rx="8" fill="#282a36"/>
+  <!-- Title bar -->
+  <rect width="800" height="32" rx="8" fill="#44475a"/>
+  <rect y="24" width="800" height="8" fill="#44475a"/>
+  <circle cx="20" cy="16" r="6" fill="#ff5555"/>
+  <circle cx="40" cy="16" r="6" fill="#f1fa8c"/>
+  <circle cx="60" cy="16" r="6" fill="#50fa7b"/>
+  <text x="400" y="20" text-anchor="middle" fill="#f8f8f2" class="terminal" font-size="12">VigilOps — AI-Powered Auto-Remediation Demo</text>
+
+  <!-- Terminal content -->
+  <g class="terminal" transform="translate(16, 52)">
+    <!-- Alert fires -->
+    <g class="line1">
+      <text y="0" class="alert">CRITICAL ALERT</text>
+      <text y="0" x="130" class="dim"> [2026-03-14 09:15:32]</text>
+    </g>
+    <g class="line2">
+      <text y="20" class="alert">  Disk usage 95% on prod-server-01 (/var/log)</text>
+    </g>
+    <g class="line3">
+      <text y="40" class="dim">  Source: Prometheus  |  Severity: critical  |  Host: 10.0.1.42</text>
+    </g>
+
+    <!-- AI Analysis -->
+    <g class="line4">
+      <text y="70" class="info">AI ANALYZING...</text>
+      <text y="70" x="130" class="dim"> DeepSeek scanning logs + metrics + topology</text>
+    </g>
+    <g class="line5">
+      <text y="100" class="ai">  Root Cause: /var/log/nginx/access.log grew 12GB in 24h</text>
+    </g>
+    <g class="line6">
+      <text y="120" class="ai">  Pattern: Log rotation not configured for nginx</text>
+    </g>
+    <g class="line7">
+      <text y="140" class="ai">  Recommendation: Execute log_rotation runbook</text>
+    </g>
+
+    <!-- Auto-remediation -->
+    <g class="line8">
+      <text y="170" class="info">AUTO-REMEDIATION</text>
+      <text y="170" x="145" class="dim"> Runbook: log_rotation  |  Safety: pre-check passed</text>
+    </g>
+    <g class="line9">
+      <text y="200" class="fix">  [1/3] Rotating /var/log/nginx/access.log ... done</text>
+    </g>
+    <g class="line10">
+      <text y="220" class="fix">  [2/3] Configuring logrotate for nginx ... done</text>
+    </g>
+    <g class="line11">
+      <text y="240" class="fix">  [3/3] Verifying disk usage ... 58% (was 95%)</text>
+    </g>
+
+    <!-- Result -->
+    <g class="line12">
+      <text y="280" class="fix">RESOLVED</text>
+      <text y="280" x="80" class="dim"> Alert auto-resolved in 47 seconds</text>
+    </g>
+    <g class="line13">
+      <text y="300" class="dim">  Total time: Alert(0s) → AI Analysis(12s) → Fix(35s) → Verified</text>
+    </g>
+  </g>
+
+  <!-- Cursor -->
+  <rect class="cursor line13" x="16" y="368" width="8" height="16" rx="1"/>
+</svg>

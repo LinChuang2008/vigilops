@@ -12,6 +12,10 @@
 
 [Live Demo](https://demo.lchuangnet.com/login) | [Install](#quickstart) | [Docs](#documentation) | [中文文档](README.zh-CN.md)
 
+<br/>
+
+![VigilOps Demo — Alert → AI Analysis → Auto-Fix in 47s](docs/screenshots/demo-animation.svg)
+
 </div>
 
 ---
