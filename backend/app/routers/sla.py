@@ -17,7 +17,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -375,11 +375,17 @@ async def list_violations(
     
     # 如果指定了开始日期，添加筛选条件
     if start_date:
-        query = query.where(SLAViolation.started_at >= datetime.fromisoformat(start_date))
-        
+        try:
+            query = query.where(SLAViolation.started_at >= datetime.fromisoformat(start_date))
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"无效的开始日期格式: {start_date}")
+
     # 如果指定了结束日期，添加筛选条件（包含当天全部时间）
     if end_date:
-        end_dt = datetime.fromisoformat(end_date) + timedelta(days=1)  # 结束日期的次日00:00
+        try:
+            end_dt = datetime.fromisoformat(end_date) + timedelta(days=1)  # 结束日期的次日00:00
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"无效的结束日期格式: {end_date}")
         query = query.where(SLAViolation.started_at < end_dt)
 
     # 使用 JOIN 一次查询获取违规事件及关联服务名称，消除 N+1 查询
@@ -459,8 +465,11 @@ async def sla_report(
     # 确定报告的时间范围
     if start_date and end_date:
         # 使用用户指定的日期范围
-        dt_start = datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc)
-        dt_end = datetime.fromisoformat(end_date).replace(tzinfo=timezone.utc) + timedelta(days=1)
+        try:
+            dt_start = datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc)
+            dt_end = datetime.fromisoformat(end_date).replace(tzinfo=timezone.utc) + timedelta(days=1)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="无效的日期格式，请使用 YYYY-MM-DD")
     else:
         # 默认使用过去30天
         dt_end = datetime.now(timezone.utc)

@@ -11,7 +11,7 @@ Provides configuration and management APIs for data retention policies, includin
 - Manually trigger data cleanup
 - View data statistics and cleanup history
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -164,7 +164,7 @@ async def trigger_data_cleanup(
         
         for data_type, (model, time_col) in model_map.items():
             days = await _get_retention_days(db, data_type)
-            cutoff = datetime.utcnow() - timedelta(days=days)
+            cutoff = datetime.now(timezone.utc) - timedelta(days=days)
             count_result = await db.execute(
                 select(func.count()).select_from(model).where(time_col < cutoff)
             )
@@ -209,7 +209,7 @@ async def get_data_statistics(
         for data_type, (model, time_col) in model_map.items():
             total = (await db.execute(select(func.count()).select_from(model))).scalar() or 0
             days = await _get_retention_days(db, data_type)
-            cutoff = datetime.utcnow() - timedelta(days=days)
+            cutoff = datetime.now(timezone.utc) - timedelta(days=days)
             expired = (await db.execute(
                 select(func.count()).select_from(model).where(time_col < cutoff)
             )).scalar() or 0

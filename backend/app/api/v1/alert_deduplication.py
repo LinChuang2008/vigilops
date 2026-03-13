@@ -9,7 +9,7 @@
 
 Provides configuration management and statistics APIs for alert deduplication and aggregation.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -143,8 +143,8 @@ async def get_deduplication_statistics(
 ):
     """获取告警去重和聚合统计信息"""
     try:
-        yesterday = datetime.utcnow() - timedelta(hours=24)
-        one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+        yesterday = datetime.now(timezone.utc) - timedelta(hours=24)
+        one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
 
         active_dedup_count = (await db.execute(
             select(func.count(AlertDeduplication.id)).where(AlertDeduplication.last_occurrence > one_hour_ago)
@@ -232,7 +232,7 @@ async def cleanup_expired_records(
             raise HTTPException(status_code=403, detail="只有管理员可以清理过期记录")
         
         # Cleanup expired dedup records (older than 24h)
-        cutoff = datetime.utcnow() - timedelta(hours=24)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
         expired_dedup = await db.execute(
             select(AlertDeduplication).where(AlertDeduplication.last_occurrence < cutoff)
         )
@@ -242,7 +242,7 @@ async def cleanup_expired_records(
             dedup_count += 1
         
         # Cleanup resolved groups older than 7 days
-        group_cutoff = datetime.utcnow() - timedelta(days=7)
+        group_cutoff = datetime.now(timezone.utc) - timedelta(days=7)
         expired_groups = await db.execute(
             select(AlertGroup).where(AlertGroup.status == "resolved", AlertGroup.last_occurrence < group_cutoff)
         )
