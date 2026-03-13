@@ -102,7 +102,7 @@ def get_servers_health(
                 server_info = {
                     "id": host.id,
                     "hostname": host.hostname,
-                    "ip": host.ip_address_address,
+                    "ip": host.ip_address,
                     "status": host.status,
                     "os": host.os,
                     "last_seen": host.last_heartbeat.isoformat() if host.last_heartbeat else None,
@@ -458,7 +458,7 @@ def get_topology(
                     "host": {
                         "id": host.id,
                         "hostname": host.hostname,
-                        "ip": host.ip_address_address,
+                        "ip": host.ip_address,
                         "status": host.status
                     } if host else None
                 }
