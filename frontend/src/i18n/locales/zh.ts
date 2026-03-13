@@ -1281,6 +1281,32 @@ const zh = {
     },
   },
 
+  // ========== 新手引导 Tour ==========
+  guidedTour: {
+    steps: {
+      dashboard: {
+        title: '仪表盘概览',
+        description: '这是您的运维总览仪表盘。健康分反映基础设施整体状态，实时展示服务器、告警、CPU/内存等关键指标。',
+      },
+      hosts: {
+        title: '主机列表',
+        description: '查看所有已接入监控的服务器。这里可以看到每台主机的 CPU、内存、磁盘使用情况和在线状态。',
+      },
+      alerts: {
+        title: '告警中心',
+        description: '所有活跃告警汇集于此。支持按严重级别和状态筛选，快速定位需要关注的问题。',
+      },
+      aiAnalysis: {
+        title: 'AI 智能分析',
+        description: '点击告警可查看 AI 根因分析。AI 会自动关联日志、指标和事件，给出问题根因和修复建议。',
+      },
+      remediation: {
+        title: '自动修复',
+        description: '内置 Runbook 自动修复方案。AI 生成修复计划后需人工审批，确保安全执行自动修复操作。',
+      },
+    },
+  },
+
   // ========== 告警降噪 ==========
   noiseReduction: {
     loadingData: '加载降噪数据...',

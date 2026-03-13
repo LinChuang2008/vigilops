@@ -1281,6 +1281,32 @@ const en = {
     },
   },
 
+  // ========== Guided Tour ==========
+  guidedTour: {
+    steps: {
+      dashboard: {
+        title: 'Dashboard Overview',
+        description: 'This is your operations dashboard. The health score reflects overall infrastructure status, showing real-time server, alert, CPU/memory and other key metrics.',
+      },
+      hosts: {
+        title: 'Host List',
+        description: 'View all monitored servers. Check each host\'s CPU, memory, disk usage and online status at a glance.',
+      },
+      alerts: {
+        title: 'Alert Center',
+        description: 'All active alerts are collected here. Filter by severity and status to quickly identify issues that need attention.',
+      },
+      aiAnalysis: {
+        title: 'AI Analysis',
+        description: 'Click an alert to see AI root cause analysis. AI correlates logs, metrics and events to identify root causes and suggest fixes.',
+      },
+      remediation: {
+        title: 'Auto-Remediation',
+        description: 'Built-in Runbook auto-remediation. After AI generates a fix plan, human approval is required to ensure safe execution.',
+      },
+    },
+  },
+
   // ========== Noise Reduction ==========
   noiseReduction: {
     loadingData: 'Loading noise reduction data...',
