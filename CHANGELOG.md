@@ -55,7 +55,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.6.0] - 2026-02-18
 
 ### Added
-- **ECS Deployment**: Full stack deployed to Alibaba Cloud ECS (139.196.210.68)
+- **ECS Deployment**: Full stack deployed to Alibaba Cloud ECS (demo.lchuangnet.com)
 - Docker Compose production configuration
 - Migration 014 for production database
 
