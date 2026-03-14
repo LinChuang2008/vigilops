@@ -9,22 +9,22 @@ import {
   InputNumber, Divider, Alert, Collapse, Descriptions, Empty,
 } from 'antd';
 import {
-  PlusOutlined, DeleteOutlined, EditOutlined, PlayCircleOutlined,
+  PlusOutlined, DeleteOutlined, EditOutlined,
   DownloadOutlined, UploadOutlined, BookOutlined, SafetyOutlined,
   ThunderboltOutlined, ExperimentOutlined, SearchOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { useTranslation } from 'react-i18next';
 import {
   customRunbookService,
+} from '../services/customRunbook';
+import type {
   RunbookListItem,
-  CustomRunbook,
   RunbookStep,
   CreateRunbookRequest,
   DryRunResponse,
 } from '../services/customRunbook';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { TextArea } = Input;
 
 const riskLevelColors: Record<string, string> = {
@@ -42,7 +42,6 @@ const riskLevelLabels: Record<string, string> = {
 };
 
 export default function RunbookManagement() {
-  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [allRunbooks, setAllRunbooks] = useState<RunbookListItem[]>([]);
   const [search, setSearch] = useState('');
