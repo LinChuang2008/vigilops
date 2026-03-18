@@ -6,7 +6,7 @@
 
 [![Stars](https://img.shields.io/github/stars/LinChuang2008/vigilops?style=for-the-badge&logo=github&color=gold)](https://github.com/LinChuang2008/vigilops)
 [![Demo](https://img.shields.io/badge/Live_Demo-Try_Now-brightgreen?style=for-the-badge)](https://demo.lchuangnet.com/login)
-[![Version](https://img.shields.io/badge/version-v2026.03.14-blue?style=for-the-badge)](https://github.com/LinChuang2008/vigilops/releases)
+[![Version](https://img.shields.io/badge/version-v2026.03.18-blue?style=for-the-badge)](https://github.com/LinChuang2008/vigilops/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/LinChuang2008/vigilops/test.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/LinChuang2008/vigilops/actions/workflows/test.yml)
 
 [Live Demo](https://demo.lchuangnet.com/login) | [English](README.md) | [安装指南](#-本地部署5分钟) | [文档](#-文档)
@@ -61,7 +61,7 @@ echo "打开浏览器访问: http://localhost:3001"
 VigilOps 是 **全球首个开源AI运维平台**，不只是监控——还能 **自愈**：
 
 1. **AI分析** — DeepSeek 读取日志、指标、拓扑找到真正原因
-2. **AI决策** — 从6个内置自动修复脚本中选择正确的Runbook
+2. **AI决策** — 从13个内置自动修复脚本中选择正确的Runbook
 3. **AI修复** — 带安全检查和审批流程的自动执行
 4. **AI学习** — 同类问题下次解决得更快
 
@@ -74,7 +74,7 @@ VigilOps 是 **全球首个开源AI运维平台**，不只是监控——还能 
 | **功能** | **VigilOps** | **夜莺** | **Prometheus+Grafana** | **Datadog** | **Zabbix** |
 |---|:---:|:---:|:---:|:---:|:---:|
 | **AI根因分析** | Built-in | - | - | Enterprise | - |
-| **自动修复** | 6 Runbooks | - | - | Enterprise | - |
+| **自动修复** | 13 Runbooks | - | - | Enterprise | - |
 | **MCP集成** | **全球首创** | - | - | Early Access | - |
 | **私有部署** | Docker | K8s/Docker | 复杂 | SaaS Only | Yes |
 | **成本** | **永久免费** | 免费/企业版 | 免费 | $$$ | 免费/企业版 |
@@ -100,7 +100,7 @@ VigilOps 是 **全球首个开源AI运维平台**，不只是监控——还能 
    检测问题          分析原因              +安全审批
 ```
 
-**6个内置Runbook** — 生产可用：
+**13个内置Runbook** — 生产可用：
 
 | Runbook | 解决什么 |
 |---------|----------|
@@ -110,6 +110,15 @@ VigilOps 是 **全球首个开源AI运维平台**，不只是监控——还能 
 | `log_rotation` | 轮转和压缩过大的日志文件 |
 | `zombie_killer` | 终止僵尸进程 |
 | `connection_reset` | 重置卡住的网络连接 |
+| `cpu_high` | CPU 使用率过高排查和定位 |
+| `docker_cleanup` | Docker 资源清理（停止容器、悬空镜像） |
+| `network_diag` | 网络连通性诊断（DNS、路由、端口） |
+| `mysql_health` | MySQL 健康检查与连接管理 |
+| `redis_health` | Redis 健康检查与内存管理 |
+| `nginx_fix` | Nginx 排查修复（配置检测、日志分析） |
+| `swap_pressure` | Swap 使用率过高排查 |
+
+**AI 生成 Runbook**: 用自然语言描述运维场景，AI 自动生成可执行的 Runbook 并进行安全检查 — 通过 `/api/v1/ai/generate-runbook` 接口。
 
 ---
 
@@ -164,6 +173,33 @@ curl http://localhost:8001/health
 | `AI_API_KEY` | 是 | DeepSeek API Key | `sk-abc123...` |
 | `AI_AUTO_SCAN` | 推荐 | 自动分析告警 | `true` |
 | `AGENT_ENABLED` | 可选 | 启用自动修复 | `false`（安全起见） |
+| `AGENT_TOKEN_HMAC_KEY` | 生产必需 | Agent Token 签名密钥 | `python -c "import secrets; print(secrets.token_urlsafe(64))"` |
+
+---
+
+## Agent — 跨平台监控客户端
+
+VigilOps Agent 采集系统指标、自动发现服务、监控数据库，支持 **Linux**、**Windows/Windows Server** 和 **macOS**。
+
+**Linux:**
+```bash
+pip install vigilops-agent
+vigilops-agent run -c /etc/vigilops/agent.yaml
+```
+
+**Windows (PowerShell):**
+```powershell
+.\scripts\install-windows-agent.ps1 -ServerUrl "http://your-server:8001" -Token "your-token"
+.\scripts\install-windows-service.ps1   # 注册为 Windows 服务
+```
+
+| 功能 | Linux | Windows | macOS |
+|------|:-----:|:-------:|:-----:|
+| CPU / 内存 / 磁盘 / 网络 | ✓ | ✓ | ✓ |
+| Docker 服务发现 | ✓ | ✓ | ✓ |
+| 宿主机服务发现 | ✓ (ss) | ✓ (netstat) | - |
+| 数据库监控 | ✓ | ✓ | ✓ |
+| 日志采集 | ✓ | ✓ | ✓ |
 
 ---
 
@@ -215,6 +251,7 @@ VIGILOPS_MCP_TOKEN=your-secret-token
 | **后端** | Python 3.9+, FastAPI, SQLAlchemy, AsyncIO |
 | **数据库** | PostgreSQL 15+, Redis 7+ |
 | **AI** | DeepSeek API（可配置LLM端点） |
+| **Agent** | Python 3.9+, psutil — 支持 Linux / Windows / macOS |
 | **部署** | Docker Compose |
 
 ---
