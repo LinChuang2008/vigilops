@@ -4,6 +4,7 @@ Agent 令牌认证模块
 验证监控代理上报数据时携带的 Bearer Token，并更新最近使用时间。
 """
 import hashlib
+import hmac
 from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException, status
@@ -11,6 +12,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.agent_token import AgentToken
 
@@ -24,8 +26,13 @@ async def verify_agent_token(
 ) -> AgentToken:
     """验证 Agent Bearer Token，返回对应的 AgentToken 记录。"""
     raw_token = credentials.credentials
-    # 计算 SHA-256 哈希与数据库存储的哈希比对
-    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    # 使用 HMAC-SHA256 计算哈希与数据库存储的哈希比对（防彩虹表攻击）
+    # Use HMAC-SHA256 to compute hash for comparison (prevents rainbow table attacks)
+    token_hash = hmac.new(
+        settings.agent_token_hmac_key.encode(),
+        raw_token.encode(),
+        hashlib.sha256,
+    ).hexdigest()
 
     result = await db.execute(
         select(AgentToken).where(

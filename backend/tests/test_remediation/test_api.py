@@ -19,6 +19,8 @@ def _fake_user():
     u = MagicMock(spec=User)
     u.id = 1
     u.username = "testuser"
+    u.role = "admin"
+    u.is_active = True
     return u
 
 
@@ -59,7 +61,7 @@ def _fake_alert(**overrides):
 
 
 class FakeScalarResult:
-    """模拟 db.execute() 返回的 result，支持 .scalar() / .scalar_one_or_none() / .scalars().all()。"""
+    """模拟 db.execute() 返回的 result，支持 .scalar() / .scalar_one_or_none() / .scalars().all() / .first()。"""
     def __init__(self, value=None, items=None):
         self._value = value
         self._items = items or []
@@ -76,6 +78,9 @@ class FakeScalarResult:
     def all(self):
         return self._items
 
+    def first(self):
+        return self._items[0] if self._items else self._value
+
 
 @pytest.fixture
 def mock_db():
@@ -88,14 +93,24 @@ def mock_db():
 
 @pytest.fixture
 def client(mock_db):
+    from app.core.redis import get_redis
+    from tests.conftest import FakeRedis
+    import app.core.redis as redis_module
+
     user = _fake_user()
+    fake_redis = FakeRedis()
     app.dependency_overrides[get_current_user] = lambda: user
     app.dependency_overrides[get_db] = lambda: mock_db
+    app.dependency_overrides[get_redis] = lambda: fake_redis
+
+    original_redis_client = redis_module.redis_client
+    redis_module.redis_client = fake_redis
 
     transport = ASGITransport(app=app)
     c = AsyncClient(transport=transport, base_url="http://test")
     yield c
     app.dependency_overrides.clear()
+    redis_module.redis_client = original_redis_client
 
 
 # ── Tests ──
@@ -104,9 +119,10 @@ def client(mock_db):
 async def test_list_remediations(client, mock_db):
     log1 = _fake_remediation_log(id=1)
     log2 = _fake_remediation_log(id=2, status="success")
+    # list_remediations does a JOIN → result.all() returns tuples (log, alert_name, host_name)
     mock_db.execute = AsyncMock(side_effect=[
         FakeScalarResult(value=2),  # count
-        FakeScalarResult(items=[log1, log2]),  # list
+        FakeScalarResult(items=[(log1, "High CPU", "web-01"), (log2, "Disk Full", "web-02")]),
     ])
 
     resp = await client.get("/api/v1/remediations")
@@ -131,7 +147,8 @@ async def test_list_remediations_with_filters(client, mock_db):
 @pytest.mark.asyncio
 async def test_get_remediation_detail(client, mock_db):
     log = _fake_remediation_log()
-    mock_db.execute = AsyncMock(return_value=FakeScalarResult(value=log))
+    # get_remediation uses result.first() → returns (log, alert_name, host_name)
+    mock_db.execute = AsyncMock(return_value=FakeScalarResult(items=[(log, "High CPU", "web-01")]))
 
     resp = await client.get("/api/v1/remediations/1")
     assert resp.status_code == 200
@@ -140,7 +157,8 @@ async def test_get_remediation_detail(client, mock_db):
 
 @pytest.mark.asyncio
 async def test_get_remediation_not_found(client, mock_db):
-    mock_db.execute = AsyncMock(return_value=FakeScalarResult(value=None))
+    # first() returns None when no rows
+    mock_db.execute = AsyncMock(return_value=FakeScalarResult(items=[]))
 
     resp = await client.get("/api/v1/remediations/999")
     assert resp.status_code == 404
@@ -183,11 +201,18 @@ async def test_reject_remediation(client, mock_db):
 @pytest.mark.asyncio
 async def test_trigger_remediation(client, mock_db):
     alert = _fake_alert()
-    # First call: find alert; Second call: check existing; then commit/refresh
+    # First call: find alert; Second call: check existing
     mock_db.execute = AsyncMock(side_effect=[
         FakeScalarResult(value=alert),      # alert lookup
         FakeScalarResult(value=None),       # no existing remediation
     ])
+
+    # db.refresh should populate the log with DB-generated fields
+    async def fake_refresh(obj):
+        obj.id = 1
+        obj.created_at = datetime.now(timezone.utc)
+        obj.started_at = datetime.now(timezone.utc)
+    mock_db.refresh = AsyncMock(side_effect=fake_refresh)
 
     with patch("app.routers.remediation.log_audit", new_callable=AsyncMock):
         resp = await client.post("/api/v1/alerts/10/remediate")

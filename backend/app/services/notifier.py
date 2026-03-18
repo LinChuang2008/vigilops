@@ -912,13 +912,13 @@ async def _get_default_template(db: AsyncSession, channel_type: str):
         4. 回退查找：通用"all"类型的默认模板
         5. 查询结果写入缓存
     """
+    import json
     redis = await get_redis()
     cache_key = f"notification:template:{channel_type}"
 
     # 1. 尝试从缓存获取
     cached = await redis.get(cache_key)
     if cached:
-        import json
         try:
             template_data = json.loads(cached)
             # 构造模板对象（简化版，仅包含必要字段）

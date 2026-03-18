@@ -305,11 +305,21 @@ class CommandExecutor:
         start = time.monotonic()
         try:
             import asyncssh
+            # 从配置读取 known_hosts 路径，留空则禁用验证（仅开发/首次部署）
+            # Read known_hosts path from config; empty disables verification (dev/initial deploy only)
+            from app.core.config import settings
+            _known_hosts_path = settings.agent_ssh_known_hosts or None
+            if _known_hosts_path is None:
+                logger.warning(
+                    "SSH host key verification is disabled (AGENT_SSH_KNOWN_HOSTS not set). "
+                    "This is a known security limitation for automated remediation. "
+                    "Set AGENT_SSH_KNOWN_HOSTS=/etc/ssh/ssh_known_hosts in production."
+                )
             async with asyncssh.connect(
                 self.remote_host,
                 username=self.ssh_user,
                 password=self.ssh_password,
-                known_hosts=None,
+                known_hosts=_known_hosts_path,
             ) as conn:
                 ssh_result = await asyncio.wait_for(
                     conn.run(step.command),

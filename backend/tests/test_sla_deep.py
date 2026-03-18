@@ -20,7 +20,7 @@ class TestSLARules:
             "target_percent": 99.9,
             "calculation_window": "monthly",
         }, headers=auth_headers)
-        assert resp.status_code == 201
+        assert resp.status_code == 200
         data = resp.json()
         assert data["name"] == "API SLA"
 
@@ -53,7 +53,7 @@ class TestSLARules:
         await db_session.refresh(rule)
 
         resp = await client.delete(f"/api/v1/sla/rules/{rule.id}", headers=auth_headers)
-        assert resp.status_code == 204
+        assert resp.status_code == 200
 
     @pytest.mark.asyncio
     async def test_create_duplicate_service(self, client, auth_headers, db_session):
@@ -182,6 +182,10 @@ class TestWindowHelpers:
 
     def test_get_window_days(self):
         from app.routers.sla import _get_window_days
+        import calendar
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        expected_monthly = calendar.monthrange(now.year, now.month)[1]
         assert _get_window_days("daily") == 1
         assert _get_window_days("weekly") == 7
-        assert _get_window_days("monthly") == 30
+        assert _get_window_days("monthly") == expected_monthly

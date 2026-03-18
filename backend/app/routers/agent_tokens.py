@@ -7,13 +7,13 @@ Agent 令牌管理路由 (Agent Token Management Router)
   - 令牌列表查询和状态管理
   - 令牌吊销和访问控制
   - 令牌使用情况追踪（最后使用时间）
-  - 基于 SHA-256 哈希的安全存储机制
+  - 基于 HMAC-SHA256 哈希的安全存储机制
 依赖关系：依赖 AgentToken 数据模型和管理员权限验证
 API端点：POST/GET/DELETE /api/v1/agent-tokens
 
 Security Design:
   - 仅管理员可以管理 Agent Token，严格权限控制
-  - 令牌使用 SHA-256 哈希存储，不保存明文
+  - 令牌使用 HMAC-SHA256 哈希存储，不保存明文
   - 生成的令牌带有 "vop_" 前缀，便于识别和管理
   - 支持令牌吊销而非删除，保留审计追踪
   - 记录创建者和使用情况，支持安全审计
@@ -23,6 +23,7 @@ Token Format: vop_<48位十六进制随机字符串>
 Author: VigilOps Team
 """
 import hashlib
+import hmac
 import secrets
 from datetime import datetime, timezone
 
@@ -41,23 +42,29 @@ router = APIRouter(prefix="/api/v1/agent-tokens", tags=["agent-tokens"])
 
 def _hash_token(token: str) -> str:
     """
-    计算令牌的 SHA-256 哈希值 (Calculate Token SHA-256 Hash)
-    
-    将明文令牌转换为安全的哈希值用于数据库存储。
-    确保即使数据库泄漏，攻击者也无法直接获取可用的令牌。
-    
+    使用 HMAC-SHA256 计算令牌哈希值 (Calculate Token HMAC-SHA256 Hash)
+
+    将明文令牌通过 HMAC-SHA256 转换为安全的哈希值用于数据库存储。
+    相比纯 SHA-256，HMAC 引入密钥可有效抵御彩虹表和预计算攻击。
+
     Args:
         token: 明文令牌字符串
-        
+
     Returns:
-        str: 令牌的 SHA-256 哈希值（64位十六进制字符串）
-        
+        str: 令牌的 HMAC-SHA256 哈希值（64位十六进制字符串）
+
     Security:
-        - 使用 SHA-256 算法，具有良好的安全性
+        - 使用 HMAC-SHA256 算法，密钥来自 AGENT_TOKEN_HMAC_KEY 配置
+        - 即使数据库泄漏，无密钥无法构造有效哈希（防彩虹表攻击）
         - 哈希不可逆，保护令牌安全
         - 数据库中仅存储哈希值，不保存明文
     """
-    return hashlib.sha256(token.encode()).hexdigest()
+    from app.core.config import settings
+    return hmac.new(
+        settings.agent_token_hmac_key.encode(),
+        token.encode(),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 @router.post("", response_model=AgentTokenCreated, status_code=status.HTTP_201_CREATED)

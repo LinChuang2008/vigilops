@@ -300,8 +300,8 @@ export default function CustomizableDashboard() {
 
   const connectWs = useCallback(() => {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const token = localStorage.getItem('token') || '';
-    const wsUrl = `${wsProtocol}//${window.location.host}/api/v1/ws/dashboard?token=${encodeURIComponent(token)}`;
+    // 认证通过 httpOnly Cookie 自动携带（WebSocket 握手时浏览器会发送 Cookie）
+    const wsUrl = `${wsProtocol}//${window.location.host}/api/v1/ws/dashboard`;
 
     try {
       const ws = new WebSocket(wsUrl);

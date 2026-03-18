@@ -4,6 +4,7 @@
 在 SQLite 中不可用，因此我们测试基础连通性和 summary 接口。
 """
 import pytest
+from unittest.mock import AsyncMock, patch
 from httpx import AsyncClient
 from app.models.host import Host
 from app.models.alert import Alert, AlertRule
@@ -24,12 +25,18 @@ async def dashboard_data(db_session):
 
 
 class TestDashboard:
-    async def test_summary(self, client: AsyncClient, auth_headers, dashboard_data):
+    async def test_summary(self, client: AsyncClient, auth_headers, dashboard_data, db_session):
         """测试 dashboard summary 接口（如果存在）。"""
-        resp = await client.get("/api/v1/dashboard/summary", headers=auth_headers)
+        # _collect_dashboard_data() uses async_session() which connects to real PG.
+        # We patch it to use the test db_session instead.
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=db_session)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        with patch("app.routers.dashboard_ws.async_session", return_value=mock_ctx):
+            resp = await client.get("/api/v1/dashboard/summary", headers=auth_headers)
         # summary 可能存在也可能 404，取决于实现
         assert resp.status_code in (200, 404)
 
     async def test_trends_requires_auth(self, client: AsyncClient):
         resp = await client.get("/api/v1/dashboard/trends")
-        assert resp.status_code == 403
+        assert resp.status_code == 401

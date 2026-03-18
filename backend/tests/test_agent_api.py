@@ -1,14 +1,18 @@
 """Agent API 测试 — 注册、心跳、指标上报、服务检查、日志。"""
 import hashlib
+import hmac
 import pytest
 from httpx import AsyncClient
+from app.core.config import settings
 from app.models.agent_token import AgentToken
 from app.models.host import Host
 from app.models.service import Service
 
 
 RAW_TOKEN = "vop_test_token_for_agent_testing"
-TOKEN_HASH = hashlib.sha256(RAW_TOKEN.encode()).hexdigest()
+TOKEN_HASH = hmac.new(
+    settings.agent_token_hmac_key.encode(), RAW_TOKEN.encode(), hashlib.sha256
+).hexdigest()
 
 
 @pytest.fixture

@@ -52,22 +52,18 @@ def _make_channel(ch_type="webhook", config=None, name="test-channel", is_enable
 
 class TestTemplateVars:
     @pytest.mark.asyncio
-    async def test_full_alert(self):
-        from app.core.database import async_session
+    async def test_full_alert(self, db_session):
         alert = _make_alert()
-        async with async_session() as db:
-            v = await _build_template_vars(db, alert)
+        v = await _build_template_vars(db_session, alert)
         assert v["title"] == "Test Alert"
         assert v["severity"] == "warning"
         assert v["metric_value"] == 95.0
         assert "2026" in v["fired_at"]
 
     @pytest.mark.asyncio
-    async def test_none_values(self):
-        from app.core.database import async_session
+    async def test_none_values(self, db_session):
         alert = _make_alert(metric_value=None, threshold=None, host_id=None, fired_at=None)
-        async with async_session() as db:
-            v = await _build_template_vars(db, alert)
+        v = await _build_template_vars(db_session, alert)
         assert v["metric_value"] == ""
         assert v["threshold"] == ""
         assert v["host_id"] == ""
@@ -152,9 +148,10 @@ class TestSendWebhook:
             assert code == 200
 
     @pytest.mark.asyncio
-    async def test_webhook_without_template(self):
+    async def test_webhook_without_template(self, db_session):
         alert = _make_alert()
         ch = _make_channel("webhook", config={"url": "http://example.com/hook"})
+        template_vars = await _build_template_vars(db_session, alert)
         with patch("app.services.notifier.httpx.AsyncClient") as MockClient:
             mock_client = AsyncMock()
             mock_resp = MagicMock()
@@ -162,7 +159,7 @@ class TestSendWebhook:
             mock_client.post.return_value = mock_resp
             MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
-            code = await _send_webhook(alert, ch, None, _build_template_vars(alert))
+            code = await _send_webhook(alert, ch, None, template_vars)
             assert code == 200
 
 
@@ -276,7 +273,7 @@ class TestSendAlertNotification:
         await db_session.refresh(alert)
 
         # Should be silenced, not raise any error
-        from conftest import fake_redis
+        from tests.conftest import fake_redis
         with patch("app.services.notifier.get_redis", new_callable=AsyncMock, return_value=fake_redis):
             await send_alert_notification(db_session, alert)
 
@@ -300,24 +297,21 @@ class TestSendAlertNotification:
         await db_session.commit()
         await db_session.refresh(alert)
 
-        from conftest import fake_redis
-        # Set cooldown key
-        await fake_redis.set(f"alert:cooldown:{rule.id}", "1")
+        from tests.conftest import fake_redis
 
+        # Cooldown control has moved to AlertDeduplicationService in alert_engine layer.
+        # send_alert_notification no longer checks cooldown — it just sends.
+        # Verify it runs without error (no channels configured → no actual send).
         with patch("app.services.notifier.get_redis", new_callable=AsyncMock, return_value=fake_redis):
             await send_alert_notification(db_session, alert)
-            # Check cooldown count incremented
-            count = await fake_redis.get(f"alert:cooldown:count:{rule.id}")
-            assert count == "1"
-
-        # Cleanup
-        await fake_redis.delete(f"alert:cooldown:{rule.id}", f"alert:cooldown:count:{rule.id}")
+            # Function should complete without error; no cooldown key set
 
 
 class TestSendRemediationNotification:
     @pytest.mark.asyncio
     async def test_send_remediation_success(self, db_session):
         from app.models.notification import NotificationChannel
+        from tests.conftest import FakeRedis as _FakeRedis
         ch = NotificationChannel(
             name="test-webhook", type="webhook",
             config={"url": "http://example.com/hook"}, is_enabled=True
@@ -325,62 +319,73 @@ class TestSendRemediationNotification:
         db_session.add(ch)
         await db_session.commit()
 
-        with patch("app.services.notifier.httpx.AsyncClient") as MockClient:
-            mock_client = AsyncMock()
-            mock_resp = MagicMock()
-            mock_resp.status_code = 200
-            mock_client.post.return_value = mock_resp
-            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
-            await send_remediation_notification(
-                db_session, kind="success",
-                alert_name="CPU High", host="web-01",
-                runbook="restart", duration="10s"
-            )
+        with patch("app.services.notifier.get_redis", new_callable=AsyncMock, return_value=_FakeRedis()):
+            with patch("app.services.notifier.httpx.AsyncClient") as MockClient:
+                mock_client = AsyncMock()
+                mock_resp = MagicMock()
+                mock_resp.status_code = 200
+                mock_client.post.return_value = mock_resp
+                MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+                MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
+                await send_remediation_notification(
+                    db_session, kind="success",
+                    alert_name="CPU High", host="web-01",
+                    runbook="restart", duration="10s"
+                )
 
     @pytest.mark.asyncio
     async def test_send_remediation_failure_kind(self, db_session):
-        await send_remediation_notification(
-            db_session, kind="failure",
-            alert_name="Disk Full", host="db-01", reason="no space"
-        )
+        from tests.conftest import FakeRedis as _FakeRedis
+        with patch("app.services.notifier.get_redis", new_callable=AsyncMock, return_value=_FakeRedis()):
+            await send_remediation_notification(
+                db_session, kind="failure",
+                alert_name="Disk Full", host="db-01", reason="no space"
+            )
 
     @pytest.mark.asyncio
     async def test_send_remediation_approval_kind(self, db_session):
-        await send_remediation_notification(
-            db_session, kind="approval",
-            alert_name="Mem", host="h1", action="restart", approval_url="http://approve"
-        )
+        from tests.conftest import FakeRedis as _FakeRedis
+        with patch("app.services.notifier.get_redis", new_callable=AsyncMock, return_value=_FakeRedis()):
+            await send_remediation_notification(
+                db_session, kind="approval",
+                alert_name="Mem", host="h1", action="restart", approval_url="http://approve"
+            )
 
 
 class TestGetDefaultTemplate:
     @pytest.mark.asyncio
     async def test_no_template(self, db_session):
-        tmpl = await _get_default_template(db_session, "webhook")
+        from tests.conftest import FakeRedis as _FakeRedis
+        with patch("app.services.notifier.get_redis", new_callable=AsyncMock, return_value=_FakeRedis()):
+            tmpl = await _get_default_template(db_session, "webhook")
         assert tmpl is None
 
     @pytest.mark.asyncio
     async def test_specific_template(self, db_session):
         from app.models.notification_template import NotificationTemplate
+        from tests.conftest import FakeRedis as _FakeRedis
         t = NotificationTemplate(
             name="webhook-default", channel_type="webhook", is_default=True,
             body_template="Alert: {title}", subject_template=None
         )
         db_session.add(t)
         await db_session.commit()
-        tmpl = await _get_default_template(db_session, "webhook")
+        with patch("app.services.notifier.get_redis", new_callable=AsyncMock, return_value=_FakeRedis()):
+            tmpl = await _get_default_template(db_session, "webhook")
         assert tmpl is not None
         assert tmpl.name == "webhook-default"
 
     @pytest.mark.asyncio
     async def test_fallback_to_all(self, db_session):
         from app.models.notification_template import NotificationTemplate
+        from tests.conftest import FakeRedis as _FakeRedis
         t = NotificationTemplate(
             name="all-default", channel_type="all", is_default=True,
             body_template="Alert: {title}", subject_template=None
         )
         db_session.add(t)
         await db_session.commit()
-        tmpl = await _get_default_template(db_session, "dingtalk")
+        with patch("app.services.notifier.get_redis", new_callable=AsyncMock, return_value=_FakeRedis()):
+            tmpl = await _get_default_template(db_session, "dingtalk")
         assert tmpl is not None
         assert tmpl.channel_type == "all"
