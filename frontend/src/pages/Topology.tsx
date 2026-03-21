@@ -17,7 +17,12 @@ import {
   PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined,
   BulbOutlined, UnorderedListOutlined,
 } from '@ant-design/icons';
-import * as echarts from 'echarts';
+import * as echarts from 'echarts/core';
+import { GraphChart } from 'echarts/charts';
+import { TooltipComponent, LegendComponent, GraphicComponent } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
+
+echarts.use([GraphChart, TooltipComponent, LegendComponent, GraphicComponent, CanvasRenderer]);
 import { useTranslation } from 'react-i18next';
 import { EmptyState, ErrorState } from '../components/StateComponents';
 
@@ -541,10 +546,10 @@ export default function Topology() {
           </Text>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <Text type="secondary" style={{ fontSize: 12 }}>
-              🖱️ <strong>拖拽节点</strong> | 🔍 <strong>滚轮缩放</strong> | 🖐️ <strong>拖拽平移</strong>
+              {t('topology.interactionDrag')} | {t('topology.interactionZoom')} | {t('topology.interactionPan')}
             </Text>
             <Text type="secondary" style={{ fontSize: 12 }}>
-              ✨ <strong>悬停节点</strong>查看关系
+              {t('topology.interactionHover')}
             </Text>
           </div>
         </div>

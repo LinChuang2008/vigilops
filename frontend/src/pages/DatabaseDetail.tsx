@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { useResponsive } from '../hooks/useResponsive';
 import { useParams } from 'react-router-dom';
 import { Card, Row, Col, Descriptions, Tag, Spin, Typography, Select, Space, Table } from 'antd';
+import { useTranslation } from 'react-i18next';
 import ReactECharts from '../components/ThemedECharts';
 import { databaseService } from '../services/databases';
 import type { DatabaseItem, DatabaseMetric, SlowQuery } from '../services/databases';
@@ -20,6 +21,7 @@ const statusColor: Record<string, string> = { healthy: 'success', warning: 'warn
  * 通过路由参数 id 获取数据库信息、历史指标和慢查询数据
  */
 export default function DatabaseDetail() {
+  const { t } = useTranslation();
   const { isMobile } = useResponsive();
   const { id } = useParams<{ id: string }>();
   const [db, setDb] = useState<DatabaseItem | null>(null);
@@ -46,9 +48,9 @@ export default function DatabaseDetail() {
         try {
           const sqRes = await databaseService.getSlowQueries(id);
           setSlowQueries(sqRes.data.slow_queries || []);
-        } catch { /* ignore */ }
+        } catch (err) { console.warn('Failed to fetch Oracle slow queries:', err); }
       }
-    } catch { /* ignore */ } finally { setLoading(false); }
+    } catch (err) { console.warn('Failed to fetch database data:', err); } finally { setLoading(false); }
   };
 
   useEffect(() => { fetchData(); }, [id, timeRange]);
@@ -66,13 +68,13 @@ export default function DatabaseDetail() {
       try {
         const sqRes = await databaseService.getSlowQueries(id);
         setSlowQueries(sqRes.data.slow_queries || []);
-      } catch { /* ignore */ }
+      } catch (err) { console.warn('Failed to refresh Oracle slow queries:', err); }
     }, 60000);
     return () => clearInterval(interval);
   }, [id, db?.db_type]);
 
   if (loading && !db) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
-  if (!db) return <Typography.Text>数据库不存在</Typography.Text>;
+  if (!db) return <Typography.Text>{t('databases.notFound')}</Typography.Text>;
 
   // 提取时间轴标签
   const timestamps = metrics.map(m => m.recorded_at ? new Date(m.recorded_at).toLocaleTimeString() : '');
@@ -100,9 +102,9 @@ export default function DatabaseDetail() {
   /** Oracle 慢查询表格列定义 */
   const slowQueryColumns = [
     { title: 'SQL ID', dataIndex: 'sql_id', key: 'sql_id', width: 140 },
-    { title: '平均耗时(秒)', dataIndex: 'avg_seconds', key: 'avg_seconds', width: 120, render: (v: number) => v?.toFixed(2) },
-    { title: '执行次数', dataIndex: 'executions', key: 'executions', width: 100 },
-    { title: 'SQL 文本', dataIndex: 'sql_text', key: 'sql_text', ellipsis: true },
+    { title: t('databases.avgSeconds'), dataIndex: 'avg_seconds', key: 'avg_seconds', width: 120, render: (v: number) => v?.toFixed(2) },
+    { title: t('databases.executions'), dataIndex: 'executions', key: 'executions', width: 100 },
+    { title: t('databases.sqlText'), dataIndex: 'sql_text', key: 'sql_text', ellipsis: true },
   ];
 
   return (
@@ -111,13 +113,13 @@ export default function DatabaseDetail() {
         <Col><Typography.Title level={4} style={{ margin: 0 }}>{db.name}</Typography.Title></Col>
         <Col>
           <Space>
-            <Typography.Text type="secondary">时间范围:</Typography.Text>
+            <Typography.Text type="secondary">{t('databases.timeRange')}:</Typography.Text>
             <Select value={timeRange} onChange={setTimeRange} style={{ width: isMobile ? '100%' : 120 }}
               options={[
-                { label: '1小时', value: '1h' },
-                { label: '6小时', value: '6h' },
-                { label: '24小时', value: '24h' },
-                { label: '7天', value: '7d' },
+                { label: t('databases.oneHour'), value: '1h' },
+                { label: t('databases.sixHours'), value: '6h' },
+                { label: t('databases.twentyFourHours'), value: '24h' },
+                { label: t('databases.sevenDays'), value: '7d' },
               ]} />
           </Space>
         </Col>
@@ -126,10 +128,10 @@ export default function DatabaseDetail() {
       {/* 数据库基本信息卡片 */}
       <Card style={{ marginBottom: 16 }}>
         <Descriptions column={{ xs: 1, sm: 2, md: 4 }}>
-          <Descriptions.Item label="数据库名">{db.name}</Descriptions.Item>
-          <Descriptions.Item label="类型">{dbTypeName}</Descriptions.Item>
-          <Descriptions.Item label="状态"><Tag color={statusColor[db.status] || 'default'}>{db.status}</Tag></Descriptions.Item>
-          <Descriptions.Item label="更新时间">{db.updated_at ? new Date(db.updated_at).toLocaleString() : '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('databases.name')}>{db.name}</Descriptions.Item>
+          <Descriptions.Item label={t('databases.type')}>{dbTypeName}</Descriptions.Item>
+          <Descriptions.Item label={t('databases.status')}><Tag color={statusColor[db.status] || 'default'}>{db.status}</Tag></Descriptions.Item>
+          <Descriptions.Item label={t('common.updatedAt')}>{db.updated_at ? new Date(db.updated_at).toLocaleString() : '-'}</Descriptions.Item>
         </Descriptions>
       </Card>
 
@@ -137,31 +139,31 @@ export default function DatabaseDetail() {
       <Row gutter={[16, 16]}>
         <Col xs={24} md={12}>
           <Card>
-            <ReactECharts option={lineOption('连接数趋势', [
-              { name: '总连接', data: metrics.map(m => m.connections_total), color: '#1677ff' },
-              { name: '活跃连接', data: metrics.map(m => m.connections_active), color: '#52c41a' },
+            <ReactECharts option={lineOption(t('databases.connectionsTrend'), [
+              { name: t('databases.totalConnections'), data: metrics.map(m => m.connections_total), color: '#1677ff' },
+              { name: t('databases.activeConnections'), data: metrics.map(m => m.connections_active), color: '#52c41a' },
             ])} style={{ height: 280 }} />
           </Card>
         </Col>
         <Col xs={24} md={12}>
           <Card>
-            <ReactECharts option={lineOption('数据库大小趋势', [
-              { name: '大小 (MB)', data: metrics.map(m => m.database_size_mb), color: '#faad14' },
+            <ReactECharts option={lineOption(t('databases.sizeTrend'), [
+              { name: t('databases.size'), data: metrics.map(m => m.database_size_mb), color: '#faad14' },
             ], '{value} MB')} style={{ height: 280 }} />
           </Card>
         </Col>
         <Col xs={24} md={12}>
           <Card>
-            <ReactECharts option={lineOption('慢查询趋势', [
-              { name: '慢查询', data: metrics.map(m => m.slow_queries), color: '#ff4d4f' },
+            <ReactECharts option={lineOption(t('databases.slowQueriesTrend'), [
+              { name: t('databases.slowQueries'), data: metrics.map(m => m.slow_queries), color: '#ff4d4f' },
             ])} style={{ height: 280 }} />
           </Card>
         </Col>
         <Col xs={24} md={12}>
           <Card>
-            <ReactECharts option={lineOption('事务趋势', [
-              { name: '已提交', data: metrics.map(m => m.transactions_committed), color: '#1677ff' },
-              { name: '已回滚', data: metrics.map(m => m.transactions_rolled_back), color: '#ff4d4f' },
+            <ReactECharts option={lineOption(t('databases.transactionsTrend'), [
+              { name: t('databases.committed'), data: metrics.map(m => m.transactions_committed), color: '#1677ff' },
+              { name: t('databases.rolledback'), data: metrics.map(m => m.transactions_rolled_back), color: '#ff4d4f' },
             ])} style={{ height: 280 }} />
           </Card>
         </Col>
@@ -173,13 +175,13 @@ export default function DatabaseDetail() {
           <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
             <Col xs={24} md={12}>
               <Card>
-                <ReactECharts option={lineOption('表空间使用率趋势', [
-                  { name: '使用率 (%)', data: metrics.map(m => m.tablespace_used_pct), color: '#722ed1' },
+                <ReactECharts option={lineOption(t('databases.tablespaceTrend'), [
+                  { name: t('databases.tablespace'), data: metrics.map(m => m.tablespace_used_pct), color: '#722ed1' },
                 ], '{value}%')} style={{ height: 280 }} />
               </Card>
             </Col>
           </Row>
-          <Card title="慢查询 Top 10" style={{ marginTop: 16 }}>
+          <Card title={t('databases.slowQueryTop10')} style={{ marginTop: 16 }}>
             <Table
               dataSource={slowQueries}
               columns={slowQueryColumns}

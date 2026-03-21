@@ -19,7 +19,7 @@ class TestDashboardTrends:
 
     @pytest.mark.asyncio
     async def test_trends_with_data(self, client, auth_headers, db_session):
-        h = Host(hostname="dash-host", status="online")
+        h = Host(hostname="dash-host", status="online", agent_token_id=1)
         db_session.add(h)
         await db_session.commit()
         await db_session.refresh(h)
@@ -43,11 +43,13 @@ class TestDashboardTrends:
         await db_session.commit()
 
         resp = await client.get("/api/v1/dashboard/trends", headers=auth_headers)
+        # The trends endpoint uses raw SQL with date_trunc; it works with our
+        # registered SQLite function, so it should return 200.
         assert resp.status_code == 200
         data = resp.json()
         trends = data["trends"]
         # At least one entry should have non-None avg_cpu
-        has_cpu = any(t["avg_cpu"] is not None for t in trends)
+        has_cpu = any(t.get("avg_cpu") is not None for t in trends)
         assert has_cpu
 
     @pytest.mark.asyncio

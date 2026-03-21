@@ -77,6 +77,15 @@ class Settings(BaseSettings):
     agent_max_auto_per_hour: int = 10  # 每小时最大自动修复次数（限流） (Max Auto-Remediations Per Hour)
     agent_notify_on_success: bool = True  # 修复成功时发送通知 (Notify on Successful Remediation)
     agent_notify_on_failure: bool = True  # 修复失败/升级时发送通知 (Notify on Failed/Escalated Remediation)
+    agent_ssh_user: str = ""  # SSH 用户名（用于远程命令执行）
+    agent_ssh_password: str = ""  # SSH 密码
+    # SSH known_hosts 文件路径，留空则禁用主机密钥验证（仅建议开发环境使用）
+    # SSH known_hosts file path; empty disables host key verification (dev only)
+    agent_ssh_known_hosts: str = ""
+    # Agent Token HMAC 签名密钥，用于替代纯 SHA-256 哈希（防止彩虹表攻击）
+    # Agent Token HMAC signing key, replaces plain SHA-256 (prevents rainbow table attacks)
+    # ⚠️ 生产环境必须设置！留空时开发环境自动生成（重启后已有 token 将失效）
+    agent_token_hmac_key: str = ""
 
     # JWT 认证配置 (JWT Authentication Configuration)
     # ⚠️ 生产环境必须通过环境变量 JWT_SECRET_KEY 设置！未设置时自动生成随机密钥（每次重启会变化）
@@ -190,6 +199,10 @@ class Settings(BaseSettings):
 # 全局配置实例 (Global Configuration Instance)
 settings = Settings()
 
+# 数据库凭据安全检查 (Database Credentials Security Check)
+_DB_DEFAULT_PASSWORD = "vigilops_dev_password"
+_DB_DEFAULT_USER = "vigilops"
+
 # JWT 密钥安全检查 (JWT Secret Key Security Check)
 # 使用 settings.environment 保持一致性，避免 os.getenv 与 pydantic-settings 不一致
 _is_production = settings.environment.lower() == "production"
@@ -224,3 +237,35 @@ elif not _is_production and len(settings.jwt_secret_key) < 32:
         "⚠️  JWT_SECRET_KEY 长度不足 32 字符，建议使用更长的随机密钥。"
         " | JWT_SECRET_KEY is shorter than 32 chars, consider a longer key."
     )
+
+# 数据库凭据安全检查 (Database Credentials Security Check)
+if _is_production and settings.postgres_password == _DB_DEFAULT_PASSWORD:
+    raise RuntimeError(
+        "🔴 [FATAL] POSTGRES_PASSWORD 仍使用开发默认值！生产环境必须通过环境变量设置安全密码。\n"
+        "在 .env 中添加: POSTGRES_PASSWORD=<your-secure-password>\n"
+        "| FATAL: POSTGRES_PASSWORD is still using the dev default. "
+        "Set a secure password via environment variable in production."
+    )
+elif not _is_production and settings.postgres_password == _DB_DEFAULT_PASSWORD:
+    logger.warning(
+        "⚠️  POSTGRES_PASSWORD 使用开发默认值，仅适用于本地开发。"
+        " | POSTGRES_PASSWORD is using the dev default, suitable for local dev only."
+    )
+
+# Agent Token HMAC 密钥安全检查 (Agent Token HMAC Key Security Check)
+if not settings.agent_token_hmac_key:
+    if _is_production:
+        raise RuntimeError(
+            "🔴 [FATAL] AGENT_TOKEN_HMAC_KEY 未设置！生产环境必须通过环境变量配置。\n"
+            "运行以下命令生成: python -c \"import secrets; print(secrets.token_urlsafe(64))\"\n"
+            "在 .env 中添加: AGENT_TOKEN_HMAC_KEY=<生成的密钥>\n"
+            "| FATAL: AGENT_TOKEN_HMAC_KEY not set in production. "
+            "Generate with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+        )
+    else:
+        settings.agent_token_hmac_key = secrets.token_urlsafe(64)
+        logger.warning(
+            "⚠️  AGENT_TOKEN_HMAC_KEY 未设置，已自动生成随机密钥（开发模式）。"
+            "重启后已有 Agent Token 哈希将失效，需要重新创建 Token。"
+            " | Dev mode: auto-generated HMAC key. Existing agent tokens invalidated on restart."
+        )

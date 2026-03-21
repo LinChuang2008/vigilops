@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import shlex
 import time
 
 from .models import CommandResult, RunbookStep
@@ -69,7 +70,7 @@ class CommandExecutor:
     维护完整的执行历史，包括命令内容、退出码、输出、耗时等
     """
 
-    def __init__(self, dry_run: bool = True) -> None:
+    def __init__(self, dry_run: bool = True, remote_host: str = "", ssh_user: str = "", ssh_password: str = "") -> None:
         """初始化命令执行器 (Initialize Command Executor)
         
         Args:
@@ -81,6 +82,9 @@ class CommandExecutor:
         默认值为 True 是为了防止意外执行危险命令，生产环境需要显式设置为 False
         """
         self.dry_run = dry_run  # 执行模式标志 (Execution mode flag)
+        self.remote_host = remote_host  # 远程主机 IP
+        self.ssh_user = ssh_user
+        self.ssh_password = ssh_password
         self._execution_log: list[CommandResult] = []  # 执行历史记录 (Execution history log)
 
     @property
@@ -157,6 +161,8 @@ class CommandExecutor:
             return result
 
         # 真实执行模式：调用系统命令 (Real execution mode: call system command)
+        if self.remote_host and self.ssh_user:
+            return await self._execute_ssh(step)
         return await self._execute_real(step)
 
     async def execute_steps(self, steps: list[RunbookStep]) -> list[CommandResult]:
@@ -237,9 +243,11 @@ class CommandExecutor:
         start = time.monotonic()  # 记录开始时间用于计算耗时 (Record start time for duration calculation)
         
         try:
-            # 创建异步子进程执行 shell 命令 (Create async subprocess to execute shell command)
-            proc = await asyncio.create_subprocess_shell(
-                step.command,
+            # 创建异步子进程执行命令（使用 exec 避免 shell 注入）
+            # Create async subprocess (using exec to avoid shell injection)
+            args = shlex.split(step.command)
+            proc = await asyncio.create_subprocess_exec(
+                *args,
                 stdout=asyncio.subprocess.PIPE,  # 捕获标准输出 (Capture stdout)
                 stderr=asyncio.subprocess.PIPE,  # 捕获标准错误 (Capture stderr)
             )
@@ -290,4 +298,64 @@ class CommandExecutor:
                 duration_ms=elapsed,  # 记录到异常发生的时间 (Record time until exception occurred)
             )
             self._execution_log.append(result)  # 记录异常结果 (Record exception result)
+            return result
+
+    async def _execute_ssh(self, step: RunbookStep) -> CommandResult:
+        """通过 SSH 在远程主机上执行命令。"""
+        start = time.monotonic()
+        try:
+            import asyncssh
+            # 从配置读取 known_hosts 路径，留空则禁用验证（仅开发/首次部署）
+            # Read known_hosts path from config; empty disables verification (dev/initial deploy only)
+            from app.core.config import settings
+            _known_hosts_path = settings.agent_ssh_known_hosts or None
+            if _known_hosts_path is None:
+                logger.warning(
+                    "SSH host key verification is disabled (AGENT_SSH_KNOWN_HOSTS not set). "
+                    "This is a known security limitation for automated remediation. "
+                    "Set AGENT_SSH_KNOWN_HOSTS=/etc/ssh/ssh_known_hosts in production."
+                )
+            async with asyncssh.connect(
+                self.remote_host,
+                username=self.ssh_user,
+                password=self.ssh_password,
+                known_hosts=_known_hosts_path,
+            ) as conn:
+                ssh_result = await asyncio.wait_for(
+                    conn.run(step.command),
+                    timeout=step.timeout_seconds,
+                )
+                elapsed = int((time.monotonic() - start) * 1000)
+                result = CommandResult(
+                    command=step.command,
+                    exit_code=ssh_result.exit_status or 0,
+                    stdout=(ssh_result.stdout or "")[:4096],
+                    stderr=(ssh_result.stderr or "")[:4096],
+                    executed=True,
+                    duration_ms=elapsed,
+                )
+                self._execution_log.append(result)
+                logger.info("[SSH %s] %s -> exit=%d", self.remote_host, step.command, result.exit_code)
+                return result
+        except asyncio.TimeoutError:
+            elapsed = int((time.monotonic() - start) * 1000)
+            result = CommandResult(
+                command=step.command,
+                exit_code=-1,
+                stderr=f"SSH command timed out after {step.timeout_seconds}s",
+                executed=True,
+                duration_ms=elapsed,
+            )
+            self._execution_log.append(result)
+            return result
+        except Exception as e:
+            elapsed = int((time.monotonic() - start) * 1000)
+            result = CommandResult(
+                command=step.command,
+                exit_code=-1,
+                stderr=f"SSH error: {e}",
+                executed=True,
+                duration_ms=elapsed,
+            )
+            self._execution_log.append(result)
             return result

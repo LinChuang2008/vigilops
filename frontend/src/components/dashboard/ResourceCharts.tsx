@@ -2,6 +2,7 @@
  * 资源对比图组件
  * 显示多服务器资源使用率和网络带宽对比
  */
+import { memo } from 'react';
 import { Row, Col, Card, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import ReactECharts from '../ThemedECharts';
@@ -24,7 +25,7 @@ interface ResourceChartsProps {
   hosts: HostItem[];
 }
 
-export default function ResourceCharts({ hosts }: ResourceChartsProps) {
+export default memo(function ResourceCharts({ hosts }: ResourceChartsProps) {
   const { t } = useTranslation();
 
   const resourceCompareOption = () => {
@@ -127,4 +128,4 @@ export default function ResourceCharts({ hosts }: ResourceChartsProps) {
       </Col>
     </Row>
   );
-}
+})

@@ -3,15 +3,19 @@
 
 使用 psutil 采集 CPU、内存、磁盘、网络等系统指标，
 支持网络速率计算和丢包率统计。
+兼容 Linux / Windows / macOS。
 """
 import logging
 import platform
 import time
-from typing import Optional
+from typing import Dict, List, Optional
 
 import psutil
 
 logger = logging.getLogger(__name__)
+
+# 平台常量 / Platform constant
+IS_WINDOWS = platform.system() == "Windows"
 
 # 模块级状态，用于网络速率的差值计算
 _prev_net: Optional[dict] = None
@@ -47,15 +51,20 @@ def collect_metrics() -> dict:
 
     mem = psutil.virtual_memory()
 
-    # 磁盘 — 使用根分区
+    # 磁盘 — 主分区指标（Linux: /, Windows: C:\）
+    # Disk — primary partition metrics (Linux: /, Windows: C:\)
     try:
-        disk = psutil.disk_usage("/")
+        primary_path = "C:\\" if IS_WINDOWS else "/"
+        disk = psutil.disk_usage(primary_path)
         disk_used_mb = int(disk.used / (1024 * 1024))
         disk_total_mb = int(disk.total / (1024 * 1024))
         disk_percent = disk.percent
     except Exception:
         disk_used_mb = disk_total_mb = 0
         disk_percent = 0.0
+
+    # 所有分区使用情况 / All partition usage details
+    disk_partitions = _collect_disk_partitions()
 
     # 网络 — 累计计数器 + 速率计算
     global _prev_net, _prev_time
@@ -97,9 +106,48 @@ def collect_metrics() -> dict:
         "disk_used_mb": disk_used_mb,
         "disk_total_mb": disk_total_mb,
         "disk_percent": round(disk_percent, 1),
+        "disk_partitions": disk_partitions,
         "net_bytes_sent": net.bytes_sent,
         "net_bytes_recv": net.bytes_recv,
         "net_send_rate_kb": net_send_rate_kb,
         "net_recv_rate_kb": net_recv_rate_kb,
         "net_packet_loss_rate": net_packet_loss_rate,
     }
+
+
+def _collect_disk_partitions() -> List[Dict]:
+    """采集所有磁盘分区的使用情况。
+    Collect usage details for all mounted disk partitions.
+
+    在 Windows 上遍历 C:\\, D:\\ 等所有盘符；
+    在 Linux/macOS 上遍历所有挂载的物理分区。
+    On Windows iterates all drive letters (C:\\, D:\\, ...);
+    on Linux/macOS iterates all mounted physical partitions.
+
+    Returns:
+        分区信息列表，每项包含挂载点、设备、文件系统、已用/总量/百分比。
+    """
+    partitions = []
+    try:
+        for part in psutil.disk_partitions(all=False):
+            # 跳过只读的虚拟文件系统（如 squashfs snap 挂载）
+            # Skip read-only virtual filesystems (e.g. squashfs snap mounts)
+            if "squashfs" in part.fstype:
+                continue
+            try:
+                usage = psutil.disk_usage(part.mountpoint)
+                partitions.append({
+                    "mountpoint": part.mountpoint,
+                    "device": part.device,
+                    "fstype": part.fstype,
+                    "total_mb": int(usage.total / (1024 * 1024)),
+                    "used_mb": int(usage.used / (1024 * 1024)),
+                    "percent": round(usage.percent, 1),
+                })
+            except (PermissionError, OSError):
+                # 某些分区可能无权限访问（如 Windows 恢复分区）
+                # Some partitions may be inaccessible (e.g. Windows recovery partitions)
+                continue
+    except Exception as e:
+        logger.warning(f"Failed to collect disk partitions: {e}")
+    return partitions

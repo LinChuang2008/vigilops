@@ -22,10 +22,10 @@ const getDisplayName = (host: Host): string => {
 };
 
 /**
- * 获取主机显示 IP（优先公网 IP，否则内网 IP，最后兼容旧字段）
+ * 获取主机显示 IP（优先内网 IP，否则公网 IP，最后兼容旧字段）
  */
 const getDisplayIp = (host: Host): string => {
-  return host.public_ip || host.private_ip || host.ip_address || 'N/A';
+  return host.private_ip || host.ip_address || host.public_ip || 'N/A';
 };
 
 /**
@@ -144,8 +144,8 @@ export default function HostList() {
           return (
             <Tooltip title={
               <div>
-                <div>公网: {record.public_ip}</div>
-                <div>内网: {record.private_ip}</div>
+                <div>{t('hosts.publicIp')}:{record.public_ip}</div>
+                <div>{t('hosts.privateIp')}: {record.private_ip}</div>
               </div>
             }>
               <Typography.Text>{displayIp} <Typography.Text type="secondary">(+1)</Typography.Text></Typography.Text>
@@ -223,7 +223,7 @@ export default function HostList() {
                 {hasMultipleIps(host) ? (
                   <Tooltip title={
                     <div>
-                      <div>公网: {host.public_ip}</div>
+                      <div>{t('hosts.publicIp')}:{host.public_ip}</div>
                       <div>内网: {host.private_ip}</div>
                     </div>
                   }>

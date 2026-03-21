@@ -5,9 +5,12 @@ VigilOps Agent 命令行入口模块。
 
 首次运行时若无配置文件，交互式引导用户输入服务端 URL 和 Token，
 并保存到 ~/.vigilops/config.yaml，后续自动读取。
+兼容 Linux / Windows / macOS。
 """
 import asyncio
 import logging
+import os
+import platform
 import signal
 import socket
 import sys
@@ -18,20 +21,28 @@ import click
 from vigilops_agent import __version__
 from vigilops_agent.config import load_config
 
+# 平台常量 / Platform constant
+IS_WINDOWS = platform.system() == "Windows"
+
 # 用户级配置目录和文件路径
 USER_CONFIG_DIR = Path.home() / ".vigilops"
 USER_CONFIG_FILE = USER_CONFIG_DIR / "config.yaml"
 
-# 项目级默认配置路径（Linux 系统服务场景）
-SYSTEM_CONFIG_FILE = Path("/etc/vigilops/agent.yaml")
-
 
 def _get_default_config_path() -> str:
-    """按优先级返回配置文件路径：用户目录 > 系统目录。"""
+    """按优先级返回配置文件路径：用户目录 > 系统目录 > 平台默认。
+    Return config file path by priority: user dir > system dir > platform default.
+    """
     if USER_CONFIG_FILE.exists():
         return str(USER_CONFIG_FILE)
-    if SYSTEM_CONFIG_FILE.exists():
-        return str(SYSTEM_CONFIG_FILE)
+    # 平台特定系统配置路径
+    if IS_WINDOWS:
+        program_data = os.environ.get("PROGRAMDATA", r"C:\ProgramData")
+        system_path = os.path.join(program_data, "vigilops", "agent.yaml")
+    else:
+        system_path = "/etc/vigilops/agent.yaml"
+    if Path(system_path).exists():
+        return system_path
     # 都不存在时返回用户目录路径（首次运行会在此创建）
     return str(USER_CONFIG_FILE)
 
@@ -134,12 +145,16 @@ def run(ctx):
     reporter = AgentReporter(cfg)
     loop = asyncio.new_event_loop()
 
+    # 注册信号处理，优雅关闭
+    # Register signal handlers for graceful shutdown
     def _shutdown(sig, frame):
         logger.info(f"Received signal {sig}, shutting down...")
         loop.stop()
 
     signal.signal(signal.SIGINT, _shutdown)
-    signal.signal(signal.SIGTERM, _shutdown)
+    # SIGTERM 在 Windows 上不可用 / SIGTERM is not available on Windows
+    if not IS_WINDOWS:
+        signal.signal(signal.SIGTERM, _shutdown)
 
     try:
         loop.run_until_complete(reporter.start())

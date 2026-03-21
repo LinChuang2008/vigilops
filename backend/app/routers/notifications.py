@@ -323,18 +323,76 @@ async def retry_notification(
         }
 
 
-@router.get("", response_model=List[NotificationChannelResponse])
+@router.get("/setup-status")
+async def get_setup_status(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    """检查通知渠道配置状态，用于首次启动引导。"""
+    from sqlalchemy import func as sqlfunc
+    total = (await db.execute(
+        select(sqlfunc.count(NotificationChannel.id))
+    )).scalar() or 0
+    enabled = (await db.execute(
+        select(sqlfunc.count(NotificationChannel.id)).where(NotificationChannel.is_enabled == True)
+    )).scalar() or 0
+    return {
+        "configured": total > 0,
+        "enabled_count": enabled,
+        "total_count": total,
+        "needs_setup": enabled == 0,
+        "supported_types": ["webhook", "email", "dingtalk", "feishu", "wecom"],
+        "setup_guide": {
+            "webhook": {
+                "description": "通用 Webhook 通知，支持任何接收 JSON POST 的 URL",
+                "required_fields": ["url"],
+                "example_config": {"url": "https://your-service.com/webhook", "headers": {}}
+            },
+            "email": {
+                "description": "邮件通知，通过 SMTP 发送",
+                "required_fields": ["smtp_host", "smtp_port", "smtp_user", "smtp_password", "recipients"],
+                "example_config": {"smtp_host": "smtp.example.com", "smtp_port": 465, "smtp_ssl": True,
+                                   "smtp_user": "alert@example.com", "smtp_password": "***", "recipients": ["admin@example.com"]}
+            },
+            "dingtalk": {
+                "description": "钉钉群机器人通知",
+                "required_fields": ["webhook_url"],
+                "example_config": {"webhook_url": "https://oapi.dingtalk.com/robot/send?access_token=xxx", "secret": ""}
+            },
+            "feishu": {
+                "description": "飞书群机器人通知",
+                "required_fields": ["webhook_url"],
+                "example_config": {"webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/xxx", "secret": ""}
+            },
+            "wecom": {
+                "description": "企业微信群机器人通知",
+                "required_fields": ["webhook_url"],
+                "example_config": {"webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx"}
+            },
+        }
+    }
+
+
+@router.get("")
 async def list_channels(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
     """
     通知渠道列表查询接口 (Notification Channels List Query)
-    
+
     获取所有配置的通知渠道（邮件、钉钉、飞书、企微、Webhook）。
+    敏感配置字段（密码、密钥、Token等）已脱敏处理。
     """
     result = await db.execute(select(NotificationChannel).order_by(NotificationChannel.id))
-    return result.scalars().all()
+    channels = result.scalars().all()
+    items = []
+    for ch in channels:
+        data = NotificationChannelResponse.model_validate(ch).model_dump(mode="json")
+        if isinstance(data.get("config"), dict):
+            data["config"] = _sanitize_config(data["config"])
+        items.append(data)
+    return items
 
 
 @router.post("", response_model=NotificationChannelResponse, status_code=status.HTTP_201_CREATED)

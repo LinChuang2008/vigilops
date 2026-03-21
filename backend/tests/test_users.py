@@ -15,7 +15,7 @@ class TestUserList:
 
     async def test_no_auth_rejected(self, client: AsyncClient):
         resp = await client.get("/api/v1/users")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
 
 class TestUserCreate:

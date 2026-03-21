@@ -50,3 +50,25 @@ class ChatResponse(BaseModel):
     answer: str
     sources: list = []
     memory_context: List[Dict[str, Any]] = []
+
+
+class GenerateRunbookRequest(BaseModel):
+    """AI 生成 Runbook 请求体。"""
+    description: str
+    risk_level: Optional[str] = "confirm"
+
+
+class GenerateRunbookStep(BaseModel):
+    """AI 生成的 Runbook 步骤。"""
+    name: str
+    command: str
+    timeout_sec: int = 30
+    rollback_command: Optional[str] = None
+
+
+class GenerateRunbookResponse(BaseModel):
+    """AI 生成 Runbook 响应体。"""
+    success: bool
+    runbook: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+    safety_warnings: List[str] = []

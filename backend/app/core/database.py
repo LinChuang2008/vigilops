@@ -17,14 +17,21 @@ from app.core.config import settings
 # 创建异步数据库引擎 (Create Async Database Engine)
 # 使用 asyncpg 驱动连接 PostgreSQL，支持连接池和异步操作
 engine = create_async_engine(
-    settings.database_url, 
-    echo=False  # 生产环境关闭 SQL 日志输出 (Disable SQL logging in production)
+    settings.database_url,
+    echo=False,  # 生产环境关闭 SQL 日志输出 (Disable SQL logging in production)
+    pool_size=20,  # 连接池核心连接数
+    max_overflow=10,  # 超出 pool_size 后允许的额外连接数
+    pool_recycle=3600,  # 每小时回收连接，防止 PostgreSQL 端超时断开
+    pool_pre_ping=True,  # 使用前检测连接是否存活
 )
 
 # 创建同步数据库引擎和会话工厂 (Create Sync Database Engine and Session Factory)
 # 用于需要同步 Session 的服务（如告警去重） (For services requiring sync Session, e.g. alert deduplication)
 _sync_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
-sync_engine = create_engine(_sync_url, echo=False)
+sync_engine = create_engine(
+    _sync_url, echo=False,
+    pool_size=5, max_overflow=5, pool_recycle=3600, pool_pre_ping=True,
+)
 SessionLocal = sessionmaker(bind=sync_engine, expire_on_commit=False)
 
 # 创建异步会话工厂 (Create Async Session Factory)

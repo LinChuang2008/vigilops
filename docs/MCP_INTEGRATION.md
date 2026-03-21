@@ -147,6 +147,60 @@ Then start VigilOps normally. The MCP server will run alongside the main API.
 **Incident response:**
 > "Analyze alert 456 with full context and give me remediation steps"
 
+## OpenCode Integration
+
+[OpenCode](https://github.com/opencode-ai/opencode) is an open-source AI terminal coding assistant with native MCP support. It can directly connect to VigilOps MCP Server for intelligent ops interaction.
+
+### Quick Setup
+
+1. **Ensure VigilOps MCP Server is running** (default port 8003):
+   ```bash
+   docker compose up -d mcp
+   ```
+
+2. **Create/edit OpenCode config** at `~/.opencode/config.json`:
+   ```json
+   {
+     "mcpServers": {
+       "vigilops": {
+         "type": "sse",
+         "url": "http://<vigilops-host>:8003/sse",
+         "headers": {
+           "Authorization": "Bearer <your-mcp-api-key>"
+         }
+       }
+     }
+   }
+   ```
+
+   Replace `<vigilops-host>` with your server IP (e.g., `10.211.55.11`) and `<your-mcp-api-key>` with the value of `VIGILOPS_MCP_API_KEY` from `.env`.
+
+3. **Start OpenCode** and use natural language to interact with VigilOps:
+   ```
+   $ opencode
+   > Check the health of all servers
+   > Show critical alerts from the last hour
+   > Search error logs containing "connection refused"
+   > Analyze alert 123 with full context
+   ```
+
+### Claude Code Integration
+
+Claude Code also supports MCP. Add to `~/.claude/settings.json`:
+```json
+{
+  "mcpServers": {
+    "vigilops": {
+      "type": "sse",
+      "url": "http://<vigilops-host>:8003/sse",
+      "headers": {
+        "Authorization": "Bearer <your-mcp-api-key>"
+      }
+    }
+  }
+}
+```
+
 ## Development
 
 ### Adding New Tools
@@ -211,7 +265,9 @@ python -m app.mcp.cli --verbose --host 127.0.0.1 --port 8003
 
 - **Local access only** by default (127.0.0.1)
 - **Database credentials** in environment variables
-- **No authentication** in current version (add JWT for production)
+- **Bearer Token authentication** required in production via `VIGILOPS_MCP_API_KEY` environment variable
+- Production refuses to start without API key configured
+- Development mode (`ENVIRONMENT=development`) allows unauthenticated access for local testing
 - **Rate limiting** recommended for public exposure
 
 ## Marketing Message

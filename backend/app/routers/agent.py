@@ -590,8 +590,22 @@ async def ingest_logs(
 async def _check_log_keyword_alerts(logs: list, db: AsyncSession):
     """
     日志关键字告警检查 (Log Keyword Alert Check)
+
+    扫描日志内容，匹配关键字告警规则，自动创建告警记录。
+    包含去重逻辑：同一规则在60秒内不重复创建告警。
+
+    Args:
+        logs: 日志条目对象列表
+        db: 数据库会话对象
+    流程：
+        1. 查询所有启用的log_keyword类型告警规则
+        2. 遍历日志条目，检查message字段是否包含关键字
+        3. 支持按日志级别和服务名过滤匹配范围
+        4. 去重检查：同一规则60秒内已有firing告警则跳过
+        5. 匹配成功时创建Alert记录，截取前200字符
     """
     from app.models.alert import AlertRule, Alert
+    from datetime import timedelta
     from app.services.suppression_service import SuppressionService
 
     result = await db.execute(
@@ -606,6 +620,20 @@ async def _check_log_keyword_alerts(logs: list, db: AsyncSession):
 
     # 获取被屏蔽的 host_id，跳过这些主机的日志告警
     suppressed_host_ids = await SuppressionService.get_suppressed_host_ids_for_logs(db)
+
+    now = datetime.now(timezone.utc)
+    dedup_window = now - timedelta(seconds=60)
+
+    # 预查询：获取所有相关规则在去重窗口内已有的firing告警
+    rule_ids = [r.id for r in rules]
+    existing_result = await db.execute(
+        select(Alert.rule_id, Alert.host_id).where(
+            Alert.rule_id.in_(rule_ids),
+            Alert.status == "firing",
+            Alert.fired_at >= dedup_window,
+        )
+    )
+    existing_alerts = {(row.rule_id, row.host_id) for row in existing_result}
 
     for log_item in logs:
         # 跳过被屏蔽主机的日志
@@ -625,6 +653,11 @@ async def _check_log_keyword_alerts(logs: list, db: AsyncSession):
             if rule.log_service and rule.log_service != svc:
                 continue
 
+            # 去重：同一规则+主机在60秒内已有firing告警则跳过
+            dedup_key = (rule.id, log_item.host_id)
+            if dedup_key in existing_alerts:
+                continue
+
             alert = Alert(
                 rule_id=rule.id,
                 host_id=log_item.host_id,
@@ -634,6 +667,8 @@ async def _check_log_keyword_alerts(logs: list, db: AsyncSession):
                 message=f"匹配关键字 '{rule.log_keyword}' in: {log_item.message[:200]}",
             )
             db.add(alert)
+            # 将新创建的告警加入去重集合，避免同一批次重复
+            existing_alerts.add(dedup_key)
 
     await db.commit()
 

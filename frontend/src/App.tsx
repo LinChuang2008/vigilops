@@ -3,46 +3,50 @@
  * 配置 Ant Design 主题与国际化，定义全局路由结构
  * 所有需要认证的页面由 AuthGuard 守卫保护，嵌套在 AppLayout 布局内
  */
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { ConfigProvider, App as AntApp, theme as antTheme } from 'antd';
+import { ConfigProvider, App as AntApp, theme as antTheme, Spin } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import enUS from 'antd/locale/en_US';
 import { useTranslation } from 'react-i18next';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import AppLayout from './components/AppLayout';
 import AuthGuard from './components/AuthGuard';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import HostList from './pages/HostList';
-import HostDetail from './pages/HostDetail';
-import ServiceList from './pages/ServiceList';
-import ServiceDetail from './pages/ServiceDetail';
-import AlertList from './pages/AlertList';
-import Settings from './pages/Settings';
-import NotificationChannels from './pages/NotificationChannels';
-import NotificationLogs from './pages/NotificationLogs';
-import NotificationTemplates from './pages/NotificationTemplates';
-import Logs from './pages/Logs';
-import Databases from './pages/Databases';
-import DatabaseDetail from './pages/DatabaseDetail';
-import OpsAssistant from './pages/OpsAssistant';
-import Users from './pages/Users';
-import AuditLogs from './pages/AuditLogs';
-import AIOperationLogs from './pages/AIOperationLogs';
-import Reports from './pages/Reports';
-import Topology from './pages/Topology';
-import ServerListPage from './pages/topology/ServerListPage';
-import ServerDetailPage from './pages/topology/ServerDetailPage';
-import ServiceGroupsPage from './pages/topology/ServiceGroupsPage';
-import SLA from './pages/SLA';
-import RemediationList from './pages/Remediation';
-import RemediationDetail from './pages/RemediationDetail';
-import AlertEscalation from './pages/AlertEscalation';
-import OnCall from './pages/OnCall';
 import ErrorBoundary from './components/ErrorBoundary';
+import Login from './pages/Login';
+import Landing from './pages/Landing';
+
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const HostList = lazy(() => import('./pages/HostList'));
+const HostDetail = lazy(() => import('./pages/HostDetail'));
+const ServiceList = lazy(() => import('./pages/ServiceList'));
+const ServiceDetail = lazy(() => import('./pages/ServiceDetail'));
+const AlertList = lazy(() => import('./pages/AlertList'));
+const Settings = lazy(() => import('./pages/Settings'));
+const NotificationChannels = lazy(() => import('./pages/NotificationChannels'));
+const NotificationLogs = lazy(() => import('./pages/NotificationLogs'));
+const NotificationTemplates = lazy(() => import('./pages/NotificationTemplates'));
+const Logs = lazy(() => import('./pages/Logs'));
+const Databases = lazy(() => import('./pages/Databases'));
+const DatabaseDetail = lazy(() => import('./pages/DatabaseDetail'));
+const OpsAssistant = lazy(() => import('./pages/OpsAssistant'));
+const AIOperationLogs = lazy(() => import('./pages/AIOperationLogs'));
+const Users = lazy(() => import('./pages/Users'));
+const AuditLogs = lazy(() => import('./pages/AuditLogs'));
+const Reports = lazy(() => import('./pages/Reports'));
+const Topology = lazy(() => import('./pages/Topology'));
+const ServerListPage = lazy(() => import('./pages/topology/ServerListPage'));
+const ServerDetailPage = lazy(() => import('./pages/topology/ServerDetailPage'));
+const ServiceGroupsPage = lazy(() => import('./pages/topology/ServiceGroupsPage'));
+const SLA = lazy(() => import('./pages/SLA'));
+const RemediationList = lazy(() => import('./pages/Remediation'));
+const RemediationDetail = lazy(() => import('./pages/RemediationDetail'));
+const RunbookManagement = lazy(() => import('./pages/RunbookManagement'));
+const AlertEscalation = lazy(() => import('./pages/AlertEscalation'));
+const OnCall = lazy(() => import('./pages/OnCall'));
 
 /** 路由权限守卫：根据角色限制可访问的页面 */
-const viewerAllowedPrefixes = ['/', '/hosts', '/servers', '/services', '/topology', '/logs', '/databases', '/alerts', '/ops', '/remediations', '/multi-server', '/service-groups', '/on-call', '/sla', '/ai-operation-logs'];
+const viewerAllowedPrefixes = ['/', '/dashboard', '/hosts', '/servers', '/services', '/topology', '/logs', '/databases', '/alerts', '/ops', '/remediations', '/runbooks', '/multi-server', '/service-groups', '/on-call', '/sla', '/ai-operation-logs', '/landing'];
 function RoleGuard({ children }: { children: React.ReactElement }) {
   const location = useLocation();
   const role = localStorage.getItem('user_role') || 'viewer';
@@ -55,6 +59,12 @@ function RoleGuard({ children }: { children: React.ReactElement }) {
     if (path.startsWith('/users') || path.startsWith('/settings')) return <Navigate to="/" replace />;
   }
   return children;
+}
+
+/** 首页入口：已登录用户进 Dashboard，未登录用户跳转 Landing */
+function HomeRedirect() {
+  const isLoggedIn = !!localStorage.getItem('user_name');
+  return <Navigate to={isLoggedIn ? '/dashboard' : '/landing'} replace />;
 }
 
 const antdLocaleMap: Record<string, typeof zhCN> = { zh: zhCN, en: enUS };
@@ -77,9 +87,14 @@ function AppInner() {
       <AntApp>
         <ErrorBoundary>
         <BrowserRouter>
+          <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><Spin size="large" /></div>}>
           <Routes>
+            {/* Landing Page（无需认证） */}
+            <Route path="/landing" element={<Landing />} />
             {/* 登录页（无需认证） */}
             <Route path="/login" element={<Login />} />
+            {/* 首页入口：未登录→Landing，已登录→Dashboard */}
+            <Route path="/" element={<HomeRedirect />} />
             {/* 需要认证的路由，统一使用 AppLayout 布局 */}
             <Route
               element={
@@ -90,7 +105,7 @@ function AppInner() {
                 </AuthGuard>
               }
             >
-              <Route path="/" element={<Dashboard />} />
+              <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/hosts" element={<HostList />} />
               <Route path="/hosts/:id" element={<HostDetail />} />
               <Route path="/services" element={<ServiceList />} />
@@ -105,6 +120,7 @@ function AppInner() {
               <Route path="/alerts" element={<AlertList />} />
               <Route path="/remediations" element={<RemediationList />} />
               <Route path="/remediations/:id" element={<RemediationDetail />} />
+              <Route path="/runbooks" element={<RunbookManagement />} />
               <Route path="/sla" element={<SLA />} />
               <Route path="/ai-analysis" element={<Navigate to="/ops" replace />} />
               <Route path="/ops" element={<OpsAssistant />} />
@@ -122,6 +138,7 @@ function AppInner() {
             {/* 未匹配路由重定向到首页 */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </Suspense>
         </BrowserRouter>
         </ErrorBoundary>
       </AntApp>

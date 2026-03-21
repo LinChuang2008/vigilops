@@ -2,7 +2,8 @@
  * 最新告警列表组件
  * 无告警时，若存在 FATAL/ERROR 日志则显示联动告警 Banner
  */
-import { Card, Table, Tag, Alert, Button, Space } from 'antd';
+import { memo } from 'react';
+import { Card, Table, Tag, Alert, Button, Space, theme } from 'antd';
 import { WarningFilled } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 
@@ -23,7 +24,7 @@ interface AlertsListProps {
   onViewLogs?: () => void;
 }
 
-export default function AlertsList({
+export default memo(function AlertsList({
   alerts,
   fatalCount = 0,
   errorCount = 0,
@@ -31,6 +32,7 @@ export default function AlertsList({
   onViewLogs,
 }: AlertsListProps) {
   const { t, i18n } = useTranslation();
+  const { token } = theme.useToken();
   const getAlertTitle = (alert: AlertItem) =>
     i18n.language === 'en' && alert.title_en ? alert.title_en : alert.title;
 
@@ -88,13 +90,13 @@ export default function AlertsList({
         <Alert
           style={{
             marginTop: 12,
-            background: '#fffbe6',
-            border: '1px solid #ffe58f',
+            background: token.colorWarningBg,
+            border: `1px solid ${token.colorWarningBorder}`,
             borderRadius: 6,
           }}
           type="warning"
           showIcon
-          icon={<WarningFilled style={{ color: '#faad14' }} />}
+          icon={<WarningFilled style={{ color: token.colorWarning }} />}
           message={logAlertMsg}
           description={t('dashboard.alertsLogLinkedDesc')}
           action={
@@ -111,4 +113,4 @@ export default function AlertsList({
       )}
     </Card>
   );
-}
+})

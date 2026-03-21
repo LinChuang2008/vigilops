@@ -2,7 +2,8 @@
  * 日志统计组件
  * FATAL/ERROR 行红色背景 + AI 分析 CTA，WARN/INFO/DEBUG 正常展示
  */
-import { Card, Row, Col, Statistic, Button, Space, Typography } from 'antd';
+import { memo } from 'react';
+import { Card, Row, Col, Statistic, Button, Space, Typography, theme } from 'antd';
 import { ExclamationCircleFilled } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import ReactECharts from '../ThemedECharts';
@@ -15,8 +16,9 @@ interface LogStatsProps {
   onAIAnalyze?: () => void;
 }
 
-export default function LogStats({ logStats, onAIAnalyze }: LogStatsProps) {
+export default memo(function LogStats({ logStats, onAIAnalyze }: LogStatsProps) {
   const { t } = useTranslation();
+  const { token } = theme.useToken();
 
   if (!logStats || logStats.by_level.length === 0) {
     return (
@@ -47,7 +49,7 @@ export default function LogStats({ logStats, onAIAnalyze }: LogStatsProps) {
           .map(({ level, count }) => ({
             name: level,
             value: count,
-            itemStyle: { color: levelColors[level] || '#999' },
+            itemStyle: { color: levelColors[level] || token.colorTextTertiary },
           })),
         label: { formatter: '{b}: {c}' },
       },
@@ -114,7 +116,7 @@ export default function LogStats({ logStats, onAIAnalyze }: LogStatsProps) {
               const textColor =
                 level === 'WARN' ? '#fa8c16' :
                 level === 'INFO' ? '#1677ff' :
-                '#8c8c8c';
+                token.colorTextSecondary;
 
               return (
                 <div
@@ -141,4 +143,4 @@ export default function LogStats({ logStats, onAIAnalyze }: LogStatsProps) {
       </Row>
     </Card>
   );
-}
+})

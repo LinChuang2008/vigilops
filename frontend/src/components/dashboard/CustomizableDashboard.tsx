@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
   Button, Space, Typography, Dropdown, message,
-  Tooltip
+  Tooltip, theme
 } from 'antd';
 import {
   SettingOutlined, DownloadOutlined,
@@ -177,8 +177,10 @@ export default function CustomizableDashboard() {
 
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { token } = theme.useToken();
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wsReconnectCountRef = useRef(0);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // 健康评分扣分项（前端推算）
@@ -279,7 +281,7 @@ export default function CustomizableDashboard() {
   const fetchTrends = useCallback(async () => {
     try {
       setTrends((await api.get('/dashboard/trends')).data.trends || []);
-    } catch {}
+    } catch (err) { console.warn('Failed to fetch trends:', err); }
   }, []);
 
   // WebSocket 相关函数
@@ -300,24 +302,29 @@ export default function CustomizableDashboard() {
 
   const connectWs = useCallback(() => {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // 认证通过 httpOnly Cookie 自动携带（WebSocket 握手时浏览器会发送 Cookie）
     const wsUrl = `${wsProtocol}//${window.location.host}/api/v1/ws/dashboard`;
 
     try {
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
+      wsReconnectCountRef.current = 0;
 
       ws.onopen = () => { setWsConnected(true); stopPolling(); };
-      ws.onmessage = (e) => { try { setWsData(JSON.parse(e.data)); } catch {} };
+      ws.onmessage = (e) => { try { setWsData(JSON.parse(e.data)); } catch (err) { console.warn('WS parse error:', err); } };
       ws.onclose = () => {
         setWsConnected(false);
         wsRef.current = null;
         startPolling();
-        reconnectTimerRef.current = setTimeout(connectWs, 5000);
+        if (wsReconnectCountRef.current < 10) {
+          wsReconnectCountRef.current += 1;
+          const delay = Math.min(5000 * Math.pow(1.5, wsReconnectCountRef.current), 60000);
+          reconnectTimerRef.current = setTimeout(connectWs, delay);
+        }
       };
       ws.onerror = () => { ws.close(); };
     } catch {
       startPolling();
-      reconnectTimerRef.current = setTimeout(connectWs, 5000);
     }
   }, [startPolling, stopPolling]);
 
@@ -518,17 +525,17 @@ export default function CustomizableDashboard() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Space>
           <Title level={4} style={{ margin: 0 }}>{t('dashboard.systemOverview')}</Title>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#999' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: token.colorTextTertiary }}>
             <span style={{
               width: 8, height: 8, borderRadius: '50%',
-              backgroundColor: wsConnected ? '#52c41a' : '#d9d9d9',
+              backgroundColor: wsConnected ? token.colorSuccess : token.colorTextDisabled,
               display: 'inline-block'
             }} />
             {wsConnected ? t('dashboard.realtime') : t('dashboard.polling')}
           </span>
           {isEditing && (
             <Tooltip title={t('dashboard.editModeTooltip')}>
-              <span style={{ color: '#faad14', fontSize: 12 }}>
+              <span style={{ color: token.colorWarning, fontSize: 12 }}>
                 <DragOutlined /> {t('dashboard.editMode')}
               </span>
             </Tooltip>

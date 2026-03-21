@@ -6,10 +6,11 @@
  * - 聚合组列表：展开/折叠查看组内告警
  * - 降噪趋势图 (ECharts)
  */
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, memo } from 'react';
 import { Card, Row, Col, Statistic, Table, Tag, Typography, Spin, Empty, Progress } from 'antd';
 import { ThunderboltOutlined, CompressOutlined, TeamOutlined, FilterOutlined } from '@ant-design/icons';
-import ReactECharts from 'echarts-for-react';
+import { useTranslation } from 'react-i18next';
+import ReactECharts from './ThemedECharts';
 import api from '../services/api';
 
 interface DeduplicationStats {
@@ -36,7 +37,8 @@ interface AlertGroupItem {
 const severityColor: Record<string, string> = { critical: 'red', warning: 'orange', info: 'blue' };
 const statusColor: Record<string, string> = { firing: 'red', resolved: 'green', acknowledged: 'blue' };
 
-export default function NoiseReduction() {
+export default memo(function NoiseReduction() {
+  const { t } = useTranslation();
   const [stats, setStats] = useState<DeduplicationStats | null>(null);
   const [groups, setGroups] = useState<AlertGroupItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,11 +64,11 @@ export default function NoiseReduction() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   if (loading) {
-    return <div style={{ textAlign: 'center', padding: 60 }}><Spin size="large" tip="加载降噪数据..." /></div>;
+    return <div style={{ textAlign: 'center', padding: 60 }}><Spin size="large" tip={t('noiseReduction.loadingData')} /></div>;
   }
 
   if (!stats) {
-    return <Empty description="暂无降噪统计数据" />;
+    return <Empty description={t('noiseReduction.noData')} />;
   }
 
   const originalCount = stats.total_alert_occurrences_24h;
@@ -82,7 +84,7 @@ export default function NoiseReduction() {
     grid: { left: 40, right: 20, top: 30, bottom: 30 },
     xAxis: {
       type: 'category' as const,
-      data: ['原始告警', '降噪后'],
+      data: [t('noiseReduction.originalAlerts'), t('noiseReduction.afterReduction')],
     },
     yAxis: { type: 'value' as const },
     series: [
@@ -122,42 +124,42 @@ export default function NoiseReduction() {
   // ── 聚合组表格列定义 ──
   const groupColumns = [
     {
-      title: '聚合组',
+      title: t('noiseReduction.aggregationGroup'),
       dataIndex: 'title',
       key: 'title',
       ellipsis: true,
     },
     {
-      title: '严重级别',
+      title: t('noiseReduction.severity'),
       dataIndex: 'severity',
       key: 'severity',
       width: 100,
       render: (s: string) => <Tag color={severityColor[s]}>{s.toUpperCase()}</Tag>,
     },
     {
-      title: '状态',
+      title: t('noiseReduction.status'),
       dataIndex: 'status',
       key: 'status',
       width: 100,
       render: (s: string) => <Tag color={statusColor[s]}>{s}</Tag>,
     },
     {
-      title: '包含告警',
+      title: t('noiseReduction.containedAlerts'),
       dataIndex: 'alert_count',
       key: 'alert_count',
       width: 100,
       sorter: (a: AlertGroupItem, b: AlertGroupItem) => a.alert_count - b.alert_count,
       defaultSortOrder: 'descend' as const,
-      render: (n: number) => <Typography.Text strong style={{ color: n > 10 ? '#ff4d4f' : '#333' }}>{n} 条</Typography.Text>,
+      render: (n: number) => <Typography.Text strong style={{ color: n > 10 ? '#ff4d4f' : '#333' }}>{n}</Typography.Text>,
     },
     {
-      title: '涉及主机',
+      title: t('noiseReduction.involvedHosts'),
       dataIndex: 'host_count',
       key: 'host_count',
       width: 90,
     },
     {
-      title: '最后触发',
+      title: t('noiseReduction.lastTriggered'),
       dataIndex: 'last_occurrence',
       key: 'last_occurrence',
       width: 180,
@@ -172,7 +174,7 @@ export default function NoiseReduction() {
         <Col xs={12} sm={6}>
           <Card hoverable>
             <Statistic
-              title="原始告警 (24h)"
+              title={t('noiseReduction.originalAlerts24h')}
               value={originalCount}
               prefix={<ThunderboltOutlined style={{ color: '#ff4d4f' }} />}
               valueStyle={{ color: '#ff4d4f' }}
@@ -182,7 +184,7 @@ export default function NoiseReduction() {
         <Col xs={12} sm={6}>
           <Card hoverable>
             <Statistic
-              title="降噪后告警组"
+              title={t('noiseReduction.afterReductionGroups')}
               value={afterCount}
               prefix={<CompressOutlined style={{ color: '#52c41a' }} />}
               valueStyle={{ color: '#52c41a' }}
@@ -192,7 +194,7 @@ export default function NoiseReduction() {
         <Col xs={12} sm={6}>
           <Card hoverable>
             <Statistic
-              title="已抑制告警"
+              title={t('noiseReduction.suppressedAlerts')}
               value={stats.suppressed_alerts_24h}
               prefix={<FilterOutlined style={{ color: '#1890ff' }} />}
               valueStyle={{ color: '#1890ff' }}
@@ -202,7 +204,7 @@ export default function NoiseReduction() {
         <Col xs={12} sm={6}>
           <Card hoverable style={{ textAlign: 'center' }}>
             <div style={{ marginBottom: 8 }}>
-              <Typography.Text type="secondary">降噪率</Typography.Text>
+              <Typography.Text type="secondary">{t('noiseReduction.reductionRate')}</Typography.Text>
             </div>
             <Progress
               type="circle"
@@ -218,12 +220,12 @@ export default function NoiseReduction() {
       {/* ── 对比图表 ── */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} md={14}>
-          <Card title="📊 降噪前后对比" size="small">
+          <Card title={t('noiseReduction.comparisonChart')} size="small">
             <ReactECharts option={barOption} style={{ height: 260 }} />
           </Card>
         </Col>
         <Col xs={24} md={10}>
-          <Card title="🔴 告警严重级别分布" size="small">
+          <Card title={t('noiseReduction.severityDistribution')} size="small">
             <ReactECharts option={pieOption} style={{ height: 260 }} />
           </Card>
         </Col>
@@ -236,25 +238,25 @@ export default function NoiseReduction() {
         <Row align="middle" justify="center" gutter={24}>
           <Col>
             <Typography.Title level={1} style={{ color: '#ff4d4f', margin: 0 }}>{originalCount}</Typography.Title>
-            <Typography.Text type="secondary">条原始告警</Typography.Text>
+            <Typography.Text type="secondary">{t('noiseReduction.originalAlertsUnit')}</Typography.Text>
           </Col>
           <Col>
             <Typography.Title level={2} style={{ margin: '0 16px', color: '#999' }}>→</Typography.Title>
           </Col>
           <Col>
             <Typography.Title level={1} style={{ color: '#52c41a', margin: 0 }}>{afterCount}</Typography.Title>
-            <Typography.Text type="secondary">个聚合组</Typography.Text>
+            <Typography.Text type="secondary">{t('noiseReduction.aggregationGroupsUnit')}</Typography.Text>
           </Col>
           <Col>
             <Tag color="green" style={{ fontSize: 18, padding: '4px 16px', marginLeft: 16 }}>
-              从 {originalCount} 条聚合为 {afterCount} 组（压缩 {rate.toFixed(1)}%）
+              {t('noiseReduction.compressionSummary', { original: originalCount, after: afterCount, rate: rate.toFixed(1) })}
             </Tag>
           </Col>
         </Row>
       </Card>
 
       {/* ── 聚合组列表 ── */}
-      <Card title={<><TeamOutlined /> 告警聚合组 ({groupsTotal} 组)</>}>
+      <Card title={<><TeamOutlined /> {t('noiseReduction.alertGroups', { count: groupsTotal })}</>}>
         <Table
           dataSource={groups}
           columns={groupColumns}
@@ -264,11 +266,11 @@ export default function NoiseReduction() {
             expandedRowRender: (record) => (
               <div style={{ padding: '8px 0' }}>
                 <Typography.Text type="secondary">
-                  聚合组 #{record.id} · 包含 {record.alert_count} 条告警 · 涉及 {record.host_count} 台主机 · {record.rule_count} 条规则
+                  {t('noiseReduction.groupDetail', { id: record.id, alerts: record.alert_count, hosts: record.host_count, rules: record.rule_count })}
                 </Typography.Text>
                 <br />
                 <Typography.Text type="secondary">
-                  聚合窗口结束: {new Date(record.window_end).toLocaleString()}
+                  {t('noiseReduction.windowEnd')}: {new Date(record.window_end).toLocaleString()}
                 </Typography.Text>
               </div>
             ),
@@ -277,4 +279,4 @@ export default function NoiseReduction() {
       </Card>
     </div>
   );
-}
+})

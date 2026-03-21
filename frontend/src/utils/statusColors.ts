@@ -2,6 +2,7 @@
  * 公共状态颜色映射
  * 统一 Dashboard/AlertList/ServiceList 中的颜色定义
  */
+import i18n from '../i18n';
 
 /** 告警严重级别颜色 */
 export const severityColor: Record<string, string> = {
@@ -26,7 +27,7 @@ export function serviceStatusColor(s: string): string {
 
 /** 服务状态文本 */
 export function serviceStatusText(s: string): string {
-  if (s === 'healthy' || s === 'up') return '健康';
-  if (s === 'degraded') return '降级';
-  return '异常';
+  if (s === 'healthy' || s === 'up') return i18n.t('services.healthy');
+  if (s === 'degraded') return i18n.t('services.degraded');
+  return i18n.t('common.unhealthy');
 }

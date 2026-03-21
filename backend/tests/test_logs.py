@@ -43,7 +43,7 @@ class TestLogs:
 
     async def test_search_logs_no_auth(self, client: AsyncClient):
         resp = await client.get("/api/v1/logs")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     async def test_log_stats(self, client: AsyncClient, auth_headers, sample_logs):
         resp = await client.get("/api/v1/logs/stats", headers=auth_headers)

@@ -35,20 +35,23 @@ import {
   DeploymentUnitOutlined,
   SafetyCertificateOutlined,
   ThunderboltOutlined,
+  BookOutlined,
   ScheduleOutlined,
   RiseOutlined,
   GlobalOutlined,
   ClusterOutlined,
   AppstoreOutlined,
   EyeInvisibleOutlined,
+  QuestionCircleOutlined,
 } from '@ant-design/icons';
 import QuickStartGuide from './QuickStartGuide';
+import GuidedTour, { useTourControl } from './GuidedTour';
 import { menuSettingsApi } from '../services/menuSettings';
 
 const { Header, Sider, Content } = Layout;
 
 /** viewer 可见的菜单 key */
-const viewerKeys = new Set(['/', '/hosts', '/servers', '/services', '/topology', '/topology/servers', '/topology/service-groups', '/logs', '/databases', '/alerts', '/ops', '/remediations', '/multi-server', '/service-groups', '/on-call', '/sla', '/ai-operation-logs']);
+const viewerKeys = new Set(['/', '/hosts', '/servers', '/services', '/topology', '/topology/servers', '/topology/service-groups', '/logs', '/databases', '/alerts', '/ops', '/remediations', '/runbooks', '/multi-server', '/service-groups', '/on-call', '/sla', '/ai-operation-logs']);
 /** member 隐藏的菜单 key */
 const memberHiddenKeys = new Set(['/users', '/settings']);
 
@@ -117,8 +120,8 @@ function buildMenuItems(t: (key: string) => string) {
       type: 'group' as const,
       label: t('menu.groupMonitoring'),
       children: [
-        { key: '/', icon: <DashboardOutlined />, label: t('menu.dashboard') },
-        { key: '/hosts', icon: <CloudServerOutlined />, label: t('menu.hosts') },
+        { key: '/dashboard', icon: <DashboardOutlined />, label: <span data-tour="dashboard">{t('menu.dashboard')}</span> },
+        { key: '/hosts', icon: <CloudServerOutlined />, label: <span data-tour="hosts">{t('menu.hosts')}</span> },
         { key: '/services', icon: <ApiOutlined />, label: t('menu.services') },
         { key: '/topology', icon: <DeploymentUnitOutlined />, label: t('menu.topologyService') },
         { key: '/topology/servers', icon: <ClusterOutlined />, label: t('menu.topologyServers') },
@@ -131,7 +134,7 @@ function buildMenuItems(t: (key: string) => string) {
       type: 'group' as const,
       label: t('menu.groupAlerts'),
       children: [
-        { key: '/alerts', icon: <AlertOutlined />, label: t('menu.alerts') },
+        { key: '/alerts', icon: <AlertOutlined />, label: <span data-tour="alerts">{t('menu.alerts')}</span> },
         { key: '/alert-escalation', icon: <RiseOutlined />, label: t('menu.alertEscalation') },
         { key: '/on-call', icon: <ScheduleOutlined />, label: t('menu.onCall') },
         { key: '/sla', icon: <SafetyCertificateOutlined />, label: t('menu.sla') },
@@ -141,9 +144,10 @@ function buildMenuItems(t: (key: string) => string) {
       type: 'group' as const,
       label: t('menu.groupAnalysis'),
       children: [
-        { key: '/ops', icon: <RobotOutlined />, label: 'AI 运维助手' },
+        { key: '/ops', icon: <RobotOutlined />, label: <span data-tour="ai-analysis">AI 运维助手</span> },
         { key: '/ai-operation-logs', icon: <AuditOutlined />, label: t('menu.aiOperationLogs') },
-        { key: '/remediations', icon: <ThunderboltOutlined />, label: t('menu.remediation') },
+        { key: '/remediations', icon: <ThunderboltOutlined />, label: <span data-tour="remediation">{t('menu.remediation')}</span> },
+        { key: '/runbooks', icon: <BookOutlined />, label: t('menu.runbooks') },
         { key: '/reports', icon: <FileSearchOutlined />, label: t('menu.reports') },
       ],
     },
@@ -183,6 +187,7 @@ export default function AppLayout() {
   const { t, i18n } = useTranslation();
   const { isMobile } = useResponsive();
   const isOpsPage = location.pathname === '/ops';
+  const { tourOpen, closeTour, restartTour } = useTourControl();
 
   /** 动态生成菜单 */
   const allMenuItems = buildMenuItems(t);
@@ -302,7 +307,7 @@ export default function AppLayout() {
     // 按 key 长度倒序排列，确保最长匹配优先（/topology/servers 优先于 /topology）
     allKeys.sort((a, b) => b.length - a.length);
     const matched = allKeys.find(k => path.startsWith(k));
-    return matched || '/';
+    return matched || '/dashboard';
   };
   const selectedKey = findSelectedKey();
   const openKey = allFlatItems.find(
@@ -325,11 +330,11 @@ export default function AppLayout() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: inDrawer ? 'inherit' : '#fff',
+        color: inDrawer ? (isDark ? '#fff' : 'inherit') : '#fff',
         fontSize: (inDrawer || !collapsed) ? 20 : 16,
         fontWeight: 'bold',
         letterSpacing: 2,
-        borderBottom: inDrawer ? '1px solid #f0f0f0' : undefined,
+        borderBottom: inDrawer ? `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#f0f0f0'}` : undefined,
       }}>
         <svg width={collapsed && !inDrawer ? 28 : 24} height={collapsed && !inDrawer ? 28 : 24} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: (inDrawer || !collapsed) ? 8 : 0, flexShrink: 0 }}>
           <rect width="40" height="40" rx="8" fill="#1677ff"/>
@@ -339,7 +344,7 @@ export default function AppLayout() {
         {(inDrawer || !collapsed) ? 'VigilOps' : ''}
       </div>
       <Menu
-        theme={inDrawer ? 'light' : 'dark'}
+        theme={inDrawer ? (isDark ? 'dark' : 'light') : 'dark'}
         mode="inline"
         selectedKeys={[selectedKey]}
         openKeys={menuOpenKeys}
@@ -373,8 +378,9 @@ export default function AppLayout() {
           closable={false}
           onClose={() => setDrawerVisible(false)}
           open={drawerVisible}
-          bodyStyle={{ padding: 0 }}
+          bodyStyle={{ padding: 0, background: isDark ? '#141414' : undefined }}
           width={280}
+          styles={{ header: { background: isDark ? '#141414' : undefined }, body: { background: isDark ? '#141414' : undefined } }}
         >
           {renderMenuContent(true)}
         </Drawer>
@@ -466,6 +472,8 @@ export default function AppLayout() {
             />
             <Dropdown menu={{
               items: [
+                { key: 'restart-tour', icon: <QuestionCircleOutlined />, label: t('header.restartTour'), onClick: restartTour },
+                { type: 'divider' as const },
                 { key: 'logout', icon: <LogoutOutlined />, label: t('header.logout'), onClick: handleLogout },
               ],
             }}>
@@ -504,6 +512,8 @@ export default function AppLayout() {
       {/* 新手引导（首次登录时弹出） */}
       <QuickStartGuide />
       {messageContextHolder}
+      {/* 步骤式引导 Tour */}
+      <GuidedTour open={tourOpen} onClose={closeTour} />
     </Layout>
   );
 }

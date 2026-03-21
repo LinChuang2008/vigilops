@@ -101,12 +101,101 @@ from sqlalchemy.ext.compiler import compiles
 def compile_big_int_sqlite(type_, compiler, **kw):
     return "INTEGER"
 
+# SQLite 不支持 JSONB 类型，编译时替换为 JSON
+from sqlalchemy.dialects.postgresql import JSONB
+@compiles(JSONB, "sqlite")
+def compile_jsonb_sqlite(type_, compiler, **kw):
+    return "JSON"
+
 
 # ── Mock Redis ────────────────────────────────────────────────────────
+class FakePipeline:
+    """FakeRedis 的 pipeline 模拟，支持链式调用并在 execute() 时返回结果列表。"""
+
+    def __init__(self, store: dict):
+        self._store = store
+        self._commands: list = []
+
+    def get(self, key: str) -> "FakePipeline":
+        self._commands.append(("get", key))
+        return self
+
+    def set(self, key: str, value: str, ex: int | None = None, **kwargs) -> "FakePipeline":
+        self._commands.append(("set", key, value))
+        return self
+
+    def incr(self, key: str) -> "FakePipeline":
+        self._commands.append(("incr", key))
+        return self
+
+    def expire(self, key: str, time: int) -> "FakePipeline":
+        self._commands.append(("expire", key, time))
+        return self
+
+    def delete(self, *keys: str) -> "FakePipeline":
+        self._commands.append(("delete", *keys))
+        return self
+
+    def zadd(self, key: str, mapping: dict) -> "FakePipeline":
+        self._commands.append(("zadd", key, mapping))
+        return self
+
+    def zremrangebyscore(self, key: str, min_score, max_score) -> "FakePipeline":
+        self._commands.append(("zremrangebyscore", key, min_score, max_score))
+        return self
+
+    def zcard(self, key: str) -> "FakePipeline":
+        self._commands.append(("zcard", key))
+        return self
+
+    async def execute(self) -> list:
+        results = []
+        for cmd in self._commands:
+            op = cmd[0]
+            if op == "get":
+                results.append(self._store.get(cmd[1]))
+            elif op == "set":
+                self._store[cmd[1]] = cmd[2]
+                results.append(True)
+            elif op == "incr":
+                val = int(self._store.get(cmd[1], "0")) + 1
+                self._store[cmd[1]] = str(val)
+                results.append(val)
+            elif op == "expire":
+                results.append(True)
+            elif op == "delete":
+                for k in cmd[1:]:
+                    self._store.pop(k, None)
+                results.append(len(cmd) - 1)
+            elif op == "zadd":
+                key, mapping = cmd[1], cmd[2]
+                zset = self._store.setdefault(f"__zset__{key}", {})
+                for member, score in mapping.items():
+                    zset[member] = score
+                results.append(len(mapping))
+            elif op == "zremrangebyscore":
+                key, min_s, max_s = cmd[1], cmd[2], cmd[3]
+                zset = self._store.get(f"__zset__{key}", {})
+                to_remove = [m for m, s in zset.items() if min_s <= s <= max_s]
+                for m in to_remove:
+                    del zset[m]
+                results.append(len(to_remove))
+            elif op == "zcard":
+                zset = self._store.get(f"__zset__{cmd[1]}", {})
+                results.append(len(zset))
+            else:
+                results.append(None)
+        self._commands.clear()
+        return results
+
+
 class FakeRedis:
-    """内存级 Redis 模拟，支持基本 get/set/delete 操作。"""
+    """内存级 Redis 模拟，支持基本 get/set/delete/pipeline/sorted-set 操作。"""
     def __init__(self):
         self._store: dict[str, str] = {}
+
+    def pipeline(self) -> FakePipeline:
+        return FakePipeline(self._store)
 
     async def get(self, key: str) -> str | None:
         return self._store.get(key)
@@ -142,6 +231,23 @@ class FakeRedis:
     async def close(self) -> None:
         pass
 
+    async def zadd(self, key: str, mapping: dict) -> int:
+        zset = self._store.setdefault(f"__zset__{key}", {})
+        for member, score in mapping.items():
+            zset[member] = score
+        return len(mapping)
+
+    async def zremrangebyscore(self, key: str, min_score, max_score) -> int:
+        zset = self._store.get(f"__zset__{key}", {})
+        to_remove = [m for m, s in zset.items() if min_score <= s <= max_score]
+        for m in to_remove:
+            del zset[m]
+        return len(to_remove)
+
+    async def zcard(self, key: str) -> int:
+        zset = self._store.get(f"__zset__{key}", {})
+        return len(zset)
+
 
 fake_redis = FakeRedis()
 
@@ -158,7 +264,8 @@ def event_loop():
 
 @pytest_asyncio.fixture(autouse=True)
 async def setup_db():
-    """每个测试前创建所有表，测试后清空。"""
+    """每个测试前创建所有表，测试后清空。同时重置 FakeRedis 存储。"""
+    fake_redis._store.clear()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield

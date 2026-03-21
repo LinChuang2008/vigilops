@@ -102,7 +102,11 @@ async def register(data: UserRegister, request: Request, response: Response, db:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
     # 第一个用户自动设为管理员，后续用户默认为 operator（可访问所有功能页面，不含用户管理）
-    count_result = await db.execute(select(func.count()).select_from(User))
+    # 使用 with_for_update() 加行级锁防止并发注册的竞态条件
+    # Use with_for_update() row-level lock to prevent race condition on concurrent registration
+    count_result = await db.execute(
+        select(func.count()).select_from(User).with_for_update()
+    )
     user_count = count_result.scalar()
     role = "admin" if user_count == 0 else "operator"
 
@@ -233,19 +237,48 @@ async def refresh(request: Request, response: Response, data: TokenRefresh | Non
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
+    request: Request,
     response: Response,
     current_user: User = Depends(get_current_user),
 ):
     """
     登出接口 (Logout)
-    
-    清除 httpOnly cookie，使客户端 cookie 中的 JWT 失效。
-    P0-2 骨架：前端调用此接口登出，同时前端负责清理 localStorage。
 
-    Note：服务端无状态 JWT 无法真正撤销，建议后续引入 Redis 黑名单实现真正撤销。
-    TODO P0-2 完整实现：在 Redis 维护 token 黑名单（jti claim）。
+    清除 httpOnly cookie 并将当前 token 加入 Redis 黑名单，使其在服务端真正失效。
     """
     await clear_active_session(current_user.id)
+
+    from app.core.redis import blacklist_token
+
+    # 尝试从 header 或 cookie 获取 token 并加入黑名单
+    token_str = None
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.startswith("Bearer "):
+        token_str = auth_header[7:]
+    else:
+        token_str = request.cookies.get(_COOKIE_ACCESS)
+
+    if token_str:
+        payload = decode_token(token_str)
+        if payload and payload.get("jti"):
+            # TTL = token 剩余有效期（秒），最多不超过 access token 有效期
+            import time
+            exp = payload.get("exp", 0)
+            ttl = max(int(exp - time.time()), 0)
+            if ttl > 0:
+                await blacklist_token(payload["jti"], ttl)
+
+    # 同时也尝试黑名单 refresh token
+    refresh_str = request.cookies.get(_COOKIE_REFRESH)
+    if refresh_str:
+        payload = decode_token(refresh_str)
+        if payload and payload.get("jti"):
+            import time
+            exp = payload.get("exp", 0)
+            ttl = max(int(exp - time.time()), 0)
+            if ttl > 0:
+                await blacklist_token(payload["jti"], ttl)
+
     response.delete_cookie(key=_COOKIE_ACCESS, path="/")
     response.delete_cookie(key=_COOKIE_REFRESH, path="/api/v1/auth/refresh")
 

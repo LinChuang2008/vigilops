@@ -8,6 +8,7 @@ Provides security functions for the VigilOps platform, including password hashin
 and JWT token generation/parsing. Uses industry-standard bcrypt algorithm for password
 encryption and JWT for user authentication and session management.
 """
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -17,7 +18,7 @@ from app.core.config import settings
 
 # 密码哈希上下文，使用 bcrypt 算法 (Password Hash Context using bcrypt algorithm)
 # bcrypt 是密码学安全的慢哈希算法，能有效抵御彩虹表和暴力破解攻击
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=14)
 
 
 def hash_password(password: str) -> str:
@@ -76,7 +77,7 @@ def create_access_token(subject: str, session_id: str | None = None) -> str:
         str: JWT 访问令牌字符串 (JWT access token string)
     """
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_access_token_expire_minutes)
-    payload = {"sub": subject, "exp": expire, "type": "access"}
+    payload = {"sub": subject, "exp": expire, "type": "access", "jti": uuid.uuid4().hex}
     if session_id:
         payload["sid"] = session_id
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
@@ -100,7 +101,7 @@ def create_refresh_token(subject: str, session_id: str | None = None) -> str:
         str: JWT 刷新令牌字符串 (JWT refresh token string)
     """
     expire = datetime.now(timezone.utc) + timedelta(days=settings.jwt_refresh_token_expire_days)
-    payload = {"sub": subject, "exp": expire, "type": "refresh"}
+    payload = {"sub": subject, "exp": expire, "type": "refresh", "jti": uuid.uuid4().hex}
     if session_id:
         payload["sid"] = session_id
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)

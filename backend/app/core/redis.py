@@ -25,3 +25,18 @@ async def close_redis() -> None:
     if redis_client is not None:
         await redis_client.close()
         redis_client = None
+
+
+_TOKEN_BLACKLIST_PREFIX = "token:blacklist:"
+
+
+async def blacklist_token(jti: str, ttl_seconds: int) -> None:
+    """将 token 的 jti 加入黑名单，TTL 与 token 剩余有效期一致。"""
+    r = await get_redis()
+    await r.setex(f"{_TOKEN_BLACKLIST_PREFIX}{jti}", ttl_seconds, "1")
+
+
+async def is_token_blacklisted(jti: str) -> bool:
+    """检查 token 的 jti 是否在黑名单中。"""
+    r = await get_redis()
+    return await r.exists(f"{_TOKEN_BLACKLIST_PREFIX}{jti}") > 0

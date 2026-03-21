@@ -1,13 +1,36 @@
+/* 语义色 - 亮暗共享 */
 :root {
   --color-danger: #ff4d4f;
   --color-warning: #faad14;
   --color-success: #52c41a;
   --color-info: #1677ff;
   --color-ai: #36cfc9;
-  --color-text-secondary: rgba(255,255,255,0.45);
-  --color-text-muted: rgba(255,255,255,0.3);
+}
+
+/* 暗色主题 */
+[data-theme='dark'] {
+  --color-text-primary: rgba(255, 255, 255, 0.85);
+  --color-text-secondary: rgba(255, 255, 255, 0.45);
+  --color-text-muted: rgba(255, 255, 255, 0.3);
   --color-bg-base: #141414;
   --color-bg-card: #1f1f1f;
   --color-bg-hover: #2a2a2a;
-  --color-border: rgba(255,255,255,0.12);
+  --color-bg-elevated: #262626;
+  --color-border: rgba(255, 255, 255, 0.12);
+  --color-border-secondary: rgba(255, 255, 255, 0.06);
+  --color-shadow: rgba(0, 0, 0, 0.45);
+}
+
+/* 亮色主题 */
+[data-theme='light'] {
+  --color-text-primary: rgba(0, 0, 0, 0.88);
+  --color-text-secondary: rgba(0, 0, 0, 0.45);
+  --color-text-muted: rgba(0, 0, 0, 0.25);
+  --color-bg-base: #ffffff;
+  --color-bg-card: #ffffff;
+  --color-bg-hover: #f5f5f5;
+  --color-bg-elevated: #fafafa;
+  --color-border: rgba(0, 0, 0, 0.06);
+  --color-border-secondary: rgba(0, 0, 0, 0.04);
+  --color-shadow: rgba(0, 0, 0, 0.08);
 }

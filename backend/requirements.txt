@@ -16,3 +16,4 @@ psycopg2-binary==2.9.10
 fastmcp>=3.0.0
 build>=0.10.0
 toml>=0.10.0
+asyncssh>=2.14.0

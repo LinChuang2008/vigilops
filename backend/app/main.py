@@ -32,9 +32,11 @@ from app.core.exceptions import register_exception_handlers
 from app.core.database import engine, Base
 from app.core.redis import get_redis, close_redis
 # 导入 models 包，确保最新模型全部注册到 Base.metadata。
-# 新部署环境将由 create_all 直接按“当前最新模型”建表；
+# 新部署环境将由 create_all 直接按”当前最新模型”建表；
 # 已部署旧版本环境仍建议通过 Alembic 做增量迁移。
 import app.models  # noqa: F401
+from app.models.alert_group import AlertGroup, AlertDeduplication  # noqa: F401
+from app.models.custom_runbook import CustomRunbook  # noqa: F401
 # 导入所有路由模块 (Import all router modules)
 from app.routers import auth
 from app.routers import agent_tokens
@@ -71,6 +73,8 @@ from app.routers import ops
 from app.routers import menu_settings
 from app.routers import ai_operation_logs
 from app.routers import ai_analysis
+from app.routers import custom_runbooks
+from app.routers import promql
 from app.api.v1 import data_retention
 from app.api.v1 import alert_deduplication
 
@@ -198,7 +202,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="VigilOps",
     description="AI-powered infrastructure monitoring platform | AI 驱动的基础设施监控平台",
-    version="0.9.1",
+    version="2026.03.14-beta.1",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -233,7 +237,10 @@ import os
 _env = os.getenv("ENVIRONMENT", "production").lower()
 is_development = _env == "development"
 if is_development:
-    allowed_origins = ["*"]
+    allowed_origins = [
+        "http://localhost:3000", "http://localhost:3001",
+        "http://127.0.0.1:3000", "http://127.0.0.1:3001",
+    ]
 else:
     _frontend_url = os.getenv("FRONTEND_URL", "").strip()
     allowed_origins = [
@@ -251,7 +258,7 @@ app.add_middleware(
     allow_origins=allowed_origins,  # 生产环境限制具体域名 (Restrict specific domains in production)
     allow_credentials=True,  # 允许携带认证信息 (Allow credentials)
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],  # 明确允许的方法 (Explicitly allowed methods)
-    allow_headers=["*"],  # 允许所有请求头 (Allow all headers)
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],  # 明确允许的请求头 (Explicitly allowed headers)
     expose_headers=["X-Total-Count", "X-Rate-Limit-*"],  # 暴露的响应头 (Exposed response headers)
 )
 
@@ -295,6 +302,8 @@ app.include_router(ops.router)  # AI 运维助手 (AI Ops Assistant)
 app.include_router(menu_settings.router)  # 菜单可见性配置 (Menu visibility settings)
 app.include_router(ai_operation_logs.router)  # AI 操作日志 (AI operation logs)
 app.include_router(ai_analysis.router)  # AI 分析 (AI analysis: insights, root-cause, logs)
+app.include_router(custom_runbooks.router)  # 自定义 Runbook 管理 (Custom Runbook Management)
+app.include_router(promql.router)  # PromQL 查询 (PromQL Query Engine)
 
 
 @app.get("/health")

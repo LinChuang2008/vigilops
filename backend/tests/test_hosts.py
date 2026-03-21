@@ -46,7 +46,7 @@ class TestListHosts:
 
     async def test_list_hosts_no_auth(self, client: AsyncClient):
         resp = await client.get("/api/v1/hosts")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
 
 class TestGetHost:

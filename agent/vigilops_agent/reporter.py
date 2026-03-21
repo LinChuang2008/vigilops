@@ -39,6 +39,7 @@ class AgentReporter:
         self.host_id: Optional[int] = None
         self._client: Optional[httpx.AsyncClient] = None
         self._service_ids: Dict[str, int] = {}  # 服务名 -> 服务端分配的 service_id
+        self._manual_service_names: set = set()  # 手动配置的服务名（不参与自动移除检测）
         # WebSocket 相关字段
         self._ws: Optional[websocket.WebSocket] = None
         self._ws_thread: Optional[threading.Thread] = None
@@ -379,7 +380,7 @@ class AgentReporter:
 
         返回格式：
         {
-            "private_ip": "10.0.1.123",      # 主要内网 IP
+            "private_ip": "10.0.1.123",      # 主要内网 IP（路由可达）
             "public_ip": "54.255.123.45",     # 公网 IP（如果可检测）
             "all_private": ["10.0.1.123"],    # 所有内网 IP
             "all_public": ["54.255.123.45"],  # 所有公网 IP
@@ -389,7 +390,6 @@ class AgentReporter:
         }
         """
         import socket
-        import platform
 
         result = {
             "private_ip": None,
@@ -399,11 +399,80 @@ class AgentReporter:
             "interfaces": {},
         }
 
-        # 1. 尝试通过外部服务获取公网 IP
+        # 1. 通过 socket 连接到服务端确定本机实际通信 IP（最可靠）
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(self.config.server.url)
+            host = parsed.hostname or "10.211.55.2"
+            port = parsed.port or 80
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.connect((host, port))
+                ip = s.getsockname()[0]
+            if ip and self._is_valid_ip(ip):
+                ip_type = self._classify_ip(ip)
+                result["private_ip"] = ip
+                result["all_private"].append(ip)
+                result["interfaces"]["default"] = {"ipv4": ip, "type": ip_type}
+        except Exception:
+            pass
+
+        # 2. 获取本地所有网络接口信息（补充，不覆盖 private_ip）
+        # 优先使用 psutil.net_if_addrs()（跨平台），如不可用则回退到 netifaces
+        # Prefer psutil.net_if_addrs() (cross-platform); fall back to netifaces if unavailable
+        interfaces_found = False
+        try:
+            import psutil as _psutil
+            import socket as _socket
+            for iface_name, addrs in _psutil.net_if_addrs().items():
+                for addr in addrs:
+                    if addr.family == _socket.AF_INET:
+                        ip = addr.address
+                        if ip and self._is_valid_ip(ip):
+                            ip_type = self._classify_ip(ip)
+                            result["interfaces"][iface_name] = {
+                                "ipv4": ip,
+                                "type": ip_type
+                            }
+                            if ip_type == "private":
+                                if ip not in result["all_private"]:
+                                    result["all_private"].append(ip)
+                            elif ip_type == "public":
+                                if ip not in result["all_public"]:
+                                    result["all_public"].append(ip)
+            interfaces_found = True
+        except Exception:
+            pass
+
+        # 如果 psutil 方式失败，回退到 netifaces（主要用于旧环境兼容）
+        # Fall back to netifaces if psutil approach fails (for legacy environment compatibility)
+        if not interfaces_found:
+            try:
+                import netifaces
+                for interface in netifaces.interfaces():
+                    addrs = netifaces.ifaddresses(interface)
+                    if netifaces.AF_INET in addrs:
+                        for addr_info in addrs[netifaces.AF_INET]:
+                            ip = addr_info.get('addr')
+                            if ip and self._is_valid_ip(ip):
+                                ip_type = self._classify_ip(ip)
+                                result["interfaces"][interface] = {
+                                    "ipv4": ip,
+                                    "type": ip_type
+                                }
+                                if ip_type == "private":
+                                    if ip not in result["all_private"]:
+                                        result["all_private"].append(ip)
+                                elif ip_type == "public":
+                                    if ip not in result["all_public"]:
+                                        result["all_public"].append(ip)
+            except ImportError:
+                pass
+
+        # 3. 尝试通过外部服务获取公网 IP
         for url in [
             "https://api.ipify.org",
             "https://ifconfig.me/ip",
-            "http://checkip.amazonaws.com",
+            "https://checkip.amazonaws.com",
         ]:
             try:
                 import urllib.request
@@ -411,56 +480,11 @@ class AgentReporter:
                     ip = resp.read().decode().strip()
                     if ip and self._is_valid_public_ip(ip):
                         result["public_ip"] = ip
-                        result["all_public"].append(ip)
+                        if ip not in result["all_public"]:
+                            result["all_public"].append(ip)
                         break
             except Exception:
                 continue
-
-        # 2. 获取本地网络接口信息
-        try:
-            # 尝试使用 netifaces 获取详细信息
-            import netifaces
-            for interface in netifaces.interfaces():
-                addrs = netifaces.ifaddresses(interface)
-                if netifaces.AF_INET in addrs:
-                    for addr_info in addrs[netifaces.AF_INET]:
-                        ip = addr_info.get('addr')
-                        if ip and self._is_valid_ip(ip):
-                            ip_type = self._classify_ip(ip)
-                            result["interfaces"][interface] = {
-                                "ipv4": ip,
-                                "type": ip_type
-                            }
-                            if ip_type == "private":
-                                if not result["private_ip"]:
-                                    result["private_ip"] = ip
-                                if ip not in result["all_private"]:
-                                    result["all_private"].append(ip)
-                            elif ip_type == "public":
-                                if ip not in result["all_public"]:
-                                    result["all_public"].append(ip)
-        except ImportError:
-            # netifaces 不可用，使用备用方法
-            pass
-
-        # 3. 备用方法：通过 socket 获取主要 IP
-        if not result["private_ip"]:
-            try:
-                from urllib.parse import urlparse
-                parsed = urlparse(self.config.server.url)
-                host = parsed.hostname or "10.211.55.2"
-                port = parsed.port or 80
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.connect((host, port))
-                ip = s.getsockname()[0]
-                s.close()
-                if ip and self._is_valid_ip(ip):
-                    ip_type = self._classify_ip(ip)
-                    result["private_ip"] = ip
-                    result["all_private"].append(ip)
-                    result["interfaces"]["default"] = {"ipv4": ip, "type": ip_type}
-            except Exception:
-                pass
 
         return result
 
@@ -718,6 +742,117 @@ class AgentReporter:
                 logger.warning(f"Heartbeat failed: {e}")
             await asyncio.sleep(60)
 
+    async def _discovery_loop(self):
+        """周期性服务重新发现循环，每 60 秒扫描新增/移除的服务。"""
+        while True:
+            await asyncio.sleep(60)
+            try:
+                newly_discovered = []
+
+                if self.config.discovery.docker:
+                    from vigilops_agent.discovery import discover_docker_services, discover_stopped_docker_services
+                    discovered = discover_docker_services(interval=self.config.discovery.interval)
+                    newly_discovered.extend(discovered)
+
+                    # 检测已停止的容器，注册并标记为 down
+                    stopped = discover_stopped_docker_services(interval=self.config.discovery.interval)
+                    running_names = {s.name for s in discovered}
+                    stopped_new = [s for s in stopped if s.name not in running_names]
+
+                if self.config.discovery.host_services:
+                    from vigilops_agent.discovery import discover_host_services
+                    host_discovered = discover_host_services(interval=self.config.discovery.interval)
+                    newly_discovered.extend(host_discovered)
+
+                # 找出尚未注册的新服务（运行中）
+                known_names = {s.name for s in self.config.services}
+                new_services = [s for s in newly_discovered if s.name not in known_names]
+
+                if new_services:
+                    logger.info(f"Re-discovery found {len(new_services)} new service(s)")
+                    for svc in new_services:
+                        self.config.services.append(svc)
+
+                    # 注册新服务并启动健康检查
+                    client = await self._get_client()
+                    for svc in new_services:
+                        try:
+                            payload = {
+                                "name": svc.name,
+                                "type": svc.type,
+                                "target": svc.url or f"{svc.host}:{svc.port}",
+                                "host_id": self.host_id,
+                                "check_interval": svc.interval,
+                                "timeout": svc.timeout,
+                            }
+                            resp = await client.post("/api/v1/agent/services/register", json=payload)
+                            resp.raise_for_status()
+                            data = resp.json()
+                            self._service_ids[svc.name] = data["service_id"]
+                            logger.info(f"New service registered: {svc.name} -> id={data['service_id']}")
+                            asyncio.create_task(self._service_check_loop(svc))
+                        except Exception as e:
+                            logger.warning(f"Failed to register new service {svc.name}: {e}")
+
+                # 注册已停止容器的服务并上报 down
+                if self.config.discovery.docker and stopped_new:
+                    client = await self._get_client()
+                    for svc in stopped_new:
+                        if svc.name in known_names or svc.name in self._service_ids:
+                            continue
+                        try:
+                            payload = {
+                                "name": svc.name,
+                                "type": svc.type,
+                                "target": svc.url or f"{svc.host}:{svc.port}",
+                                "host_id": self.host_id,
+                                "check_interval": svc.interval,
+                                "timeout": svc.timeout,
+                            }
+                            resp = await client.post("/api/v1/agent/services/register", json=payload)
+                            resp.raise_for_status()
+                            data = resp.json()
+                            self._service_ids[svc.name] = data["service_id"]
+                            self.config.services.append(svc)
+                            logger.info(f"Stopped container service registered: {svc.name} -> id={data['service_id']}")
+                            # 立即上报 down 状态
+                            down_payload = {
+                                "service_id": data["service_id"],
+                                "status": "down",
+                                "response_time_ms": 0,
+                                "status_code": None,
+                                "error": "Docker container is stopped",
+                                "checked_at": datetime.now(timezone.utc).isoformat(),
+                            }
+                            await client.post("/api/v1/agent/services", json=down_payload)
+                            logger.warning(f"Service {svc.name} reported as DOWN (container stopped)")
+                        except Exception as e:
+                            logger.warning(f"Failed to register stopped service {svc.name}: {e}")
+
+                # 检测已消失的服务（运行中→消失）
+                current_names = {s.name for s in newly_discovered}
+                for svc in list(self.config.services):
+                    if svc.name in self._manual_service_names:
+                        continue
+                    if svc.name not in current_names and svc.name in self._service_ids:
+                        logger.warning(f"Service disappeared: {svc.name}")
+                        try:
+                            client = await self._get_client()
+                            payload = {
+                                "service_id": self._service_ids[svc.name],
+                                "status": "down",
+                                "response_time_ms": 0,
+                                "status_code": None,
+                                "error": "Service no longer detected by auto-discovery",
+                                "checked_at": datetime.now(timezone.utc).isoformat(),
+                            }
+                            await client.post("/api/v1/agent/services", json=payload)
+                        except Exception as e:
+                            logger.warning(f"Failed to report disappeared service {svc.name}: {e}")
+
+            except Exception as e:
+                logger.warning(f"Service re-discovery failed: {e}")
+
     async def _metrics_loop(self):
         """系统指标采集循环，按配置间隔周期执行。"""
         interval = self.config.metrics.interval
@@ -741,6 +876,9 @@ class AgentReporter:
                 await asyncio.sleep(wait)
         else:
             raise RuntimeError("Failed to register after 10 attempts")
+
+        # 记录手动配置的服务名（不参与自动移除检测）
+        self._manual_service_names = {s.name for s in self.config.services}
 
         # 连接 WebSocket 用于接收更新通知（在后台线程中，不阻塞async事件循环）
         ws_thread = threading.Thread(target=self._connect_websocket, daemon=True, name="WebSocketListener")
@@ -771,6 +909,18 @@ class AgentReporter:
                 logger.info(f"Auto-discovered {len(host_discovered)} host services, "
                             f"total after merge: {len(self.config.services)}")
 
+        # Docker 数据库自动发现，与手动配置合并（去重）
+        if self.config.discovery.docker:
+            from vigilops_agent.discovery import discover_docker_databases
+            db_discovered = discover_docker_databases()
+            manual_db_names = {db.name for db in self.config.databases}
+            for db in db_discovered:
+                if db.name not in manual_db_names:
+                    self.config.databases.append(db)
+            if db_discovered:
+                logger.info(f"Auto-discovered {len(db_discovered)} Docker database(s), "
+                            f"total after merge: {len(self.config.databases)}")
+
         # 注册所有服务到服务端
         if self.config.services:
             await self.register_services()
@@ -791,6 +941,7 @@ class AgentReporter:
         tasks = [
             asyncio.create_task(self._heartbeat_loop()),
             asyncio.create_task(self._metrics_loop()),
+            asyncio.create_task(self._discovery_loop()),
         ]
 
         # 启动周期性服务重新发现（动态感知新服务）

@@ -2,6 +2,7 @@
  * 24小时趋势图组件
  * 带图表标题、副标题及阈值 markLine
  */
+import { memo } from 'react';
 import { Row, Col, Card } from 'antd';
 import { useTranslation } from 'react-i18next';
 import ReactECharts from '../ThemedECharts';
@@ -18,7 +19,7 @@ interface TrendChartsProps {
   trends: TrendPoint[];
 }
 
-export default function TrendCharts({ trends }: TrendChartsProps) {
+export default memo(function TrendCharts({ trends }: TrendChartsProps) {
   const { t } = useTranslation();
 
   if (trends.length === 0) {
@@ -159,4 +160,4 @@ export default function TrendCharts({ trends }: TrendChartsProps) {
       </Col>
     </Row>
   );
-}
+})

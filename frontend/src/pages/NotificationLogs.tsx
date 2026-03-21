@@ -36,6 +36,7 @@ import {
   ClockCircleOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { useTranslation } from 'react-i18next';
 import { notificationService } from '../services/alerts';
 import type { NotificationLog } from '../services/alerts';
 import { EmptyState, ErrorState } from '../components/StateComponents';
@@ -44,11 +45,11 @@ import PageHeader from '../components/PageHeader';
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
-// 通知状态映射
+// 通知状态映射（text 使用 i18n key）
 const STATUS_CONFIG = {
-  sent: { color: 'success', icon: <CheckCircleOutlined />, text: '成功' },
-  failed: { color: 'error', icon: <ExclamationCircleOutlined />, text: '失败' },
-  pending: { color: 'processing', icon: <ClockCircleOutlined />, text: '发送中' },
+  sent: { color: 'success', icon: <CheckCircleOutlined />, textKey: 'notifications.statusSent' },
+  failed: { color: 'error', icon: <ExclamationCircleOutlined />, textKey: 'notifications.statusFailed' },
+  pending: { color: 'processing', icon: <ClockCircleOutlined />, textKey: 'notifications.statusPending' },
 };
 
 // 统计信息接口
@@ -68,6 +69,7 @@ interface NotificationStats {
 }
 
 export default function NotificationLogs() {
+  const { t } = useTranslation();
   const [logs, setLogs] = useState<NotificationLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<unknown>(null);
@@ -146,13 +148,13 @@ export default function NotificationLogs() {
       }).then(res => res.json());
       
       if (response.success) {
-        message.success('重试成功');
-        fetchLogs(); // 刷新列表
+        message.success(t('notifications.retrySuccess'));
+        fetchLogs();
       } else {
-        message.error(`重试失败: ${response.message}`);
+        message.error(t('notifications.retryFailed', { message: response.message }));
       }
     } catch (error) {
-      message.error('重试请求失败');
+      message.error(t('notifications.retryRequestFailed'));
       console.error('Retry failed:', error);
     }
   };
@@ -218,27 +220,27 @@ export default function NotificationLogs() {
   // 表格列配置
   const columns = [
     {
-      title: '发送时间',
+      title: t('notifications.sentAt'),
       dataIndex: 'sent_at',
       key: 'sent_at',
       width: 180,
       render: (time: string) => time ? dayjs(time).format('YYYY-MM-DD HH:mm:ss') : '-',
     },
     {
-      title: '告警ID',
+      title: t('notifications.alertId'),
       dataIndex: 'alert_id',
       key: 'alert_id',
       width: 100,
     },
     {
-      title: '通知渠道',
+      title: t('notifications.notificationChannel'),
       dataIndex: 'channel_id',
       key: 'channel_id',
       width: 120,
       render: (channelId: number) => {
         const channel = channels.find(c => c.id === channelId);
         return channel ? (
-          <Tooltip title={`类型: ${channel.type}`}>
+          <Tooltip title={`${t('common.type')}: ${channel.type}`}>
             <Tag color={channel.is_enabled ? 'green' : 'gray'}>
               {channel.name}
             </Tag>
@@ -247,7 +249,7 @@ export default function NotificationLogs() {
       },
     },
     {
-      title: '状态',
+      title: t('common.status'),
       dataIndex: 'status',
       key: 'status',
       width: 100,
@@ -255,13 +257,13 @@ export default function NotificationLogs() {
         const config = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
         return (
           <Tag color={config.color} icon={config.icon}>
-            {config.text}
+            {t(config.textKey)}
           </Tag>
         );
       },
     },
     {
-      title: '响应码',
+      title: t('notifications.responseCode'),
       dataIndex: 'response_code',
       key: 'response_code',
       width: 100,
@@ -272,7 +274,7 @@ export default function NotificationLogs() {
       },
     },
     {
-      title: '重试次数',
+      title: t('notifications.retries'),
       dataIndex: 'retries',
       key: 'retries',
       width: 100,
@@ -283,7 +285,7 @@ export default function NotificationLogs() {
       ),
     },
     {
-      title: '错误信息',
+      title: t('notifications.errorInfo'),
       dataIndex: 'error',
       key: 'error',
       ellipsis: { showTitle: false },
@@ -294,12 +296,12 @@ export default function NotificationLogs() {
       ) : '-',
     },
     {
-      title: '操作',
+      title: t('common.actions'),
       key: 'action',
       width: 150,
       render: (_: unknown, record: NotificationLog) => (
         <Space size="small">
-          <Tooltip title="查看详情">
+          <Tooltip title={t('notifications.viewDetail')}>
             <Button
               type="link"
               icon={<EyeOutlined />}
@@ -308,7 +310,7 @@ export default function NotificationLogs() {
             />
           </Tooltip>
           {record.status === 'failed' && record.retries < 3 && (
-            <Tooltip title="重试发送">
+            <Tooltip title={t('notifications.retrySend')}>
               <Button
                 type="link"
                 icon={<RestOutlined />}
@@ -324,7 +326,7 @@ export default function NotificationLogs() {
 
   return (
     <div style={{ padding: '20px' }}>
-      <PageHeader title="通知日志管理" />
+      <PageHeader title={t('notifications.logManagement')} />
 
       {/* 统计卡片 */}
       {stats && (
@@ -332,7 +334,7 @@ export default function NotificationLogs() {
           <Col span={6}>
             <Card>
               <Statistic
-                title="总通知数"
+                title={t('notifications.totalNotifications')}
                 value={stats.total_notifications}
                 prefix={<CheckCircleOutlined />}
               />
@@ -341,7 +343,7 @@ export default function NotificationLogs() {
           <Col span={6}>
             <Card>
               <Statistic
-                title="成功率"
+                title={t('notifications.successRate')}
                 value={stats.success_rate}
                 precision={1}
                 suffix="%"
@@ -352,7 +354,7 @@ export default function NotificationLogs() {
           <Col span={6}>
             <Card>
               <Statistic
-                title="成功发送"
+                title={t('notifications.successCount')}
                 value={stats.success_count}
                 valueStyle={{ color: '#3f8600' }}
               />
@@ -361,7 +363,7 @@ export default function NotificationLogs() {
           <Col span={6}>
             <Card>
               <Statistic
-                title="发送失败"
+                title={t('notifications.failedCount')}
                 value={stats.failed_count}
                 valueStyle={{ color: '#cf1322' }}
               />
@@ -375,14 +377,14 @@ export default function NotificationLogs() {
         <Row gutter={16} align="middle">
           <Col span={4}>
             <Input
-              placeholder="告警ID"
+              placeholder={t('notifications.alertId')}
               value={filters.alert_id}
               onChange={(e) => handleFilterChange('alert_id', e.target.value)}
             />
           </Col>
           <Col span={4}>
             <Select
-              placeholder="通知渠道"
+              placeholder={t('notifications.notificationChannel')}
               value={filters.channel_id}
               onChange={(value) => handleFilterChange('channel_id', value)}
               allowClear
@@ -397,15 +399,15 @@ export default function NotificationLogs() {
           </Col>
           <Col span={3}>
             <Select
-              placeholder="发送状态"
+              placeholder={t('notifications.statusFilter')}
               value={filters.status}
               onChange={(value) => handleFilterChange('status', value)}
               allowClear
               style={{ width: '100%' }}
             >
-              <Option value="sent">成功</Option>
-              <Option value="failed">失败</Option>
-              <Option value="pending">发送中</Option>
+              <Option value="sent">{t('notifications.statusSent')}</Option>
+              <Option value="failed">{t('notifications.statusFailed')}</Option>
+              <Option value="pending">{t('notifications.statusPending')}</Option>
             </Select>
           </Col>
           <Col span={6}>
@@ -413,15 +415,15 @@ export default function NotificationLogs() {
               style={{ width: '100%' }}
               showTime
               onChange={handleDateRangeChange}
-              placeholder={['开始时间', '结束时间']}
+              placeholder={[t('notifications.startTime'), t('notifications.endTime')]}
             />
           </Col>
           <Col span={7}>
             <Space>
               <Button type="primary" icon={<ReloadOutlined />} onClick={refreshData}>
-                刷新
+                {t('common.refresh')}
               </Button>
-              <Button onClick={resetFilters}>重置</Button>
+              <Button onClick={resetFilters}>{t('common.reset')}</Button>
             </Space>
           </Col>
         </Row>
@@ -443,7 +445,7 @@ export default function NotificationLogs() {
               total: pagination.total,
               showSizeChanger: true,
               showQuickJumper: true,
-              showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条/共 ${total} 条`,
+              showTotal: (total, range) => t('notifications.showRange', { start: range[0], end: range[1], total }),
             }}
             size="small"
             scroll={{ x: 1000 }}
@@ -456,7 +458,7 @@ export default function NotificationLogs() {
 
       {/* 详情模态框 */}
       <Modal
-        title="通知详情"
+        title={t('notifications.notificationDetail')}
         open={detailModalVisible}
         onCancel={() => setDetailModalVisible(false)}
         footer={null}
@@ -466,38 +468,38 @@ export default function NotificationLogs() {
           <div>
             <Row gutter={16}>
               <Col span={12}>
-                <strong>告警ID:</strong> {selectedLog.alert_id}
+                <strong>{t('notifications.alertIdLabel')}</strong> {selectedLog.alert_id}
               </Col>
               <Col span={12}>
-                <strong>渠道ID:</strong> {selectedLog.channel_id}
+                <strong>{t('notifications.channelIdLabel')}</strong> {selectedLog.channel_id}
               </Col>
             </Row>
             <Divider />
             <Row gutter={16}>
               <Col span={12}>
-                <strong>发送状态:</strong> 
+                <strong>{t('notifications.sendStatus')}</strong>
                 <Tag color={STATUS_CONFIG[selectedLog.status as keyof typeof STATUS_CONFIG]?.color}>
-                  {STATUS_CONFIG[selectedLog.status as keyof typeof STATUS_CONFIG]?.text}
+                  {t(STATUS_CONFIG[selectedLog.status as keyof typeof STATUS_CONFIG]?.textKey)}
                 </Tag>
               </Col>
               <Col span={12}>
-                <strong>响应码:</strong> {selectedLog.response_code || '-'}
+                <strong>{t('notifications.responseCodeLabel')}</strong> {selectedLog.response_code || '-'}
               </Col>
             </Row>
             <Divider />
             <Row gutter={16}>
               <Col span={12}>
-                <strong>重试次数:</strong> {selectedLog.retries}
+                <strong>{t('notifications.retriesLabel')}</strong> {selectedLog.retries}
               </Col>
               <Col span={12}>
-                <strong>发送时间:</strong> {dayjs(selectedLog.sent_at).format('YYYY-MM-DD HH:mm:ss')}
+                <strong>{t('notifications.sentAtLabel')}</strong> {dayjs(selectedLog.sent_at).format('YYYY-MM-DD HH:mm:ss')}
               </Col>
             </Row>
             {selectedLog.error && (
               <>
                 <Divider />
                 <div>
-                  <strong>错误信息:</strong>
+                  <strong>{t('notifications.errorInfoLabel')}</strong>
                   <div style={{ marginTop: 8, padding: 8, backgroundColor: '#f5f5f5', borderRadius: 4 }}>
                     {selectedLog.error}
                   </div>

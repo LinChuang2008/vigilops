@@ -1,10 +1,10 @@
 /**
  * AI 洞察摘要卡片组件
- * 深色科技背景，最新 AI 洞察 + CTA 按钮，无数据时优雅降级
+ * 深色科技背景，最新 AI 洞察 + CTA 按钮，无数据时压缩为单行提示
  */
 import { useState } from 'react';
 import { Button, Typography } from 'antd';
-import { RobotOutlined } from '@ant-design/icons';
+import { RobotOutlined, ArrowRightOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import AIInsightDetailModal from './AIInsightDetailModal';
 import type { AIInsightItem } from '../../services/aiAnalysis';
@@ -45,6 +45,42 @@ export default function AIInsightBanner({ insight, loading = false }: AIInsightB
         created_at: insight.created_at,
       }
     : null;
+
+  // 无数据且非加载中：压缩为单行空状态提示
+  if (!insight && !loading) {
+    return (
+      <div
+        style={{
+          background: 'linear-gradient(135deg, #0d1b2a 0%, #1a2940 100%)',
+          borderRadius: 12,
+          border: '1px solid rgba(54, 207, 201, 0.15)',
+          padding: '14px 20px',
+          height: '100%',
+          boxSizing: 'border-box',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <RobotOutlined style={{ color: '#36cfc9', fontSize: 20, opacity: 0.7 }} />
+          <Text style={{ color: 'rgba(138, 180, 204, 0.8)', fontSize: 14 }}>
+            {t('dashboard.aiNoData', '暂无 AI 洞察数据')}
+          </Text>
+        </div>
+        <Button
+          type="link"
+          size="small"
+          style={{ color: '#36cfc9', padding: 0, fontSize: 13, height: 'auto', opacity: 0.8 }}
+          onClick={onViewDetail}
+          icon={<ArrowRightOutlined />}
+        >
+          {t('dashboard.viewFullAnalysis')}
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <>
