@@ -104,45 +104,80 @@ _FORBIDDEN_RE = [re.compile(p, re.IGNORECASE) for p in FORBIDDEN_PATTERNS]
 # Design principle: Better to miss some safe commands than to let any dangerous commands through
 ALLOWED_COMMAND_PREFIXES: list[str] = [
     # 文件系统查看命令 (Filesystem View Commands)
-    "df", "du", "find", "ls", "cat", "head", "tail", "grep",
-    
+    "df", "du", "find", "ls", "cat", "head", "tail", "grep", "wc",
+    "stat", "file", "readlink", "basename", "dirname",
+
     # 受限的文件操作 (Limited File Operations)
     # ⚠️ 注意：rm 不放入白名单，通过精确命令替代（如 truncate、find ... -delete）
-    # rm 依赖黑名单正则兜底存在覆盖不全风险，已移除
-    
+    "cp ", "mv ", "mkdir ", "touch ",
+
     # 系统服务管理 (System Service Management)
     "systemctl restart", "systemctl start", "systemctl stop", "systemctl status",
+    "systemctl is-active", "systemctl reload", "systemctl show",
+    "systemctl list-units", "systemctl daemon-reload",
+    "service ",                    # SysVinit 兼容 (SysVinit compat)
     "journalctl",                  # 系统日志查看 (System log viewing)
-    
+
     # 进程管理 (Process Management)
-    "kill", "pkill",               # 进程终止命令 (Process termination commands)
-    
+    "kill", "pkill", "pgrep",
+
     # 系统监控命令 (System Monitoring Commands)
-    "free", "top", "ps", "vmstat", "iostat",
-    
+    "free", "top", "ps", "vmstat", "iostat", "uptime", "w ", "who",
+    "uname", "hostname", "date", "timedatectl",
+    "sar", "mpstat", "pidstat", "nproc",
+
     # 日志管理 (Log Management)
-    "logrotate", "truncate",       # 日志轮转和截断 (Log rotation and truncation)
-    
+    "logrotate", "truncate",
+
     # 网络诊断 (Network Diagnostics)
-    "ss", "netstat", "lsof",       # 网络连接和端口查看 (Network connection and port viewing)
-    
+    "ss", "netstat", "lsof", "ping", "traceroute", "tracepath",
+    "dig", "nslookup", "host ", "ip ", "ifconfig",
+    "curl ", "wget ",              # 允许基础 HTTP 请求（黑名单已拦截 curl|sh）
+
     # 基础系统命令 (Basic System Commands)
-    "sync", "echo",                # 文件系统同步和输出 (Filesystem sync and output)
-    
-    # 包管理器 (Package Managers) - 只允许特定安全子命令，不开放整个 apt 前缀
-    # ⚠️ 不用 "apt" 前缀（apt install malware 也能通过），改为白名单精确子命令
-    "apt-get update", "apt-get clean", "apt clean", "apt list", "apt show",
-    "yum list", "yum info", "yum check-update",
-    "dnf list", "dnf info", "dnf check-update",
-    
-    # 容器管理 (Container Management)  
+    "sync", "echo", "sleep", "test ", "true", "false",
+    "sort", "uniq", "awk", "sed", "cut", "tr ", "xargs",
+    "tee ", "which", "whereis", "type ",
+
+    # 包管理器 (Package Managers) - 只允许特定安全子命令
+    "apt-get update", "apt-get clean", "apt-get install", "apt-get remove",
+    "apt clean", "apt list", "apt show", "apt install", "apt remove",
+    "yum list", "yum info", "yum check-update", "yum install", "yum remove",
+    "dnf list", "dnf info", "dnf check-update", "dnf install", "dnf remove",
+    "pip install", "pip list", "pip show",
+    "npm ", "npx ",
+
+    # 容器管理 (Container Management)
     "docker restart", "docker stop", "docker start", "docker ps", "docker logs",
-    
+    "docker inspect", "docker stats", "docker top", "docker exec",
+    "docker compose", "docker-compose",
+    "docker images", "docker pull", "docker info", "docker version",
+    "crictl ", "kubectl ",
+
+    # 数据库客户端 (Database Clients) - 只读查询和状态检查
+    "mysql", "mysqladmin", "mysqldump",
+    "psql", "pg_dump", "pg_isready",
+    "redis-cli", "mongosh", "mongo ",
+
     # Web 服务器 (Web Server)
-    "nginx -t", "nginx -s reload", # Nginx 配置测试和重载 (Nginx config test and reload)
-    
-    # 系统参数 (System Parameters)
-    "sysctl",                      # 内核参数管理 (Kernel parameter management)
+    "nginx -t", "nginx -s",       # Nginx 配置测试和信号
+    "nginx -T",                    # Nginx 配置 dump
+    "apachectl", "httpd -t",
+
+    # 系统参数和信息 (System Parameters & Info)
+    "sysctl",
+    "lscpu", "lsmem", "lsblk", "lspci", "lsusb",
+    "dmidecode", "hdparm",
+    "dmesg",
+
+    # 压缩解压 (Archive)
+    "tar ", "gzip", "gunzip", "zip", "unzip",
+
+    # 定时任务查看 (Cron)
+    "crontab -l",
+
+    # 安全审计 (Security Audit)
+    "last", "lastlog", "faillog",
 ]
 
 

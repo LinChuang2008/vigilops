@@ -3,31 +3,50 @@
 
 支持两种发现方式：
 1. Docker 容器发现 — 通过 docker ps 获取运行中容器及端口映射
-2. 宿主机进程发现 — 通过 ss -tlnp 获取监听端口和进程名，排除 Docker 管理的端口
+2. 宿主机进程发现:
+   - Linux:   通过 ss -tlnp 获取监听端口和进程名
+   - Windows: 通过 netstat -ano + tasklist 获取监听端口和进程名
 
 两种方式互补，全面覆盖容器化和非容器化的服务。
+兼容 Linux / Windows / macOS。
 """
 import json
 import logging
+import platform
 import re
 import shutil
 import subprocess
-from typing import List, Optional, Set
+from typing import Dict, List, Optional, Set
 
 from vigilops_agent.config import DatabaseMonitorConfig, LogSourceConfig, ServiceCheckConfig
 
 logger = logging.getLogger(__name__)
 
+# 平台常量 / Platform constant
+IS_WINDOWS = platform.system() == "Windows"
+
 # 常见 HTTP 端口集合，用于自动判断检查类型
 HTTP_PORTS = {80, 443, 8080, 8000, 8001, 8443, 3000, 3001, 5000, 9090,
               8093, 8123, 8848, 13000, 15672, 18000, 18123, 48080, 48848}
 
-# 需要跳过的系统服务（通常不需要监控）
+# 需要跳过的系统服务 — Linux（通常不需要监控）
+# System processes to skip on Linux
 SKIP_PROCESSES = {"sshd", "systemd", "systemd-resolve", "chronyd", "dbus-daemon",
                   "polkitd", "agetty", "containerd", "dockerd", "docker-proxy",
                   "rpcbind", "nscd", "cupsd",
                   "prlshprint", "prl_nettool", "prl_disp_service", "prltoolsd",
                   "sh", "sed", "awk", "grep", "cat", "sleep"}  # 常见工具进程，非真正服务
+
+# 需要跳过的系统服务 — Windows
+# System processes to skip on Windows
+SKIP_PROCESSES_WINDOWS = {
+    "system", "svchost.exe", "lsass.exe", "services.exe", "wininit.exe",
+    "csrss.exe", "smss.exe", "winlogon.exe", "spoolsv.exe", "searchindexer.exe",
+    "explorer.exe", "taskhostw.exe", "sihost.exe", "ctfmon.exe",
+    "dllhost.exe", "conhost.exe", "fontdrvhost.exe", "dwm.exe",
+    "registry", "idle", "memory compression",
+    "com surrogate", "windows shell experience host",
+}
 
 # 需要跳过的端口范围
 SKIP_PORTS = {22, 30631}  # SSH、Parallels shared printing 不需要监控
@@ -236,16 +255,29 @@ def _get_docker_ports() -> Set[int]:
 
 
 def discover_host_services(interval: int = 30) -> List[ServiceCheckConfig]:
-    """通过 ss 命令发现宿主机上直接运行的服务（非 Docker）。
+    """发现宿主机上直接运行的服务（非 Docker）。
+    Discover host services (non-Docker) via platform-specific commands.
 
-    解析 ss -tlnp 输出，获取监听端口和进程名，
-    过滤掉 Docker 管理的端口和系统服务。
+    根据平台分发到不同的实现：
+    - Linux/macOS: 使用 ss -tlnp
+    - Windows:     使用 netstat -ano + tasklist
 
     Args:
         interval: 发现的服务默认检查间隔（秒）。
 
     Returns:
         服务检查配置列表。
+    """
+    if IS_WINDOWS:
+        return _discover_host_services_windows(interval)
+    return _discover_host_services_linux(interval)
+
+
+def _discover_host_services_linux(interval: int = 30) -> List[ServiceCheckConfig]:
+    """通过 ss 命令发现宿主机上直接运行的服务（Linux/macOS）。
+
+    解析 ss -tlnp 输出，获取监听端口和进程名，
+    过滤掉 Docker 管理的端口和系统服务。
     """
     if not shutil.which("ss"):
         logger.debug("ss command not found, skipping host service discovery")
@@ -315,7 +347,7 @@ def discover_host_services(interval: int = 30) -> List[ServiceCheckConfig]:
         # 很多服务（数据库、缓存等）默认监听 127.0.0.1，这是正常的
 
         # 提取进程名
-        process_name = _extract_process_name(process_info)
+        process_name = _extract_process_name_ss(process_info)
         if not process_name:
             continue
 
@@ -357,8 +389,175 @@ def discover_host_services(interval: int = 30) -> List[ServiceCheckConfig]:
     return services
 
 
-def _extract_process_name(process_info: str) -> Optional[str]:
-    """从 ss 的 Process 列提取进程名。
+def _discover_host_services_windows(interval: int = 30) -> List[ServiceCheckConfig]:
+    """通过 netstat -ano 和 tasklist 发现 Windows 上直接运行的服务。
+    Discover host services on Windows using netstat -ano and tasklist.
+
+    解析 netstat -ano 获取 LISTENING 状态的端口和 PID，
+    再通过 tasklist 将 PID 映射到进程名。
+
+    Args:
+        interval: 发现的服务默认检查间隔（秒）。
+
+    Returns:
+        服务检查配置列表。
+    """
+    # 1. 构建 PID -> 进程名映射表 / Build PID -> process name mapping
+    pid_map = _get_windows_pid_map()
+    if not pid_map:
+        logger.warning("Failed to get Windows process list, skipping host service discovery")
+        return []
+
+    # 2. 执行 netstat -ano 获取监听端口 / Run netstat -ano to get listening ports
+    try:
+        result = subprocess.run(
+            ["netstat", "-ano"],
+            capture_output=True, text=True, timeout=15,
+        )
+        if result.returncode != 0:
+            logger.warning(f"netstat failed: {result.stderr.strip()}")
+            return []
+    except Exception as e:
+        logger.warning(f"Windows host service discovery error: {e}")
+        return []
+
+    # 获取 Docker 占用的端口（Docker Desktop for Windows 也支持 docker ps）
+    docker_ports = _get_docker_ports()
+    logger.debug(f"Docker ports to exclude: {docker_ports}")
+
+    services = []
+    seen_ports = set()  # type: Set[int]
+
+    for line in result.stdout.strip().splitlines():
+        line = line.strip()
+        # 只处理 TCP LISTENING 行
+        # Only process TCP LISTENING lines
+        # 格式: TCP    0.0.0.0:80    0.0.0.0:0    LISTENING    1234
+        if "LISTENING" not in line:
+            continue
+        if not line.upper().startswith("TCP"):
+            continue
+
+        parts = line.split()
+        if len(parts) < 5:
+            continue
+
+        local_addr = parts[1]   # 如 0.0.0.0:80 或 127.0.0.1:3306 或 [::]:80
+        pid_str = parts[-1]     # PID
+
+        # 跳过 IPv6 行（只保留 IPv4）/ Skip IPv6 lines
+        if local_addr.startswith("["):
+            continue
+
+        # 提取端口号 / Extract port number
+        try:
+            port = int(local_addr.rsplit(":", 1)[1])
+        except (ValueError, IndexError):
+            continue
+
+        # 提取监听地址 / Extract listen address
+        listen_addr = local_addr.rsplit(":", 1)[0]
+
+        # 跳过已处理的端口 / Skip already seen ports
+        if port in seen_ports:
+            continue
+        seen_ports.add(port)
+
+        # 跳过 Docker 管理的端口 / Skip Docker managed ports
+        if port in docker_ports:
+            continue
+
+        # 跳过系统端口 / Skip system ports
+        if port in SKIP_PORTS:
+            continue
+
+        # 获取进程名 / Get process name from PID
+        try:
+            pid = int(pid_str)
+        except ValueError:
+            continue
+        process_name = pid_map.get(pid, "")
+        if not process_name:
+            continue
+
+        # 跳过 Windows 系统进程 / Skip Windows system processes
+        if process_name.lower() in SKIP_PROCESSES_WINDOWS:
+            continue
+
+        # 去掉 .exe 后缀生成友好名称 / Remove .exe suffix for friendly name
+        display_name = process_name
+        if display_name.lower().endswith(".exe"):
+            display_name = display_name[:-4]
+
+        # 确定用于健康检查的地址 / Determine the address for health checks
+        if listen_addr == "0.0.0.0" or listen_addr == "127.0.0.1":
+            check_host = "localhost"
+        else:
+            check_host = listen_addr
+
+        service_name = f"{display_name} (:{port})"
+
+        if _is_http_service(display_name, port):
+            svc = ServiceCheckConfig(
+                name=service_name,
+                type="http",
+                url=f"http://{check_host}:{port}",
+                interval=interval,
+            )
+        else:
+            svc = ServiceCheckConfig(
+                name=service_name,
+                type="tcp",
+                host=check_host,
+                port=port,
+                interval=interval,
+            )
+        services.append(svc)
+
+    logger.info(f"Host service discovery (Windows): found {len(services)} non-Docker services")
+    return services
+
+
+def _get_windows_pid_map() -> Dict[int, str]:
+    """通过 tasklist 获取 Windows 上所有进程的 PID -> 进程名映射。
+    Get PID -> process name mapping on Windows via tasklist.
+
+    Returns:
+        {pid: process_name} 字典。
+    """
+    pid_map = {}  # type: Dict[int, str]
+    try:
+        result = subprocess.run(
+            ["tasklist", "/FO", "CSV", "/NH"],
+            capture_output=True, text=True, timeout=15,
+        )
+        if result.returncode != 0:
+            return pid_map
+    except Exception:
+        return pid_map
+
+    for line in result.stdout.strip().splitlines():
+        # CSV 格式: "Image Name","PID","Session Name","Session#","Mem Usage"
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            # 手动解析 CSV 避免引入 csv 模块（简单且可靠）
+            # Manually parse CSV to avoid importing csv module
+            parts = line.split('","')
+            if len(parts) >= 2:
+                name = parts[0].strip('"')
+                pid = int(parts[1].strip('"'))
+                pid_map[pid] = name
+        except (ValueError, IndexError):
+            continue
+
+    return pid_map
+
+
+def _extract_process_name_ss(process_info: str) -> Optional[str]:
+    """从 ss 的 Process 列提取进程名（Linux）。
+    Extract process name from ss Process column (Linux).
 
     格式: users:(("nginx",pid=1234,fd=5),("nginx",pid=1235,fd=5))
     提取第一个进程名。
@@ -367,6 +566,10 @@ def _extract_process_name(process_info: str) -> Optional[str]:
     if match:
         return match.group(1)
     return None
+
+
+# 保持向后兼容的别名 / Backward-compatible alias
+_extract_process_name = _extract_process_name_ss
 
 
 def _is_http_service(process_name: str, port: int) -> bool:

@@ -45,7 +45,7 @@ CUSTOM_RUNBOOK_FORBIDDEN = [
     r">\s*/dev/null\s*2>&1\s*&",  # background hidden exec
     r"nohup\s+.*&",
     r"eval\s+",
-    r"\bexec\s+",
+    r"(?<!docker\s)\bexec\s+",  # exec（但允许 docker exec）
     r"python\s+-c",
     r"perl\s+-e",
     r"ruby\s+-e",

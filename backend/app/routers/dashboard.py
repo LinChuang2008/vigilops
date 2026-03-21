@@ -121,9 +121,17 @@ async def get_trends(
         hours.append(h)
 
     # 将数据库查询结果映射为哈希表，便于快速查找 (Map database results to hash tables for fast lookup)
-    metric_map = {row["hour"].replace(tzinfo=timezone.utc): row for row in metric_rows}
-    alert_map = {row["hour"].replace(tzinfo=timezone.utc): row["cnt"] for row in alert_rows}
-    log_map = {row["hour"].replace(tzinfo=timezone.utc): row["cnt"] for row in log_rows}
+    def _to_aware_dt(val):
+        """将 date_trunc 返回值统一为 UTC aware datetime（兼容 SQLite 返回字符串的情况）。"""
+        if isinstance(val, str):
+            val = datetime.fromisoformat(val)
+        if val.tzinfo is None:
+            return val.replace(tzinfo=timezone.utc)
+        return val
+
+    metric_map = {_to_aware_dt(row["hour"]): row for row in metric_rows}
+    alert_map = {_to_aware_dt(row["hour"]): row["cnt"] for row in alert_rows}
+    log_map = {_to_aware_dt(row["hour"]): row["cnt"] for row in log_rows}
 
     # 遍历时间轴，构建完整的趋势数据数组 (Iterate timeline to build complete trend data array)
     result = []

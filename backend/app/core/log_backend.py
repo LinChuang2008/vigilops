@@ -507,24 +507,26 @@ class ClickHouseLogBackend(LogBackend):
             from datetime import timedelta, timezone
             cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
             cutoff_str = cutoff.strftime('%Y-%m-%d %H:%M:%S')
-            
-            # ClickHouse 使用ALTER TABLE DELETE
+
+            # 使用 ClickHouse 参数化查询防止 SQL 注入
+            # Use ClickHouse parameterized query to prevent SQL injection
             delete_sql = f"""
             ALTER TABLE {self.table_name}
-            DELETE WHERE timestamp < '{cutoff_str}'
+            DELETE WHERE timestamp < {{cutoff:DateTime}}
             """
-            
+
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     f"{self.base_url}:8123",
                     auth=(self.username, self.password) if self.password else None,
+                    params={"param_cutoff": cutoff_str},
                     data=delete_sql,
                     timeout=60.0
                 )
                 if response.status_code != 200:
                     logger.error(f"ClickHouse cleanup failed: {response.text}")
                     return 0
-                
+
             logger.info(f"ClickHouse cleanup completed for logs older than {retention_days} days")
             return 1  # ClickHouse不直接返回删除数量
             

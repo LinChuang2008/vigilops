@@ -93,16 +93,19 @@ class AgentReporter:
             pass
 
         # 2. 获取本地所有网络接口信息（补充，不覆盖 private_ip）
+        # 优先使用 psutil.net_if_addrs()（跨平台），如不可用则回退到 netifaces
+        # Prefer psutil.net_if_addrs() (cross-platform); fall back to netifaces if unavailable
+        interfaces_found = False
         try:
-            import netifaces
-            for interface in netifaces.interfaces():
-                addrs = netifaces.ifaddresses(interface)
-                if netifaces.AF_INET in addrs:
-                    for addr_info in addrs[netifaces.AF_INET]:
-                        ip = addr_info.get('addr')
+            import psutil as _psutil
+            import socket as _socket
+            for iface_name, addrs in _psutil.net_if_addrs().items():
+                for addr in addrs:
+                    if addr.family == _socket.AF_INET:
+                        ip = addr.address
                         if ip and self._is_valid_ip(ip):
                             ip_type = self._classify_ip(ip)
-                            result["interfaces"][interface] = {
+                            result["interfaces"][iface_name] = {
                                 "ipv4": ip,
                                 "type": ip_type
                             }
@@ -112,8 +115,34 @@ class AgentReporter:
                             elif ip_type == "public":
                                 if ip not in result["all_public"]:
                                     result["all_public"].append(ip)
-        except ImportError:
+            interfaces_found = True
+        except Exception:
             pass
+
+        # 如果 psutil 方式失败，回退到 netifaces（主要用于旧环境兼容）
+        # Fall back to netifaces if psutil approach fails (for legacy environment compatibility)
+        if not interfaces_found:
+            try:
+                import netifaces
+                for interface in netifaces.interfaces():
+                    addrs = netifaces.ifaddresses(interface)
+                    if netifaces.AF_INET in addrs:
+                        for addr_info in addrs[netifaces.AF_INET]:
+                            ip = addr_info.get('addr')
+                            if ip and self._is_valid_ip(ip):
+                                ip_type = self._classify_ip(ip)
+                                result["interfaces"][interface] = {
+                                    "ipv4": ip,
+                                    "type": ip_type
+                                }
+                                if ip_type == "private":
+                                    if ip not in result["all_private"]:
+                                        result["all_private"].append(ip)
+                                elif ip_type == "public":
+                                    if ip not in result["all_public"]:
+                                        result["all_public"].append(ip)
+            except ImportError:
+                pass
 
         # 3. 尝试通过外部服务获取公网 IP
         for url in [

@@ -28,13 +28,22 @@ class TestAlertEngine:
             with patch("app.tasks.alert_engine.get_redis", new_callable=AsyncMock, return_value=FakeRedis()):
                 await evaluate_host_rules()
 
+    def _mock_dedup_result(self, should_send=True, notification_type="first", duration_seconds=0):
+        """Helper to create a mock dedup service result."""
+        return {
+            "should_send_notification": should_send,
+            "notification_type": notification_type,
+            "duration_seconds": duration_seconds,
+            "is_duplicate": False,
+        }
+
     @pytest.mark.asyncio
     async def test_evaluate_rule_fires_alert(self, db_session):
         """Rule threshold exceeded → alert created."""
         from app.tasks.alert_engine import _evaluate_rule
-        
+        import asyncio
 
-        host = Host(hostname="h1", status="online")
+        host = Host(hostname="h1", status="online", agent_token_id=1)
         db_session.add(host)
         await db_session.commit()
         await db_session.refresh(host)
@@ -49,10 +58,12 @@ class TestAlertEngine:
         await db_session.refresh(rule)
 
         metrics = {"cpu_percent": 95.0}
+        dedup_result = self._mock_dedup_result(should_send=True, notification_type="first")
 
-        with patch("app.tasks.alert_engine.send_alert_notification", new_callable=AsyncMock):
-            await _evaluate_rule(db_session, FakeRedis(), rule, host, metrics)
-            await db_session.commit()
+        with patch("app.services.notifier.send_alert_notification", new_callable=AsyncMock):
+            with patch.object(asyncio.get_running_loop(), "run_in_executor", new_callable=AsyncMock, return_value=dedup_result):
+                await _evaluate_rule(db_session, FakeRedis(), rule, host, metrics)
+                await db_session.commit()
 
         from sqlalchemy import select
         result = await db_session.execute(select(Alert).where(Alert.rule_id == rule.id))
@@ -64,9 +75,9 @@ class TestAlertEngine:
     async def test_evaluate_rule_resolves(self, db_session):
         """Normal value with existing firing alert → resolved."""
         from app.tasks.alert_engine import _evaluate_rule
-        
+        import asyncio
 
-        host = Host(hostname="h2", status="online")
+        host = Host(hostname="h2", status="online", agent_token_id=1)
         db_session.add(host)
         await db_session.commit()
         await db_session.refresh(host)
@@ -88,9 +99,12 @@ class TestAlertEngine:
         db_session.add(existing)
         await db_session.commit()
 
-        with patch("app.tasks.alert_engine.send_alert_notification", new_callable=AsyncMock):
-            await _evaluate_rule(db_session, FakeRedis(), rule, host, {"cpu_percent": 50.0})
-            await db_session.commit()
+        dedup_result = self._mock_dedup_result(should_send=True, notification_type="recovery")
+
+        with patch("app.services.notifier.send_alert_notification", new_callable=AsyncMock):
+            with patch.object(asyncio.get_running_loop(), "run_in_executor", new_callable=AsyncMock, return_value=dedup_result):
+                await _evaluate_rule(db_session, FakeRedis(), rule, host, {"cpu_percent": 50.0})
+                await db_session.commit()
 
         await db_session.refresh(existing)
         assert existing.status == "resolved"
@@ -99,9 +113,9 @@ class TestAlertEngine:
     async def test_evaluate_rule_duration_pending(self, db_session):
         """Rule with duration_seconds > 0, first violation should not fire immediately."""
         from app.tasks.alert_engine import _evaluate_rule
-        
+        import asyncio
 
-        host = Host(hostname="h3", status="online")
+        host = Host(hostname="h3", status="online", agent_token_id=1)
         db_session.add(host)
         await db_session.commit()
         await db_session.refresh(host)
@@ -115,24 +129,24 @@ class TestAlertEngine:
         await db_session.commit()
         await db_session.refresh(rule)
 
-        await _evaluate_rule(db_session, FakeRedis(), rule, host, {"cpu_percent": 95.0})
-        await db_session.commit()
+        dedup_result = self._mock_dedup_result(should_send=False)
 
-        # No alert should be created yet (pending)
+        with patch.object(asyncio.get_running_loop(), "run_in_executor", new_callable=AsyncMock, return_value=dedup_result):
+            await _evaluate_rule(db_session, FakeRedis(), rule, host, {"cpu_percent": 95.0})
+            await db_session.commit()
+
+        # No alert should be created yet (pending via duration check)
         from sqlalchemy import select
         result = await db_session.execute(select(Alert).where(Alert.rule_id == rule.id))
         assert result.scalar_one_or_none() is None
-
-        # Cleanup
-        await FakeRedis().delete(f"alert:pending:{rule.id}:{host.id}")
 
     @pytest.mark.asyncio
     async def test_evaluate_host_offline(self, db_session):
         """host_offline metric with offline host → alert."""
         from app.tasks.alert_engine import _evaluate_rule
-        
+        import asyncio
 
-        host = Host(hostname="h-off", status="offline")
+        host = Host(hostname="h-off", status="offline", agent_token_id=1)
         db_session.add(host)
         await db_session.commit()
         await db_session.refresh(host)
@@ -146,9 +160,12 @@ class TestAlertEngine:
         await db_session.commit()
         await db_session.refresh(rule)
 
-        with patch("app.tasks.alert_engine.send_alert_notification", new_callable=AsyncMock):
-            await _evaluate_rule(db_session, FakeRedis(), rule, host, {})
-            await db_session.commit()
+        dedup_result = self._mock_dedup_result(should_send=True, notification_type="first")
+
+        with patch("app.services.notifier.send_alert_notification", new_callable=AsyncMock):
+            with patch.object(asyncio.get_running_loop(), "run_in_executor", new_callable=AsyncMock, return_value=dedup_result):
+                await _evaluate_rule(db_session, FakeRedis(), rule, host, {})
+                await db_session.commit()
 
         from sqlalchemy import select
         result = await db_session.execute(select(Alert).where(Alert.rule_id == rule.id))
@@ -159,7 +176,7 @@ class TestAlertEngine:
         from app.tasks.alert_engine import _evaluate_rule
         
 
-        host = Host(hostname="h-unk", status="online")
+        host = Host(hostname="h-unk", status="online", agent_token_id=1)
         db_session.add(host)
         rule = AlertRule(
             name="Unknown", metric="unknown_metric", operator=">",
@@ -185,7 +202,7 @@ class TestDbMetricCleanup:
         from sqlalchemy import delete, select
 
         # Create host and monitored db
-        h = Host(hostname="clean-h", status="online")
+        h = Host(hostname="clean-h", status="online", agent_token_id=1)
         db_session.add(h)
         await db_session.commit()
         await db_session.refresh(h)
@@ -232,21 +249,28 @@ class TestOfflineDetector:
     @pytest.mark.asyncio
     async def test_mark_host_offline(self, db_session):
         from app.tasks.offline_detector import check_offline_hosts
-        
 
+        # Use naive datetime for SQLite compatibility (SQLite strips timezone info)
         host = Host(
-            hostname="stale-host", status="online",
-            last_heartbeat=datetime.now(timezone.utc) - timedelta(seconds=600)
+            hostname="stale-host", status="online", agent_token_id=1,
+            last_heartbeat=datetime.utcnow() - timedelta(seconds=600)
         )
         db_session.add(host)
         await db_session.commit()
         await db_session.refresh(host)
 
+        fake = FakeRedis()
         with patch("app.tasks.offline_detector.async_session") as mock_sess:
             mock_sess.return_value.__aenter__ = AsyncMock(return_value=db_session)
             mock_sess.return_value.__aexit__ = AsyncMock(return_value=False)
-            with patch("app.tasks.offline_detector.get_redis", new_callable=AsyncMock, return_value=FakeRedis()):
-                await check_offline_hosts()
+            with patch("app.tasks.offline_detector.get_redis", new_callable=AsyncMock, return_value=fake):
+                # Patch datetime.now in offline_detector to return naive UTC for SQLite compat
+                naive_now = datetime.utcnow()
+                with patch("app.tasks.offline_detector.datetime") as mock_dt:
+                    mock_dt.now.return_value = naive_now
+                    mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+                    mock_dt.fromisoformat = datetime.fromisoformat
+                    await check_offline_hosts()
 
         await db_session.refresh(host)
         assert host.status == "offline"
@@ -254,25 +278,25 @@ class TestOfflineDetector:
     @pytest.mark.asyncio
     async def test_host_with_heartbeat_stays_online(self, db_session):
         from app.tasks.offline_detector import check_offline_hosts
-        
 
-        host = Host(hostname="alive-host", status="online", last_heartbeat=datetime.now(timezone.utc))
+        host = Host(hostname="alive-host", status="online", agent_token_id=1,
+                     last_heartbeat=datetime.utcnow())
         db_session.add(host)
         await db_session.commit()
         await db_session.refresh(host)
 
-        # Set heartbeat in Redis
-        await FakeRedis().set(f"heartbeat:{host.id}", datetime.now(timezone.utc).isoformat())
+        # Set heartbeat in Redis so the host is considered alive
+        fake = FakeRedis()
+        await fake.set(f"heartbeat:{host.id}", datetime.utcnow().isoformat())
 
         with patch("app.tasks.offline_detector.async_session") as mock_sess:
             mock_sess.return_value.__aenter__ = AsyncMock(return_value=db_session)
             mock_sess.return_value.__aexit__ = AsyncMock(return_value=False)
-            with patch("app.tasks.offline_detector.get_redis", new_callable=AsyncMock, return_value=FakeRedis()):
+            with patch("app.tasks.offline_detector.get_redis", new_callable=AsyncMock, return_value=fake):
                 await check_offline_hosts()
 
         await db_session.refresh(host)
         assert host.status == "online"
-        await FakeRedis().delete(f"heartbeat:{host.id}")
 
 
 # ─── Report Scheduler ─────────────────────────────────────────────

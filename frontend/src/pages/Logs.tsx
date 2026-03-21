@@ -110,8 +110,7 @@ export default function Logs() {
     if (service) params.set('service', service);
     if (levels.length) params.set('level', levels.join(','));
     if (keyword) params.set('keyword', keyword);
-    const token = localStorage.getItem('token') || '';
-    if (token) params.set('token', token);
+    // 认证通过 httpOnly Cookie 自动携带（WebSocket 握手时浏览器会发送 Cookie）
     const url = `${proto}://${window.location.host}/ws/logs?${params.toString()}`;
     const ws = new WebSocket(url);
     wsRef.current = ws;

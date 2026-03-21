@@ -13,6 +13,7 @@ API端点：GET /metrics (Prometheus 标准端点)
 Author: VigilOps Team
 """
 import hashlib
+import hmac
 import json
 from typing import List, Dict, Any, Optional, Union
 from datetime import datetime, timezone
@@ -74,8 +75,13 @@ async def _require_user_or_agent_token(
             if user is not None and user.is_active:
                 return user
 
-    # 2. 回退：尝试作为 Agent Token 验证
-    token_hash = hashlib.sha256(token_str.encode()).hexdigest()
+    # 2. 回退：尝试作为 Agent Token 验证（使用 HMAC-SHA256 防彩虹表攻击）
+    from app.core.config import settings
+    token_hash = hmac.new(
+        settings.agent_token_hmac_key.encode(),
+        token_str.encode(),
+        hashlib.sha256,
+    ).hexdigest()
     result = await db.execute(
         select(AgentToken).where(
             AgentToken.token_hash == token_hash,

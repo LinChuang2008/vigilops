@@ -12,10 +12,12 @@ dependencies = [
     "httpx>=0.27",
     "pyyaml>=6.0",
     "click>=8.1",
-    "netifaces>=0.11",
 ]
 
 [project.optional-dependencies]
+# netifaces 在 Windows 上可能安装困难，已改用 psutil.net_if_addrs() 替代
+# netifaces may be hard to install on Windows; psutil.net_if_addrs() is now the primary method
+netifaces = ["netifaces>=0.11"]
 postgres = ["psycopg2-binary>=2.9"]
 mysql = ["pymysql>=1.1"]
 oracle = ["oracledb>=2.0"]

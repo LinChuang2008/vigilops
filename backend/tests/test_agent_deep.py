@@ -1,9 +1,11 @@
 """Agent 路由深度测试 — 注册、心跳、指标、服务、DB指标、日志。"""
 import hashlib
+import hmac
 import pytest
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
+from app.core.config import settings
 from app.models.agent_token import AgentToken
 from app.models.host import Host
 from app.models.service import Service
@@ -13,7 +15,9 @@ from app.models.service import Service
 async def agent_token_and_headers(db_session):
     """Create an agent token and return (token_obj, headers)."""
     raw = "test-agent-token-12345"
-    token_hash = hashlib.sha256(raw.encode()).hexdigest()
+    token_hash = hmac.new(
+        settings.agent_token_hmac_key.encode(), raw.encode(), hashlib.sha256
+    ).hexdigest()
     token = AgentToken(
         name="test-token", token_hash=token_hash,
         token_prefix=raw[:8], created_by=1, is_active=True,

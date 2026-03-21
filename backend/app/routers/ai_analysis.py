@@ -37,6 +37,8 @@ from app.schemas.ai_insight import (
     AnalyzeLogsResponse,
     ChatRequest,
     ChatResponse,
+    GenerateRunbookRequest,
+    GenerateRunbookResponse,
 )
 
 router = APIRouter(prefix="/api/v1/ai", tags=["ai"])
@@ -571,3 +573,89 @@ async def system_summary(
             "memory_percent": avg_mem,
         },
     }
+
+
+# ── AI 生成 Runbook 的系统提示 ──────────────────────────────────────────────
+GENERATE_RUNBOOK_SYSTEM_PROMPT = """你是 VigilOps AI 运维自动化专家，负责根据用户的自然语言描述生成可执行的运维 Runbook。
+
+生成要求：
+1. 生成的命令必须安全，禁止使用 rm -rf /、dd if=、mkfs、fdisk、fork bomb 等危险命令
+2. 每个步骤应包含清晰的名称和对应的 Linux 命令
+3. 命令应使用变量模板（如 {service_name}、{host}）以便复用
+4. 合理设置超时时间（简单查询 10 秒，重启操作 60 秒，复杂操作 120 秒）
+5. 尽可能为有风险的步骤提供回滚命令
+6. 触发关键词应覆盖该场景可能出现的告警关键词
+
+请严格以 JSON 格式返回（不要 markdown 代码块）：
+{
+  "name": "runbook 名称（英文下划线命名，如 nginx_restart）",
+  "description": "中文描述此 runbook 的用途",
+  "trigger_keywords": ["关键词1", "关键词2"],
+  "risk_level": "auto|confirm|manual|block",
+  "steps": [
+    {
+      "name": "步骤名称",
+      "command": "要执行的命令",
+      "timeout_sec": 30,
+      "rollback_command": "回滚命令（可选，可为 null）"
+    }
+  ]
+}"""
+
+
+@router.post("/generate-runbook", response_model=GenerateRunbookResponse)
+async def generate_runbook(
+    req: GenerateRunbookRequest,
+    _user: User = Depends(get_current_user),
+):
+    """
+    AI 生成 Runbook 接口
+
+    根据自然语言描述，使用 AI 生成可执行的运维 Runbook。
+    生成后会进行命令安全检查，标记不安全的命令。
+    """
+    from app.routers.custom_runbooks import validate_command_safety
+
+    user_msg = f"请为以下运维场景生成一个 Runbook：\n\n{req.description}"
+    if req.risk_level:
+        user_msg += f"\n\n建议风险级别：{req.risk_level}"
+
+    messages = [
+        {"role": "system", "content": GENERATE_RUNBOOK_SYSTEM_PROMPT},
+        {"role": "user", "content": user_msg},
+    ]
+
+    try:
+        result_text = await ai_engine._call_api(messages)
+        runbook_data = ai_engine._parse_json_response(result_text)
+
+        # 覆盖风险级别（如果用户指定）
+        if req.risk_level:
+            runbook_data["risk_level"] = req.risk_level
+
+        # 安全检查每个步骤
+        safety_warnings: list[str] = []
+        for i, step in enumerate(runbook_data.get("steps", [])):
+            cmd = step.get("command", "")
+            safe, msg = validate_command_safety(cmd)
+            if not safe:
+                safety_warnings.append(f"步骤 {i + 1} ({step.get('name', '')}): {msg}")
+
+            rollback = step.get("rollback_command")
+            if rollback:
+                safe, msg = validate_command_safety(rollback)
+                if not safe:
+                    safety_warnings.append(f"步骤 {i + 1} 回滚命令: {msg}")
+
+        return GenerateRunbookResponse(
+            success=True,
+            runbook=runbook_data,
+            safety_warnings=safety_warnings,
+        )
+
+    except Exception as e:
+        logger.error("AI generate runbook failed: %s", str(e))
+        return GenerateRunbookResponse(
+            success=False,
+            error=f"AI 生成失败：{str(e)}",
+        )

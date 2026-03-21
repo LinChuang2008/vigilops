@@ -75,6 +75,20 @@ export interface CreateRunbookRequest {
 /** 更新请求 */
 export type UpdateRunbookRequest = Partial<CreateRunbookRequest>;
 
+/** AI 生成 Runbook 请求 */
+export interface GenerateRunbookRequest {
+  description: string;
+  risk_level?: string;
+}
+
+/** AI 生成 Runbook 响应 */
+export interface GenerateRunbookResponse {
+  success: boolean;
+  runbook?: CreateRunbookRequest & { name: string; description: string };
+  error?: string;
+  safety_warnings: string[];
+}
+
 export const customRunbookService = {
   /** 获取所有 Runbook (内置 + 自定义) */
   listAll: () =>
@@ -105,6 +119,10 @@ export const customRunbookService = {
   /** 导出 */
   exportAll: () =>
     api.get('/runbooks/custom/export/all', { responseType: 'blob' }),
+
+  /** AI 生成 Runbook */
+  generateWithAI: (data: GenerateRunbookRequest) =>
+    api.post<GenerateRunbookResponse>('/ai/generate-runbook', data, { timeout: 60000 }),
 
   /** 导入 */
   importFile: (file: File) => {

@@ -25,4 +25,4 @@ class TestSettings:
 
     async def test_get_settings_no_auth(self, client: AsyncClient):
         resp = await client.get("/api/v1/settings")
-        assert resp.status_code == 403
+        assert resp.status_code == 401

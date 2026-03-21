@@ -21,11 +21,18 @@ registering, storing and matching various remediation scripts.
 
 内置 Runbook (Built-in Runbooks):
 - disk_cleanup: 磁盘空间清理
-- service_restart: 服务重启修复  
+- service_restart: 服务重启修复
 - zombie_killer: 僵尸进程清理
 - memory_pressure: 内存压力释放
 - log_rotation: 日志轮转压缩
 - connection_reset: 网络连接重置
+- cpu_high: CPU 使用率过高排查
+- docker_cleanup: Docker 资源清理
+- network_diag: 网络连通性诊断
+- mysql_health: MySQL 健康检查
+- redis_health: Redis 健康检查
+- nginx_fix: Nginx 排查修复
+- swap_pressure: Swap 使用率排查
 
 设计理念 (Design Philosophy):
 采用简单的字典结构而非复杂的插件系统，保持代码简洁和性能高效。
@@ -48,10 +55,17 @@ logger = logging.getLogger(__name__)
 
 # 导入所有内置 Runbook 定义 (Import all built-in Runbook definitions)
 from .runbooks.connection_reset import RUNBOOK as CONNECTION_RESET      # 网络连接重置 (Network connection reset)
+from .runbooks.cpu_high import RUNBOOK as CPU_HIGH                      # CPU 使用率过高排查 (High CPU investigation)
 from .runbooks.disk_cleanup import RUNBOOK as DISK_CLEANUP              # 磁盘空间清理 (Disk space cleanup)
+from .runbooks.docker_cleanup import RUNBOOK as DOCKER_CLEANUP          # Docker 资源清理 (Docker resource cleanup)
 from .runbooks.log_rotation import RUNBOOK as LOG_ROTATION              # 日志轮转压缩 (Log rotation and compression)
 from .runbooks.memory_pressure import RUNBOOK as MEMORY_PRESSURE        # 内存压力释放 (Memory pressure relief)
+from .runbooks.mysql_health import RUNBOOK as MYSQL_HEALTH              # MySQL 健康检查 (MySQL health check)
+from .runbooks.network_diag import RUNBOOK as NETWORK_DIAG              # 网络连通性诊断 (Network connectivity diagnosis)
+from .runbooks.nginx_fix import RUNBOOK as NGINX_FIX                    # Nginx 排查修复 (Nginx diagnosis and fix)
+from .runbooks.redis_health import RUNBOOK as REDIS_HEALTH              # Redis 健康检查 (Redis health check)
 from .runbooks.service_restart import RUNBOOK as SERVICE_RESTART        # 服务重启修复 (Service restart remediation)
+from .runbooks.swap_pressure import RUNBOOK as SWAP_PRESSURE            # Swap 使用率排查 (Swap pressure investigation)
 from .runbooks.zombie_killer import RUNBOOK as ZOMBIE_KILLER            # 僵尸进程清理 (Zombie process cleanup)
 
 
@@ -103,17 +117,9 @@ class RunbookRegistry:
 
     def _register_defaults(self) -> None:
         """注册所有内置 Runbook (Register All Built-in Runbooks)
-        
-        批量注册 VigilOps 系统内置的 6 个标准修复脚本。
-        Batch register 6 standard remediation scripts built into VigilOps system.
-        
-        内置 Runbook 清单 (Built-in Runbook List):
-        - DISK_CLEANUP: 磁盘空间不足时的清理操作
-        - SERVICE_RESTART: 服务异常时的重启修复
-        - ZOMBIE_KILLER: 清理系统中的僵尸进程  
-        - MEMORY_PRESSURE: 内存使用率过高时的释放操作
-        - LOG_ROTATION: 日志文件过大时的轮转压缩
-        - CONNECTION_RESET: 网络连接异常时的重置操作
+
+        批量注册 VigilOps 系统内置的 13 个标准修复脚本。
+        Batch register 13 standard remediation scripts built into VigilOps system.
         """
         # 按功能重要性排序的内置 Runbook 列表 (Built-in Runbooks sorted by functional importance)
         for runbook in [
@@ -123,6 +129,13 @@ class RunbookRegistry:
             MEMORY_PRESSURE,   # 内存管理 - 性能优化
             LOG_ROTATION,      # 日志管理 - 存储优化
             CONNECTION_RESET,  # 网络修复 - 连接问题处理
+            CPU_HIGH,          # CPU 排查 - 负载问题定位
+            DOCKER_CLEANUP,    # Docker 清理 - 容器资源回收
+            NETWORK_DIAG,      # 网络诊断 - 连通性排查
+            MYSQL_HEALTH,      # MySQL 健康 - 数据库维护
+            REDIS_HEALTH,      # Redis 健康 - 缓存维护
+            NGINX_FIX,         # Nginx 修复 - Web 服务恢复
+            SWAP_PRESSURE,     # Swap 排查 - 交换分区问题
         ]:
             self.register(runbook)  # 逐个注册到注册表 (Register one by one to registry)
 

@@ -79,6 +79,13 @@ class Settings(BaseSettings):
     agent_notify_on_failure: bool = True  # 修复失败/升级时发送通知 (Notify on Failed/Escalated Remediation)
     agent_ssh_user: str = ""  # SSH 用户名（用于远程命令执行）
     agent_ssh_password: str = ""  # SSH 密码
+    # SSH known_hosts 文件路径，留空则禁用主机密钥验证（仅建议开发环境使用）
+    # SSH known_hosts file path; empty disables host key verification (dev only)
+    agent_ssh_known_hosts: str = ""
+    # Agent Token HMAC 签名密钥，用于替代纯 SHA-256 哈希（防止彩虹表攻击）
+    # Agent Token HMAC signing key, replaces plain SHA-256 (prevents rainbow table attacks)
+    # ⚠️ 生产环境必须设置！留空时开发环境自动生成（重启后已有 token 将失效）
+    agent_token_hmac_key: str = ""
 
     # JWT 认证配置 (JWT Authentication Configuration)
     # ⚠️ 生产环境必须通过环境变量 JWT_SECRET_KEY 设置！未设置时自动生成随机密钥（每次重启会变化）
@@ -244,3 +251,21 @@ elif not _is_production and settings.postgres_password == _DB_DEFAULT_PASSWORD:
         "⚠️  POSTGRES_PASSWORD 使用开发默认值，仅适用于本地开发。"
         " | POSTGRES_PASSWORD is using the dev default, suitable for local dev only."
     )
+
+# Agent Token HMAC 密钥安全检查 (Agent Token HMAC Key Security Check)
+if not settings.agent_token_hmac_key:
+    if _is_production:
+        raise RuntimeError(
+            "🔴 [FATAL] AGENT_TOKEN_HMAC_KEY 未设置！生产环境必须通过环境变量配置。\n"
+            "运行以下命令生成: python -c \"import secrets; print(secrets.token_urlsafe(64))\"\n"
+            "在 .env 中添加: AGENT_TOKEN_HMAC_KEY=<生成的密钥>\n"
+            "| FATAL: AGENT_TOKEN_HMAC_KEY not set in production. "
+            "Generate with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+        )
+    else:
+        settings.agent_token_hmac_key = secrets.token_urlsafe(64)
+        logger.warning(
+            "⚠️  AGENT_TOKEN_HMAC_KEY 未设置，已自动生成随机密钥（开发模式）。"
+            "重启后已有 Agent Token 哈希将失效，需要重新创建 Token。"
+            " | Dev mode: auto-generated HMAC key. Existing agent tokens invalidated on restart."
+        )
