@@ -248,6 +248,11 @@ async def report_metrics(
         net_send_rate_kb=body.net_send_rate_kb, # 发送速率
         net_recv_rate_kb=body.net_recv_rate_kb, # 接收速率
         net_packet_loss_rate=body.net_packet_loss_rate,  # 丢包率
+        agent_cpu_percent=body.agent_cpu_percent,
+        agent_memory_rss_mb=body.agent_memory_rss_mb,
+        agent_thread_count=body.agent_thread_count,
+        agent_uptime_seconds=body.agent_uptime_seconds,
+        agent_open_files=body.agent_open_files,
         recorded_at=recorded_at,
     )
     db.add(metric)
@@ -270,6 +275,10 @@ async def report_metrics(
             "cpu_load_1": body.cpu_load_1,
             "cpu_load_5": body.cpu_load_5,
             "cpu_load_15": body.cpu_load_15,
+            "agent_cpu_percent": body.agent_cpu_percent,
+            "agent_memory_rss_mb": body.agent_memory_rss_mb,
+            "agent_thread_count": body.agent_thread_count,
+            "agent_uptime_seconds": body.agent_uptime_seconds,
             "ts": recorded_at.isoformat()
         }
 

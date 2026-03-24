@@ -64,4 +64,9 @@ class MetricReport(BaseModel):
     net_send_rate_kb: float | None = None
     net_recv_rate_kb: float | None = None
     net_packet_loss_rate: float | None = None
+    agent_cpu_percent: float | None = None
+    agent_memory_rss_mb: float | None = None
+    agent_thread_count: int | None = None
+    agent_uptime_seconds: int | None = None
+    agent_open_files: int | None = None
     timestamp: datetime | None = None

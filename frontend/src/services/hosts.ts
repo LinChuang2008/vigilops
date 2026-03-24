@@ -87,6 +87,16 @@ export interface HostMetrics {
   cpu_load_5: number;
   /** 15 分钟负载 */
   cpu_load_15: number;
+  /** Agent 自身 CPU 使用率（%） */
+  agent_cpu_percent?: number;
+  /** Agent 自身 RSS 内存（MB） */
+  agent_memory_rss_mb?: number;
+  /** Agent 线程数 */
+  agent_thread_count?: number;
+  /** Agent 运行时长（秒） */
+  agent_uptime_seconds?: number;
+  /** Agent 打开文件数 */
+  agent_open_files?: number | null;
   /** 记录时间 */
   recorded_at: string;
   timestamp?: string;

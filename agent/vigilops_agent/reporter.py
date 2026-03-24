@@ -23,7 +23,7 @@ import httpx
 import websocket
 
 from vigilops_agent import __version__
-from vigilops_agent.collector import collect_system_info, collect_metrics
+from vigilops_agent.collector import collect_system_info, collect_metrics, collect_agent_process_metrics
 from vigilops_agent.checker import run_check
 from vigilops_agent.config import AgentConfig, ServiceCheckConfig, DatabaseMonitorConfig
 from typing import Optional, List, Dict
@@ -211,11 +211,8 @@ class AgentReporter:
                     capture_output=True, text=True
                 )
                 if svc_check.returncode == 0 and "RUNNING" in svc_check.stdout:
-                    logger.info("Triggering agent service restart via sc...")
-                    subprocess.Popen(["sc", "stop", "VigilOpsAgent"])
-                    import time as _time
-                    _time.sleep(2)
-                    subprocess.Popen(["sc", "start", "VigilOpsAgent"])
+                    logger.info("Scheduling detached Windows service restart...")
+                    self._schedule_windows_service_restart()
                 else:
                     # 命令行模式：重启当前进程
                     logger.info("Not running as Windows service, restarting process...")
@@ -233,6 +230,44 @@ class AgentReporter:
 
         except Exception as e:
             logger.error(f"Update failed: {e}")
+
+    def _schedule_windows_service_restart(self):
+        """通过独立 PowerShell 进程延迟重启服务，避免服务进程自停自启的竞态。"""
+        ps_script = r"""
+Start-Sleep -Seconds 3
+sc.exe stop VigilOpsAgent | Out-Null
+$stopped = $false
+for ($i = 0; $i -lt 30; $i++) {
+    Start-Sleep -Seconds 1
+    $status = sc.exe query VigilOpsAgent | Out-String
+    if ($status -match 'STATE\s*:\s*1\s+STOPPED') {
+        $stopped = $true
+        break
+    }
+}
+if (-not $stopped) {
+    exit 1
+}
+Start-Sleep -Seconds 2
+sc.exe start VigilOpsAgent | Out-Null
+"""
+        creation_flags = 0
+        creation_flags |= getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        creation_flags |= getattr(subprocess, "DETACHED_PROCESS", 0)
+        subprocess.Popen(
+            [
+                "powershell",
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                ps_script,
+            ],
+            creationflags=creation_flags,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
 
     def _execute_command(self, ws, msg: dict):
         """
@@ -568,6 +603,7 @@ class AgentReporter:
         if not self.host_id:
             return
         metrics = collect_metrics()
+        metrics.update(collect_agent_process_metrics())
         metrics["host_id"] = self.host_id
         metrics["timestamp"] = datetime.now(timezone.utc).isoformat()
         client = await self._get_client()
@@ -1002,16 +1038,22 @@ class AgentReporter:
                             f"total after merge: {len(self.config.services)}")
 
         # Docker 数据库自动发现，与手动配置合并（去重）
+        # 这里必须降级处理，不能因为某个发现能力缺失而导致整个 Agent 启动失败。
         if self.config.discovery.docker:
-            from vigilops_agent.discovery import discover_docker_databases
-            db_discovered = discover_docker_databases()
-            manual_db_names = {db.name for db in self.config.databases}
-            for db in db_discovered:
-                if db.name not in manual_db_names:
-                    self.config.databases.append(db)
-            if db_discovered:
-                logger.info(f"Auto-discovered {len(db_discovered)} Docker database(s), "
-                            f"total after merge: {len(self.config.databases)}")
+            try:
+                from vigilops_agent.discovery import discover_docker_databases
+                db_discovered = discover_docker_databases()
+                manual_db_names = {db.name for db in self.config.databases}
+                for db in db_discovered:
+                    if db.name not in manual_db_names:
+                        self.config.databases.append(db)
+                if db_discovered:
+                    logger.info(f"Auto-discovered {len(db_discovered)} Docker database(s), "
+                                f"total after merge: {len(self.config.databases)}")
+            except ImportError as e:
+                logger.warning("Docker database discovery is unavailable, skipping: %s", e)
+            except Exception as e:
+                logger.warning("Docker database discovery failed, skipping: %s", e)
 
         # 首次同步平台下发的数据库监控目标（无需改本地配置文件）
         await self._sync_remote_db_targets()
