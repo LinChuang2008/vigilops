@@ -208,6 +208,11 @@ async def get_host_metrics(
             greatest(0, avg(net_send_rate_kb)) as net_send_rate_kb,
             greatest(0, avg(net_recv_rate_kb)) as net_recv_rate_kb,
             avg(net_packet_loss_rate) as net_packet_loss_rate,
+            avg(agent_cpu_percent) as agent_cpu_percent,
+            avg(agent_memory_rss_mb) as agent_memory_rss_mb,
+            avg(agent_thread_count)::int as agent_thread_count,
+            avg(agent_uptime_seconds)::int as agent_uptime_seconds,
+            avg(agent_open_files)::int as agent_open_files,
             date_trunc('{trunc_unit}', recorded_at) as recorded_at
         FROM host_metrics
         WHERE host_id = :host_id AND recorded_at >= :since

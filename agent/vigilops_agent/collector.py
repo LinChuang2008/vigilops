@@ -6,6 +6,7 @@
 兼容 Linux / Windows / macOS。
 """
 import logging
+import os
 import platform
 import time
 from typing import Dict, List, Optional
@@ -113,6 +114,33 @@ def collect_metrics() -> dict:
         "net_recv_rate_kb": net_recv_rate_kb,
         "net_packet_loss_rate": net_packet_loss_rate,
     }
+
+
+def collect_agent_process_metrics() -> dict:
+    """采集当前 Agent 进程自身的资源占用。"""
+    try:
+        proc = psutil.Process(os.getpid())
+        with proc.oneshot():
+            mem = proc.memory_info()
+            try:
+                cpu_percent = proc.cpu_percent(interval=None)
+            except Exception:
+                cpu_percent = 0.0
+            create_time = proc.create_time()
+            metrics = {
+                "agent_cpu_percent": round(float(cpu_percent), 2),
+                "agent_memory_rss_mb": round(mem.rss / (1024 * 1024), 2),
+                "agent_thread_count": int(proc.num_threads()),
+                "agent_uptime_seconds": max(0, int(time.time() - create_time)),
+            }
+            try:
+                metrics["agent_open_files"] = len(proc.open_files())
+            except Exception:
+                metrics["agent_open_files"] = None
+            return metrics
+    except Exception as e:
+        logger.warning(f"Failed to collect agent process metrics: {e}")
+        return {}
 
 
 def _collect_disk_partitions() -> List[Dict]:

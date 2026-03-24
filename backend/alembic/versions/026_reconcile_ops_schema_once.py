@@ -244,6 +244,17 @@ def _ensure_database_monitor_targets(inspector: sa.Inspector) -> None:
     _ensure_index("CREATE INDEX IF NOT EXISTS ix_database_monitor_targets_host_name ON database_monitor_targets (host_id, name)")
 
 
+def _ensure_agent_resource_fields(inspector: sa.Inspector) -> None:
+    if not _table_exists(inspector, "host_metrics"):
+        return
+
+    op.execute(sa.text("ALTER TABLE host_metrics ADD COLUMN IF NOT EXISTS agent_cpu_percent DOUBLE PRECISION NULL"))
+    op.execute(sa.text("ALTER TABLE host_metrics ADD COLUMN IF NOT EXISTS agent_memory_rss_mb DOUBLE PRECISION NULL"))
+    op.execute(sa.text("ALTER TABLE host_metrics ADD COLUMN IF NOT EXISTS agent_thread_count INTEGER NULL"))
+    op.execute(sa.text("ALTER TABLE host_metrics ADD COLUMN IF NOT EXISTS agent_uptime_seconds INTEGER NULL"))
+    op.execute(sa.text("ALTER TABLE host_metrics ADD COLUMN IF NOT EXISTS agent_open_files INTEGER NULL"))
+
+
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
@@ -255,6 +266,7 @@ def upgrade() -> None:
     _ensure_menu_settings(inspector)
     _ensure_ai_operation_logs(inspector)
     _ensure_database_monitor_targets(inspector)
+    _ensure_agent_resource_fields(inspector)
 
 
 def downgrade() -> None:

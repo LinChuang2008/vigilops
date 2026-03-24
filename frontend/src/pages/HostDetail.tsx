@@ -95,6 +95,19 @@ export default function HostDetail() {
   if (loading && !host) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
   if (!host) return <Typography.Text>{t('hosts.notFound')}</Typography.Text>;
 
+  const latestMetrics = host.latest_metrics;
+  const hasAgentSnapshot = latestMetrics?.agent_cpu_percent != null || latestMetrics?.agent_memory_rss_mb != null;
+  const hasAgentHistory = metrics.some((m) => m.agent_cpu_percent != null || m.agent_memory_rss_mb != null);
+  const formatDuration = (seconds?: number) => {
+    if (seconds == null || Number.isNaN(seconds)) return '-';
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m`;
+  };
+
   const timestamps = metrics.map(m => {
     const ts = (m as Record<string, unknown>).recorded_at || m.timestamp;
     return ts ? new Date(ts as string).toLocaleTimeString() : '';
@@ -145,6 +158,29 @@ export default function HostDetail() {
       { name: t('hosts.packetLoss'), type: 'line' as const, data: metrics.map(m => m.net_packet_loss_rate ?? 0), smooth: true, areaStyle: { opacity: 0.15 }, itemStyle: { color: '#faad14' } },
     ],
     grid: { top: 40, bottom: 40, left: 50, right: 20 },
+  };
+
+  const agentCpuOption = lineOption(t('hosts.agentCpuTrend'), [
+    { name: t('hosts.agentCpuPercent'), data: metrics.map(m => Number(m.agent_cpu_percent ?? 0)), color: '#722ed1' },
+  ]);
+
+  const agentMemoryOption = {
+    title: { text: t('hosts.agentMemoryTrend'), left: 'center', textStyle: { fontSize: 14 } },
+    tooltip: { trigger: 'axis' as const },
+    legend: { bottom: 0 },
+    xAxis: { type: 'category' as const, data: timestamps, axisLabel: { rotate: 30 } },
+    yAxis: { type: 'value' as const, axisLabel: { formatter: '{value} MB' } },
+    series: [
+      {
+        name: t('hosts.agentMemoryRss'),
+        type: 'line' as const,
+        data: metrics.map(m => Number(m.agent_memory_rss_mb ?? 0)),
+        smooth: true,
+        areaStyle: { opacity: 0.1 },
+        itemStyle: { color: '#13c2c2' },
+      },
+    ],
+    grid: { top: 40, bottom: 60, left: 60, right: 20 },
   };
 
   return (
@@ -235,6 +271,30 @@ export default function HostDetail() {
         </Row>
       </Card>
 
+      <Card title={t('hosts.agentResourceUsage')} style={{ marginBottom: 16 }}>
+        {hasAgentSnapshot ? (
+          <Descriptions column={{ xs: 1, sm: 2, md: 5 }}>
+            <Descriptions.Item label={t('hosts.agentCpuPercent')}>
+              {latestMetrics?.agent_cpu_percent != null ? `${Number(latestMetrics.agent_cpu_percent).toFixed(2)}%` : '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label={t('hosts.agentMemoryRss')}>
+              {latestMetrics?.agent_memory_rss_mb != null ? `${Number(latestMetrics.agent_memory_rss_mb).toFixed(2)} MB` : '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label={t('hosts.agentThreads')}>
+              {latestMetrics?.agent_thread_count ?? '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label={t('hosts.agentOpenFiles')}>
+              {latestMetrics?.agent_open_files ?? '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label={t('hosts.agentProcessUptime')}>
+              {formatDuration(latestMetrics?.agent_uptime_seconds as number | undefined)}
+            </Descriptions.Item>
+          </Descriptions>
+        ) : (
+          <Typography.Text type="secondary">{t('hosts.agentMetricsPending')}</Typography.Text>
+        )}
+      </Card>
+
       <Row gutter={[16, 16]}>
         <Col xs={24} md={12}>
           <Card>
@@ -270,6 +330,28 @@ export default function HostDetail() {
         <Col xs={24} md={12}>
           <Card>
             <ReactECharts option={packetLossOption} style={{ height: 280 }} />
+          </Card>
+        </Col>
+        <Col xs={24} md={12}>
+          <Card>
+            {hasAgentHistory ? (
+              <ReactECharts option={agentCpuOption} style={{ height: 280 }} />
+            ) : (
+              <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Typography.Text type="secondary">{t('hosts.agentMetricsPending')}</Typography.Text>
+              </div>
+            )}
+          </Card>
+        </Col>
+        <Col xs={24} md={12}>
+          <Card>
+            {hasAgentHistory ? (
+              <ReactECharts option={agentMemoryOption} style={{ height: 280 }} />
+            ) : (
+              <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Typography.Text type="secondary">{t('hosts.agentMetricsPending')}</Typography.Text>
+              </div>
+            )}
           </Card>
         </Col>
       </Row>
