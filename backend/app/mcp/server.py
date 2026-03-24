@@ -25,6 +25,7 @@ from typing import Dict, List, Optional, Any, Union
 
 from fastmcp import FastMCP
 from pydantic import BaseModel
+from sqlalchemy.orm import joinedload
 
 from app.core.config import settings
 from app.core.database import SessionLocal
@@ -627,6 +628,7 @@ def start_mcp_server(host: str = "127.0.0.1", port: int = 8003):
                         await response(scope, receive, send)
                         return
                     else:
+                        # WebSocket: 拒绝连接
                         await send({"type": "websocket.close", "code": 4401})
                         return
             await self.app(scope, receive, send)
