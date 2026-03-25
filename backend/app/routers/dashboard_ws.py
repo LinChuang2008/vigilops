@@ -25,6 +25,7 @@ Author: VigilOps Team
 import asyncio
 import json
 import logging
+import math
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -44,6 +45,89 @@ router = APIRouter()
 
 # 推送间隔（秒）
 PUSH_INTERVAL = 30
+
+
+def _resource_penalty(value: float | None, *, warning: float, high: float, critical: float, max_points: int) -> int:
+    """对单项资源使用率做分段扣分，避免中低负载被过度惩罚。"""
+    if value is None or value <= warning:
+        return 0
+
+    if value <= high:
+        penalty = (value - warning) * 0.2
+    elif value <= critical:
+        penalty = (high - warning) * 0.2 + (value - high) * 0.5
+    else:
+        penalty = (high - warning) * 0.2 + (critical - high) * 0.5 + (value - critical) * 0.9
+
+    return min(max_points, max(1, round(penalty)))
+
+
+def _ratio_penalty(problem_count: int, total: int, *, max_points: int, min_points_if_any: int = 0) -> int:
+    """按异常占比扣分，避免节点数量变化导致评分畸变。"""
+    if problem_count <= 0 or total <= 0:
+        return 0
+
+    penalty = round((problem_count / total) * max_points)
+    return min(max_points, max(min_points_if_any, penalty))
+
+
+def _build_health_breakdown(
+    *,
+    host_total: int,
+    host_offline: int,
+    svc_total: int,
+    svc_down: int,
+    firing_count: int,
+    active_alert_total: int,
+    error_log_count: int,
+    avg_cpu: float | None,
+    avg_mem: float | None,
+    avg_disk: float | None,
+    metrics_count: int,
+) -> list[dict]:
+    """构建健康评分扣分项。points 为负数，便于前端直接展示。"""
+    deductions: list[dict] = []
+
+    offline_penalty = _ratio_penalty(host_offline, host_total, max_points=30, min_points_if_any=8)
+    if offline_penalty:
+        deductions.append({"reason": f"离线主机 {host_offline}/{host_total}", "points": -offline_penalty})
+
+    svc_penalty = _ratio_penalty(svc_down, svc_total, max_points=24, min_points_if_any=6)
+    if svc_penalty:
+        deductions.append({"reason": f"异常服务 {svc_down}/{svc_total}", "points": -svc_penalty})
+
+    if firing_count > 0:
+        firing_penalty = min(20, 4 + (firing_count - 1) * 4)
+        deductions.append({"reason": f"触发中告警 {firing_count} 条", "points": -firing_penalty})
+    elif active_alert_total > 0:
+        acknowledged_penalty = min(8, 2 + active_alert_total)
+        deductions.append({"reason": f"未关闭告警 {active_alert_total} 条", "points": -acknowledged_penalty})
+
+    if error_log_count > 0:
+        error_penalty = min(12, 2 + math.ceil(error_log_count / 10) * 2)
+        deductions.append({"reason": f"近1小时错误日志 {error_log_count} 条", "points": -error_penalty})
+
+    cpu_penalty = _resource_penalty(avg_cpu, warning=60, high=75, critical=90, max_points=16)
+    if cpu_penalty:
+        deductions.append({"reason": f"平均 CPU {avg_cpu:.1f}%", "points": -cpu_penalty})
+
+    mem_penalty = _resource_penalty(avg_mem, warning=65, high=80, critical=92, max_points=18)
+    if mem_penalty:
+        deductions.append({"reason": f"平均内存 {avg_mem:.1f}%", "points": -mem_penalty})
+
+    disk_penalty = _resource_penalty(avg_disk, warning=70, high=85, critical=95, max_points=14)
+    if disk_penalty:
+        deductions.append({"reason": f"平均磁盘 {avg_disk:.1f}%", "points": -disk_penalty})
+
+    if host_total > 0 and metrics_count == 0:
+        deductions.append({"reason": "最近1小时无资源指标上报", "points": -10})
+
+    return sorted(deductions, key=lambda item: abs(item["points"]), reverse=True)
+
+
+def _calc_health_score_from_breakdown(breakdown: list[dict]) -> int:
+    total_penalty = sum(abs(int(item.get("points", 0))) for item in breakdown)
+    return max(0, min(100, 100 - total_penalty))
 
 
 async def _collect_dashboard_data() -> dict:
@@ -176,7 +260,21 @@ async def _collect_dashboard_data() -> dict:
                 avg_disk = round(sum(disk_vals) / len(disk_vals), 1)
 
         # === 系统健康评分计算 (Health Score Calculation) ===
-        health_score = _calc_health_score(avg_cpu, avg_mem, avg_disk, svc_down)
+        host_offline = host_total - host_online
+        health_breakdown = _build_health_breakdown(
+            host_total=host_total,
+            host_offline=host_offline,
+            svc_total=svc_total,
+            svc_down=svc_down,
+            firing_count=firing_count,
+            active_alert_total=active_alert_total,
+            error_log_count=error_log_count,
+            avg_cpu=avg_cpu,
+            avg_mem=avg_mem,
+            avg_disk=avg_disk,
+            metrics_count=len(metrics),
+        )
+        health_score = _calc_health_score_from_breakdown(health_breakdown)
 
         # 构建完整的仪表盘数据响应
         return {
@@ -184,7 +282,7 @@ async def _collect_dashboard_data() -> dict:
             "hosts": {
                 "total": host_total,
                 "online": host_online,
-                "offline": host_total - host_online,
+                "offline": host_offline,
             },
             "services": {
                 "total": svc_total,
@@ -205,6 +303,7 @@ async def _collect_dashboard_data() -> dict:
                 "disk_percent": avg_disk,    # 平均磁盘使用率
             },
             "health_score": health_score,    # 综合健康评分(0-100)
+            "health_breakdown": health_breakdown,
             "notification_setup": {
                 "configured": enabled_channels > 0,
                 "enabled_count": enabled_channels,
@@ -255,20 +354,20 @@ def _calc_health_score(
         - CPU 80%, 内存 70%, 磁盘 60%, 2个异常服务 → 评分 20
         - CPU 50%, 内存 null, 磁盘 60%, 1个异常服务 → 评分 68
     """
-    # 处理空值：如果指标为 None，视为 0% 使用率（最佳状态）
-    cpu = avg_cpu if avg_cpu is not None else 0
-    mem = avg_mem if avg_mem is not None else 0
-    disk = avg_disk if avg_disk is not None else 0
-    
-    # 计算服务异常惩罚：每个异常服务扣5分
-    penalty = svc_down * 5
-
-    # 计算综合健康评分
-    # 基础分100分，减去资源使用惩罚和服务异常惩罚
-    score = 100 - (0.3 * cpu + 0.3 * mem + 0.2 * disk + penalty)
-    
-    # 确保评分在 0-100 范围内
-    return max(0, min(100, round(score)))
+    breakdown = _build_health_breakdown(
+        host_total=0,
+        host_offline=0,
+        svc_total=max(svc_down, 1) if svc_down else 0,
+        svc_down=svc_down,
+        firing_count=0,
+        active_alert_total=0,
+        error_log_count=0,
+        avg_cpu=avg_cpu,
+        avg_mem=avg_mem,
+        avg_disk=avg_disk,
+        metrics_count=1 if any(v is not None for v in (avg_cpu, avg_mem, avg_disk)) else 0,
+    )
+    return _calc_health_score_from_breakdown(breakdown)
 
 
 @router.websocket("/api/v1/ws/dashboard")

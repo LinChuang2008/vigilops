@@ -169,6 +169,24 @@ export default function Logs() {
     { title: t('logs.message'), dataIndex: 'message', key: 'message', ellipsis: true },
   ];
 
+  const contextColumns = [
+    { title: t('logs.timestamp'), dataIndex: 'timestamp', key: 'timestamp', width: 180, render: (val: string) => dayjs(val).format('YYYY-MM-DD HH:mm:ss') },
+    { title: t('logs.server'), dataIndex: 'hostname', key: 'hostname', width: 140, render: (name: string, record: LogEntry) => name || hostMapRef.current[String(record.host_id)] || `Host #${record.host_id}` },
+    { title: t('logs.service'), dataIndex: 'service', key: 'service', width: 120 },
+    { title: t('logs.level'), dataIndex: 'level', key: 'level', width: 90, render: (l: string) => <Tag color={LEVEL_COLOR[l] || 'default'}>{l}</Tag> },
+    {
+      title: t('logs.message'),
+      dataIndex: 'message',
+      key: 'message',
+      width: 520,
+      render: (message: string) => (
+        <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', minWidth: 320 }}>
+          {message}
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div>
       <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
@@ -286,11 +304,12 @@ export default function Logs() {
             <Title level={5} style={{ marginTop: 16 }}>{t('logs.contextLogs')}</Title>
             <Table
               dataSource={contextLogs}
-              columns={columns}
+              columns={contextColumns}
               rowKey={(r, i) => r.id || String(i)}
               loading={contextLoading}
               size="small"
               pagination={false}
+              scroll={{ x: 1050 }}
               rowClassName={(record) => record.id === selectedLog.id ? 'ant-table-row-selected' : ''}
             />
           </>

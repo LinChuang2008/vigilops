@@ -27,15 +27,13 @@ export interface CustomRunbook {
   updated_at: string;
 }
 
-/** 统一列表项 (内置 + 自定义) */
+/** Runbook 列表项 */
 export interface RunbookListItem {
-  id: number | null;
+  id: number;
   name: string;
   description: string;
-  source: 'builtin' | 'custom';
+  source: 'custom';
   risk_level: string;
-  match_keywords?: string[];
-  match_alert_types?: string[];
   trigger_keywords?: string[];
   steps_count: number;
   is_active: boolean;
@@ -90,7 +88,7 @@ export interface GenerateRunbookResponse {
 }
 
 export const customRunbookService = {
-  /** 获取所有 Runbook (内置 + 自定义) */
+  /** 获取所有 Runbook */
   listAll: () =>
     api.get<{ items: RunbookListItem[]; total: number }>('/runbooks/custom/all'),
 

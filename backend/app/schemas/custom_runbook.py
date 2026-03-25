@@ -77,7 +77,7 @@ class CustomRunbookResponse(BaseModel):
 
 
 class RunbookListResponse(BaseModel):
-    """Runbook 列表响应 (含内置+自定义)"""
+    """Runbook 列表响应。"""
     items: list
     total: int
 

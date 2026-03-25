@@ -6,11 +6,11 @@
 import json
 import logging
 import re
-from typing import List, Optional
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 from fastapi.responses import JSONResponse
-from sqlalchemy import select, func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -26,7 +26,7 @@ from app.schemas.custom_runbook import (
     DryRunResponse,
     DryRunStepResult,
 )
-from app.remediation.safety import check_command_safety, FORBIDDEN_PATTERNS
+from app.remediation.safety import check_command_safety
 
 logger = logging.getLogger(__name__)
 
@@ -109,26 +109,7 @@ async def list_all_runbooks(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """获取所有 Runbook (内置 + 自定义)"""
-    from app.remediation.runbook_registry import RunbookRegistry
-    registry = RunbookRegistry()
-
-    # 内置 Runbook
-    builtins = []
-    for rb in registry.list_all():
-        builtins.append({
-            "id": None,
-            "name": rb.name,
-            "description": rb.description,
-            "source": "builtin",
-            "risk_level": rb.risk_level.value,
-            "match_keywords": rb.match_keywords,
-            "match_alert_types": rb.match_alert_types,
-            "steps_count": len(rb.commands),
-            "is_active": True,
-        })
-
-    # 自定义 Runbook
+    """获取所有用户自定义 Runbook。"""
     result = await db.execute(
         select(CustomRunbook).order_by(CustomRunbook.created_at.desc())
     )
@@ -146,8 +127,7 @@ async def list_all_runbooks(
             "created_at": cr.created_at.isoformat() if cr.created_at else None,
         })
 
-    items = builtins + customs
-    return RunbookListResponse(items=items, total=len(items))
+    return RunbookListResponse(items=customs, total=len(customs))
 
 
 @router.get("/{runbook_id}", response_model=CustomRunbookResponse)

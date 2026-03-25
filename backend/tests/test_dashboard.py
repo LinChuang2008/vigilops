@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 from httpx import AsyncClient
 from app.models.host import Host
 from app.models.alert import Alert, AlertRule
+from app.routers.dashboard_ws import _build_health_breakdown, _calc_health_score_from_breakdown
 
 
 @pytest.fixture
@@ -40,3 +41,61 @@ class TestDashboard:
     async def test_trends_requires_auth(self, client: AsyncClient):
         resp = await client.get("/api/v1/dashboard/trends")
         assert resp.status_code == 401
+
+
+class TestDashboardHealthScore:
+    def test_health_score_keeps_healthy_system_high(self):
+        breakdown = _build_health_breakdown(
+            host_total=4,
+            host_offline=0,
+            svc_total=12,
+            svc_down=0,
+            firing_count=0,
+            active_alert_total=0,
+            error_log_count=0,
+            avg_cpu=28,
+            avg_mem=42,
+            avg_disk=51,
+            metrics_count=4,
+        )
+        assert breakdown == []
+        assert _calc_health_score_from_breakdown(breakdown) == 100
+
+    def test_health_score_penalizes_real_incidents(self):
+        breakdown = _build_health_breakdown(
+            host_total=4,
+            host_offline=1,
+            svc_total=10,
+            svc_down=3,
+            firing_count=2,
+            active_alert_total=3,
+            error_log_count=27,
+            avg_cpu=88,
+            avg_mem=91,
+            avg_disk=93,
+            metrics_count=4,
+        )
+        score = _calc_health_score_from_breakdown(breakdown)
+
+        assert score < 70
+        reasons = [item["reason"] for item in breakdown]
+        assert any("离线主机" in reason for reason in reasons)
+        assert any("异常服务" in reason for reason in reasons)
+        assert any("触发中告警" in reason for reason in reasons)
+
+    def test_health_score_penalizes_missing_metrics(self):
+        breakdown = _build_health_breakdown(
+            host_total=3,
+            host_offline=0,
+            svc_total=0,
+            svc_down=0,
+            firing_count=0,
+            active_alert_total=0,
+            error_log_count=0,
+            avg_cpu=None,
+            avg_mem=None,
+            avg_disk=None,
+            metrics_count=0,
+        )
+
+        assert any(item["reason"] == "最近1小时无资源指标上报" for item in breakdown)

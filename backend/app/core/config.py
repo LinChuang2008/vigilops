@@ -131,7 +131,6 @@ class Settings(BaseSettings):
     environment: str = "development"  # 运行环境：development/production (Runtime Environment)
     frontend_url: str = "http://localhost:3001"  # 前端 URL (Frontend URL)
     api_domain: str = "localhost:8001"  # API 域名 (API Domain)
-
     # 通知安全配置 (Notification Security Configuration)
     # SSRF 防护：允许的 Webhook 域名白名单（逗号分隔），留空则不限制（仅开发环境）
     # SSRF Protection: Allowed webhook domain whitelist (comma-separated), empty = no restriction (dev only)

@@ -20,8 +20,8 @@ interface HealthScoreGaugeProps {
 }
 
 function getScoreColor(s: number): string {
-  if (s < 60) return '#52c41a';
-  if (s < 80) return '#faad14';
+  if (s >= 85) return '#52c41a';
+  if (s >= 70) return '#faad14';
   return '#ff4d4f';
 }
 
@@ -31,9 +31,9 @@ export default memo(function HealthScoreGauge({ score, breakdown }: HealthScoreG
   const scoreColor = getScoreColor(score);
 
   const statusText =
-    score < 60
+    score >= 85
       ? t('dashboard.scoreHealthy')
-      : score < 80
+      : score >= 70
       ? t('dashboard.scoreWarning')
       : t('dashboard.scoreDanger');
 
@@ -58,12 +58,12 @@ export default memo(function HealthScoreGauge({ score, breakdown }: HealthScoreG
               x2: 1,
               y2: 0,
               colorStops: [
-                { offset: 0,   color: '#52c41a' },
-                { offset: 0.6, color: '#52c41a' },
-                { offset: 0.6, color: '#faad14' },
-                { offset: 0.8, color: '#faad14' },
-                { offset: 0.8, color: '#ff4d4f' },
-                { offset: 1,   color: '#ff4d4f' },
+                { offset: 0,   color: '#ff4d4f' },
+                { offset: 0.7, color: '#ff4d4f' },
+                { offset: 0.7, color: '#faad14' },
+                { offset: 0.85, color: '#faad14' },
+                { offset: 0.85, color: '#52c41a' },
+                { offset: 1,   color: '#52c41a' },
               ],
             },
           },

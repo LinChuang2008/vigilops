@@ -13,9 +13,6 @@ identifying problem root causes and recommending remediation solutions.
 - Mock 模式支持，便于测试和开发
 - 智能解析 AI 响应，容错处理 Markdown 格式
 
-支持的 Runbook 类型 (Supported Runbook Types):
-disk_cleanup, service_restart, zombie_killer, memory_pressure, log_rotation, connection_reset
-
 AI 模型要求 (AI Model Requirements):
 - 必须支持 OpenAI 兼容的 API 接口
 - 推荐使用 DeepSeek、GPT-4 等具备强逻辑推理能力的模型
@@ -50,8 +47,7 @@ Your response MUST be valid JSON with these fields:
     "reasoning": "step by step reasoning"
 }
 
-Available runbooks: disk_cleanup, service_restart, zombie_killer, memory_pressure, log_rotation, connection_reset
-
+Only set "suggested_runbook" when the name is explicitly known from context. Otherwise return null.
 Be precise. High confidence only when evidence is clear. When uncertain, say so."""
 
 

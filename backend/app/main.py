@@ -85,10 +85,10 @@ from app.api.v1 import alert_deduplication
 async def lifespan(app: FastAPI):
     """
     应用生命周期管理器 (Application Lifecycle Manager)
-    
+
     管理 VigilOps 应用的完整生命周期，包括启动时的初始化和关闭时的清理。
     负责数据库表创建、内置数据初始化、后台任务启动和资源释放。
-    
+
     Manages the complete lifecycle of the VigilOps application, including initialization
     at startup and cleanup at shutdown. Responsible for database table creation,
     built-in data initialization, background task startup, and resource cleanup.
@@ -104,18 +104,12 @@ async def lifespan(app: FastAPI):
     from app.services.alert_seed import seed_builtin_rules
     from app.core.database import async_session
 
-    # 启动阶段：应用初始化 (Startup Phase: Application Initialization)
-    
-    # 自动创建数据库表结构 (Automatically create database table structure)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    # 初始化内置告警规则（CPU、内存、磁盘等默认规则） (Initialize built-in alert rules)
     async with async_session() as session:
         await seed_builtin_rules(session)
-    
-    # 初始化默认数据保留策略设置 (Initialize default data retention policy settings)
-    # DataRetentionService 使用同步 .query()，需要同步 Session
+
     from app.services.data_retention import DataRetentionService
     from app.core.database import SessionLocal
     try:
@@ -192,7 +186,6 @@ async def lifespan(app: FastAPI):
 
     monitor_task = asyncio.create_task(_monitor_tasks(), name="task_monitor")
 
-    # 应用运行阶段 (Application running phase)
     yield
 
     # 关闭阶段：清理资源和取消任务 (Shutdown Phase: Cleanup resources and cancel tasks)
@@ -200,7 +193,6 @@ async def lifespan(app: FastAPI):
     for name, task in background_tasks.items():
         task.cancel()
 
-    # 关闭连接池和资源 (Close connection pools and resources)
     await close_redis()
     await engine.dispose()
 

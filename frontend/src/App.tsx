@@ -45,6 +45,7 @@ const AlertEscalation = lazy(() => import('./pages/AlertEscalation'));
 const OnCall = lazy(() => import('./pages/OnCall'));
 const Demo = lazy(() => import('./pages/Demo'));
 const AIConfigs = lazy(() => import('./pages/AIConfigs'));
+const RunbookManagement = lazy(() => import('./pages/RunbookManagement'));
 
 /** 路由权限守卫：根据角色限制可访问的页面 */
 const viewerAllowedPrefixes = ['/', '/dashboard', '/hosts', '/servers', '/services', '/topology', '/logs', '/databases', '/alerts', '/ops', '/remediations', '/runbooks', '/multi-server', '/service-groups', '/on-call', '/sla', '/ai-operation-logs', '/landing', '/demo'];
@@ -123,7 +124,7 @@ function AppInner() {
               <Route path="/alerts" element={<AlertList />} />
               <Route path="/remediations" element={<RemediationList />} />
               <Route path="/remediations/:id" element={<RemediationDetail />} />
-              <Route path="/runbooks" element={<Navigate to="/ops" replace />} />
+              <Route path="/runbooks" element={<RunbookManagement />} />
               <Route path="/sla" element={<SLA />} />
               <Route path="/ai-analysis" element={<Navigate to="/ops" replace />} />
               <Route path="/ops" element={<OpsAssistant />} />

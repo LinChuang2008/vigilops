@@ -9,6 +9,8 @@ from app.remediation.models import (
     Diagnosis,
     RemediationAlert,
     RiskLevel,
+    RunbookDefinition,
+    RunbookStep,
 )
 from app.remediation.runbook_registry import RunbookRegistry
 
@@ -19,6 +21,7 @@ def _mock_db():
     db.add = MagicMock()
     db.flush = AsyncMock()
     db.commit = AsyncMock()
+    db.execute = AsyncMock()
     return db
 
 
@@ -34,6 +37,32 @@ def _make_alert(**kwargs) -> RemediationAlert:
     return RemediationAlert(**defaults)
 
 
+def _make_registry() -> RunbookRegistry:
+    registry = RunbookRegistry()
+    registry.register(
+        RunbookDefinition(
+            name="disk_cleanup",
+            description="cleanup disk",
+            match_alert_types=["disk_full"],
+            match_keywords=["disk", "space"],
+            risk_level=RiskLevel.AUTO,
+            commands=[RunbookStep(description="cleanup", command="echo cleanup", timeout_seconds=30)],
+        )
+    )
+    registry.register(
+        RunbookDefinition(
+            name="service_restart",
+            description="restart service",
+            match_alert_types=["service_down"],
+            match_keywords=["service", "down", "nginx"],
+            risk_level=RiskLevel.CONFIRM,
+            commands=[RunbookStep(description="restart", command="echo restart {service}", timeout_seconds=30)],
+        )
+    )
+    registry.load_from_db = AsyncMock()
+    return registry
+
+
 @pytest.mark.asyncio
 async def test_handle_alert_auto_dry_run():
     """AUTO 风险 + dry-run 模式下应该成功执行（不真正执行命令）。"""
@@ -44,7 +73,7 @@ async def test_handle_alert_auto_dry_run():
     )
     ai = RemediationLLMClient(mock_responses=[mock_diagnosis])
     executor = CommandExecutor(dry_run=True)
-    agent = RemediationAgent(ai_client=ai, executor=executor)
+    agent = RemediationAgent(ai_client=ai, executor=executor, registry=_make_registry())
     db = _mock_db()
 
     alert = _make_alert()
@@ -67,7 +96,7 @@ async def test_handle_alert_confirm_escalates():
         suggested_runbook="service_restart",
     )
     ai = RemediationLLMClient(mock_responses=[mock_diagnosis])
-    agent = RemediationAgent(ai_client=ai)
+    agent = RemediationAgent(ai_client=ai, registry=_make_registry())
     db = _mock_db()
 
     alert = _make_alert(alert_type="service_down", message="nginx is down")
@@ -87,18 +116,15 @@ async def test_handle_alert_no_runbook():
         suggested_runbook="nonexistent_runbook",
     )
     ai = RemediationLLMClient(mock_responses=[mock_diagnosis])
-    agent = RemediationAgent(ai_client=ai)
+    agent = RemediationAgent(ai_client=ai, registry=_make_registry())
     db = _mock_db()
 
-    # Note: the default message "Disk usage at 95%" may trigger keyword matching
-    # to disk_cleanup runbook (risk=confirm), which causes escalation.
     alert = _make_alert(alert_type="unknown_alert_type", message="Unknown issue detected")
     result = await agent.handle_alert(alert, db)
 
     assert result.success is False
     assert result.escalated is True
-    # May be "no matching runbook" or escalated due to risk level
-    assert "no matching runbook" in result.blocked_reason.lower() or "confirm" in result.blocked_reason.lower()
+    assert "no matching runbook" in result.blocked_reason.lower()
 
 
 @pytest.mark.asyncio
@@ -106,7 +132,7 @@ async def test_circuit_breaker_blocks():
     """熔断器开启时应该直接拒绝。"""
     mock_diagnosis = Diagnosis(root_cause="test", confidence=0.9, suggested_runbook="disk_cleanup")
     ai = RemediationLLMClient(mock_responses=[mock_diagnosis])
-    agent = RemediationAgent(ai_client=ai)
+    agent = RemediationAgent(ai_client=ai, registry=_make_registry())
     # 触发熔断
     for _ in range(3):
         agent.circuit_breaker.record_failure("web-01")
@@ -122,8 +148,8 @@ async def test_circuit_breaker_blocks():
 @pytest.mark.asyncio
 async def test_runbook_registry_match():
     """Runbook 注册表应该正确匹配。"""
-    registry = RunbookRegistry()
-    assert len(registry.list_all()) == 13
+    registry = _make_registry()
+    assert len(registry.list_all()) == 2
 
     alert = _make_alert(alert_type="disk_full")
     diag = Diagnosis(root_cause="disk full", confidence=0.9, suggested_runbook="disk_cleanup")

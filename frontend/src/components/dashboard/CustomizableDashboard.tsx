@@ -3,7 +3,7 @@
  * 支持拖拽布局、显示控制、配置保存
  * v2: 新增 ZONE A（AI 洞察 + 健康评分），日志-告警联动
  */
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -98,6 +98,7 @@ interface WsDashboardData {
   services: { total: number; up: number; down: number };
   alerts: { total: number; firing: number };
   health_score: number;
+  health_breakdown?: ScoreDeduction[];
 }
 
 interface TrendPoint {
@@ -108,49 +109,12 @@ interface TrendPoint {
   error_log_count: number;
 }
 
-/* ==================== 健康评分扣分推算（前端 Mock） ==================== */
-
-function calcScoreBreakdown(data: DashboardData, logStats: LogStats): ScoreDeduction[] {
-  const deductions: ScoreDeduction[] = [];
-
-  const fatalCount = logStats.by_level.find(l => l.level === 'FATAL')?.count ?? 0;
-  if (fatalCount > 0) {
-    deductions.push({
-      reason: `FATAL Logs ×${fatalCount}`,
-      points: -Math.min(Math.round(fatalCount * 1.5), 15),
-    });
-  }
-
-  const errorCount = logStats.by_level.find(l => l.level === 'ERROR')?.count ?? 0;
-  if (errorCount > 0) {
-    deductions.push({
-      reason: `ERROR Logs ×${errorCount}`,
-      points: -Math.min(Math.floor(errorCount / 10), 10),
-    });
-  }
-
-  const maxDisk = data.hosts.items.length > 0
-    ? Math.max(...data.hosts.items.map(h => h.latest_metrics?.disk_percent ?? 0))
-    : 0;
-
-  if (maxDisk > 80) {
-    deductions.push({ reason: `磁盘使用率 ${maxDisk.toFixed(0)}%`, points: -8 });
-  } else if (maxDisk > 60) {
-    deductions.push({ reason: `磁盘使用率 ${maxDisk.toFixed(0)}%`, points: -4 });
-  }
-
-  const maxMem = data.hosts.items.length > 0
-    ? Math.max(...data.hosts.items.map(h => h.latest_metrics?.memory_percent ?? 0))
-    : 0;
-
-  if (maxMem > 80) {
-    deductions.push({ reason: `内存使用率 ${maxMem.toFixed(0)}%`, points: -6 });
-  }
-
-  return deductions.sort((a, b) => a.points - b.points);
-}
-
 /* ==================== 主组件 ==================== */
+
+interface HealthSnapshot {
+  health_score: number;
+  health_breakdown: ScoreDeduction[];
+}
 
 export default function CustomizableDashboard() {
   // 数据状态
@@ -172,6 +136,7 @@ export default function CustomizableDashboard() {
   const [isEditing, setIsEditing] = useState(false);
   const [containerWidth, setContainerWidth] = useState(1200);
   const [debouncedHealthScore, setDebouncedHealthScore] = useState<number>(0);
+  const [healthSnapshot, setHealthSnapshot] = useState<HealthSnapshot | null>(null);
   const healthScoreTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -182,12 +147,6 @@ export default function CustomizableDashboard() {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wsReconnectCountRef = useRef(0);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // 健康评分扣分项（前端推算）
-  const scoreBreakdown = useMemo<ScoreDeduction[]>(() => {
-    if (!data || !logStats) return [];
-    return calcScoreBreakdown(data, logStats);
-  }, [data, logStats]);
 
   // 加载配置
   const loadConfig = useCallback(() => {
@@ -261,7 +220,7 @@ export default function CustomizableDashboard() {
       setTimeout(() => reject(new Error('AI insight timeout')), 3000)
     );
 
-    const [logResult, dbResult, aiResult] = await Promise.allSettled([
+    const [logResult, dbResult, aiResult, summaryResult] = await Promise.allSettled([
       fetchLogStats('1h'),
       databaseService.list(),
       // 获取 AI 最新洞察（3秒超时降级，接口不存在时静默降级）
@@ -269,11 +228,18 @@ export default function CustomizableDashboard() {
         api.get('/ai/insights', { params: { limit: 1 } }),
         aiTimeout,
       ]),
+      api.get('/dashboard/summary'),
     ]);
 
     if (logResult.status === 'fulfilled') setLogStats(logResult.value);
     if (dbResult.status === 'fulfilled') setDbItems((dbResult.value as any).data.databases || []);
     setAiInsight(aiResult.status === 'fulfilled' ? (aiResult.value as any).data.items?.[0] ?? null : null);
+    if (summaryResult.status === 'fulfilled') {
+      setHealthSnapshot({
+        health_score: (summaryResult.value as any).data.health_score ?? 0,
+        health_breakdown: (summaryResult.value as any).data.health_breakdown ?? [],
+      });
+    }
     setAiLoading(false);
   }, []);
 
@@ -329,8 +295,11 @@ export default function CustomizableDashboard() {
   }, [startPolling, stopPolling]);
 
   // P1-2: 健康评分防抖 — 延迟 800ms 更新，避免频繁跳动
+  const currentHealthScore = wsData?.health_score ?? healthSnapshot?.health_score ?? 0;
+  const currentHealthBreakdown = wsData?.health_breakdown ?? healthSnapshot?.health_breakdown ?? [];
+
   useEffect(() => {
-    const rawScore = wsData?.health_score ?? 0;
+    const rawScore = currentHealthScore;
     if (healthScoreTimerRef.current) clearTimeout(healthScoreTimerRef.current);
     healthScoreTimerRef.current = setTimeout(() => {
       setDebouncedHealthScore(rawScore);
@@ -338,7 +307,7 @@ export default function CustomizableDashboard() {
     return () => {
       if (healthScoreTimerRef.current) clearTimeout(healthScoreTimerRef.current);
     };
-  }, [wsData?.health_score]);
+  }, [currentHealthScore]);
 
   // 布局变更处理
   const handleLayoutChange = useCallback((layout: any) => {
@@ -571,7 +540,7 @@ export default function CustomizableDashboard() {
         <div style={{ width: 220, flexShrink: 0 }}>
           <HealthScoreGauge
             score={debouncedHealthScore}
-            breakdown={scoreBreakdown}
+            breakdown={currentHealthBreakdown}
           />
         </div>
       </div>

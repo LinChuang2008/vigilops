@@ -191,6 +191,7 @@ class RemediationAgent:
 
         # Step 2: 匹配 Runbook - 根据诊断结果选择合适的修复脚本
         # Step 2: Match Runbook - select appropriate remediation script based on diagnosis
+        await self.registry.load_from_db(db)
         runbook = self.registry.match(alert, diagnosis)
         if not runbook:
             result = RemediationResult(

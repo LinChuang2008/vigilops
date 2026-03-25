@@ -260,6 +260,7 @@ async def _execute_approved_remediation(log_id: int, alert_id: int) -> None:
                 return
 
             registry = RunbookRegistry()
+            await registry.load_from_db(db)
             runbook = registry.get(runbook_name)
             if not runbook:
                 log.status = "failed"
