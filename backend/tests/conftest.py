@@ -25,6 +25,7 @@ os.environ["MEMORY_ENABLED"] = "false"
 
 from app.core.database import Base, get_db
 from app.core.security import create_access_token, hash_password
+from app.services.auth_session import generate_session_id, set_active_session
 import app.core.redis as redis_module
 from app.core.redis import get_redis
 from app.models.user import User
@@ -266,11 +267,16 @@ def event_loop():
 async def setup_db():
     """每个测试前创建所有表，测试后清空。同时重置 FakeRedis 存储。"""
     fake_redis._store.clear()
+    # 确保 redis_module.redis_client 始终指向 fake_redis，
+    # 以便 token fixture 中的 set_active_session 能正确写入
+    original_redis_client = redis_module.redis_client
+    redis_module.redis_client = fake_redis
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+    redis_module.redis_client = original_redis_client
 
 
 @pytest_asyncio.fixture
@@ -340,14 +346,18 @@ async def viewer_user(db_session: AsyncSession) -> User:
 
 @pytest_asyncio.fixture
 async def admin_token(admin_user: User) -> str:
-    """管理员的 JWT access token。"""
-    return create_access_token(str(admin_user.id))
+    """管理员的 JWT access token（含 session_id）。"""
+    sid = generate_session_id()
+    await set_active_session(admin_user.id, sid)
+    return create_access_token(str(admin_user.id), session_id=sid)
 
 
 @pytest_asyncio.fixture
 async def viewer_token(viewer_user: User) -> str:
-    """只读用户的 JWT access token。"""
-    return create_access_token(str(viewer_user.id))
+    """只读用户的 JWT access token（含 session_id）。"""
+    sid = generate_session_id()
+    await set_active_session(viewer_user.id, sid)
+    return create_access_token(str(viewer_user.id), session_id=sid)
 
 
 @pytest_asyncio.fixture
