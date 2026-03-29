@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from app.remediation.agent import RemediationAgent
-from app.remediation.ai_client import RemediationAIClient
+from app.remediation.ai_client import RemediationLLMClient
 from app.remediation.command_executor import CommandExecutor
 from app.remediation.models import (
     Diagnosis,
@@ -42,7 +42,7 @@ async def test_handle_alert_auto_dry_run():
         confidence=0.95,
         suggested_runbook="disk_cleanup",
     )
-    ai = RemediationAIClient(mock_responses=[mock_diagnosis])
+    ai = RemediationLLMClient(mock_responses=[mock_diagnosis])
     executor = CommandExecutor(dry_run=True)
     agent = RemediationAgent(ai_client=ai, executor=executor)
     db = _mock_db()
@@ -66,7 +66,7 @@ async def test_handle_alert_confirm_escalates():
         confidence=0.9,
         suggested_runbook="service_restart",
     )
-    ai = RemediationAIClient(mock_responses=[mock_diagnosis])
+    ai = RemediationLLMClient(mock_responses=[mock_diagnosis])
     agent = RemediationAgent(ai_client=ai)
     db = _mock_db()
 
@@ -86,7 +86,7 @@ async def test_handle_alert_no_runbook():
         confidence=0.5,
         suggested_runbook="nonexistent_runbook",
     )
-    ai = RemediationAIClient(mock_responses=[mock_diagnosis])
+    ai = RemediationLLMClient(mock_responses=[mock_diagnosis])
     agent = RemediationAgent(ai_client=ai)
     db = _mock_db()
 
@@ -105,7 +105,7 @@ async def test_handle_alert_no_runbook():
 async def test_circuit_breaker_blocks():
     """熔断器开启时应该直接拒绝。"""
     mock_diagnosis = Diagnosis(root_cause="test", confidence=0.9, suggested_runbook="disk_cleanup")
-    ai = RemediationAIClient(mock_responses=[mock_diagnosis])
+    ai = RemediationLLMClient(mock_responses=[mock_diagnosis])
     agent = RemediationAgent(ai_client=ai)
     # 触发熔断
     for _ in range(3):
