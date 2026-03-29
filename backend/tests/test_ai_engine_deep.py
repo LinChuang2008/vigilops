@@ -17,37 +17,39 @@ def _mock_httpx_response(content: str):
     return resp
 
 
+_MOCK_CFG = {
+    "base_url": "https://api.example.com",
+    "model": "test-model",
+    "api_key": "test-key",
+}
+
+_MOCK_CFG_NO_KEY = {**_MOCK_CFG, "api_key": ""}
+
+
 class TestChatCompletion:
-    @patch("app.services.llm_client.settings")
+    @patch("app.services.llm_client._load_ai_runtime_config", new_callable=AsyncMock, return_value=_MOCK_CFG_NO_KEY)
     @pytest.mark.asyncio
-    async def test_no_api_key_raises(self, mock_settings):
-        mock_settings.ai_api_key = ""
+    async def test_no_api_key_raises(self, mock_cfg):
         with pytest.raises(LLMClientError, match="AI API Key 未配置"):
             await chat_completion([{"role": "user", "content": "hi"}])
 
     @patch("httpx.AsyncClient.post")
+    @patch("app.services.llm_client._load_ai_runtime_config", new_callable=AsyncMock, return_value=_MOCK_CFG)
     @patch("app.services.llm_client.settings")
     @pytest.mark.asyncio
-    async def test_success(self, mock_settings, mock_post):
-        mock_settings.ai_api_key = "test-key"
-        mock_settings.ai_api_base = "https://api.example.com"
-        mock_settings.ai_model = "test-model"
+    async def test_success(self, mock_settings, mock_cfg, mock_post):
         mock_settings.environment = "test"
-
         mock_post.return_value = _mock_httpx_response('{"answer": "hello"}')
 
         result = await chat_completion([{"role": "user", "content": "hi"}])
         assert result == '{"answer": "hello"}'
 
     @patch("httpx.AsyncClient.post")
+    @patch("app.services.llm_client._load_ai_runtime_config", new_callable=AsyncMock, return_value=_MOCK_CFG)
     @patch("app.services.llm_client.settings")
     @pytest.mark.asyncio
-    async def test_custom_params(self, mock_settings, mock_post):
-        mock_settings.ai_api_key = "test-key"
-        mock_settings.ai_api_base = "https://api.example.com"
-        mock_settings.ai_model = "test-model"
+    async def test_custom_params(self, mock_settings, mock_cfg, mock_post):
         mock_settings.environment = "test"
-
         mock_post.return_value = _mock_httpx_response("ok")
 
         result = await chat_completion(
@@ -62,12 +64,10 @@ class TestChatCompletion:
         assert payload["temperature"] == 0.1
 
     @patch("httpx.AsyncClient.post")
+    @patch("app.services.llm_client._load_ai_runtime_config", new_callable=AsyncMock, return_value=_MOCK_CFG)
     @patch("app.services.llm_client.settings")
     @pytest.mark.asyncio
-    async def test_http_error_propagates(self, mock_settings, mock_post):
-        mock_settings.ai_api_key = "test-key"
-        mock_settings.ai_api_base = "https://api.example.com"
-        mock_settings.ai_model = "test-model"
+    async def test_http_error_propagates(self, mock_settings, mock_cfg, mock_post):
         mock_settings.environment = "test"
 
         import httpx
