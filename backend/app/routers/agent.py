@@ -45,6 +45,7 @@ from app.schemas.agent import (
 from app.models.log_entry import LogEntry
 from app.models.db_metric import MonitoredDatabase, DbMetric
 from app.models.database_target import DatabaseMonitorTarget
+from app.core.crypto import decrypt_value
 from app.models.alert import AlertRule
 from app.schemas.log_entry import LogBatchRequest, LogBatchResponse
 
@@ -528,7 +529,7 @@ async def list_db_targets_for_agent(
                 "db_port": t.db_port,
                 "db_name": t.db_name,
                 "username": t.username,
-                "password": t.password,
+                "password": decrypt_value(t.password),
                 "interval_sec": t.interval_sec,
                 "connect_timeout_sec": t.connect_timeout_sec,
                 "is_active": t.is_active,
