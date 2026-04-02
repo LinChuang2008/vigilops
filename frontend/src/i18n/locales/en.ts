@@ -1520,6 +1520,9 @@ const en = {
     stat2: 'AI Accuracy',
     stat3: 'MTTR Reduction',
     stat4: '24/7 Monitoring',
+    stat1Metric: 'Average alert resolution time',
+    stat2Metric: 'Built-in remediation runbooks',
+    stat3Metric: 'MCP tools natively integrated',
     comparisonTitle: 'How We Compare',
     comparisonSubtitle: 'Feature comparison with mainstream monitoring solutions',
     comparison: {

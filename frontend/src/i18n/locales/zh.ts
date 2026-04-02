@@ -1520,6 +1520,9 @@ const zh = {
     stat2: 'AI 分析准确率',
     stat3: 'MTTR 缩短',
     stat4: '全天候监控',
+    stat1Metric: '平均告警修复时间',
+    stat2Metric: '内置 Runbook 修复剧本',
+    stat3Metric: 'MCP 工具原生集成',
     comparisonTitle: '竞品对比',
     comparisonSubtitle: '与主流监控方案的功能对比',
     comparison: {
