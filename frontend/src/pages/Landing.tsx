@@ -61,7 +61,7 @@ function Cross() {
 export default function Landing() {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { isDark } = useTheme();
+  useTheme(); // hook required by context, theme always dark per DESIGN.md
 
   // Metrics data for the "big numbers" section
   const metrics = [
