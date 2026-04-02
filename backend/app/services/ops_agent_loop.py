@@ -899,6 +899,7 @@ class OpsAgentLoop:
         async def _do_stream():
             """在独立 task 中运行流式读取，结果写入 queue。"""
             nonlocal text_buffer
+            nonlocal reasoning_buffer
             try:
                 async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, read=15.0), verify=False) as client:
                     async with client.stream("POST", url, json=payload, headers=headers) as resp:
