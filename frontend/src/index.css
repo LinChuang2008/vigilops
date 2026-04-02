@@ -5,6 +5,45 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+/* 修复侧边栏滚动问题 - 强制覆盖 Ant Design 默认样式 */
+.app-sidebar {
+  height: 100vh;
+  overflow: hidden !important;
+}
+
+.app-sidebar .ant-layout-sider-children {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+.app-sidebar-menu-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+/* 滚动条样式 */
+.app-sidebar ::-webkit-scrollbar {
+  width: 6px;
+}
+
+.app-sidebar ::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.app-sidebar ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.app-sidebar ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
 /* 暗色主题全局样式 */
 [data-theme='dark'] body {
   background-color: #141414;
