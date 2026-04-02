@@ -279,7 +279,7 @@ export default function OpsAssistant() {
         )}
         <div className="cc-topbar">
           <span className="cc-topbar-model">
-            {currentSession?.title ? `/${currentSession.title}` : '/vigilops-ai-ops'}
+            {currentSession?.title ? `/${currentSession.title}` : '/nightmend-ai-ops'}
           </span>
         </div>
 
