@@ -13,9 +13,9 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  themeMode: 'light',
+  themeMode: 'dark',
   toggleTheme: () => {},
-  isDark: false,
+  isDark: true,
 });
 
 const STORAGE_KEY = 'nightmend_theme';
@@ -25,8 +25,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved === 'dark' || saved === 'light') return saved;
     // 跟随系统偏好
-    if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) return 'dark';
-    return 'light';
+    return 'dark';
   });
 
   const isDark = themeMode === 'dark';
