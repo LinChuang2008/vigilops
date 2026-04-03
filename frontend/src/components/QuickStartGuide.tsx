@@ -11,7 +11,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Drawer, Steps, Button, Space, Typography, theme, Tooltip, FloatButton } from 'antd';
+import { Drawer, Steps, Button, Space, Typography, theme, Tooltip } from 'antd';
 import {
   CloudServerOutlined,
   MonitorOutlined,
