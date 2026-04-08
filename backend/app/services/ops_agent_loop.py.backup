@@ -22,12 +22,12 @@ from app.models.ops_session import OpsSession
 from app.models.ops_message import OpsMessage
 from app.models.setting import Setting
 from app.models.host import Host
+from app.models.host_metric import HostMetric
+from app.models.alert import Alert
+from app.models.log_entry import LogEntry
 from app.models.ai_operation_log import AIOperationLog
 from app.services.approval_service import ApprovalService
-from app.tools import tool_registry
-from app.tools.base import ToolEventType
-from app.tools.context import ToolContext
-from app.tools.safety import SafetyChecker
+from app.services.ops_skill_loader import load_skill, list_skills
 
 logger = logging.getLogger(__name__)
 
@@ -49,12 +49,164 @@ OPS_AI_EXTRA_CONTEXT_KEY = "ops_ai_extra_context"
 OPS_AI_CONFIGS_V2_KEY = "ops_ai_configs_v2"
 OPS_AI_DEFAULT_ID_KEY = "ops_ai_default_config_id"
 
-# ─── Tool Schemas（从 ToolRegistry 动态生成）─────────────────────────────────
-# 旧的硬编码 TOOLS 列表已移除，改用 tool_registry.get_openai_schemas()
-TOOL_EXECUTION_TIMEOUT = 300  # 工具执行超时秒数
+# ─── Tool Schemas ──────────────────────────────────────────────────────────────
+
+TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "list_hosts",
+            "description": "获取当前在线主机列表，包含主机名、IP、状态、分组信息。用于推断用户意图中的目标主机。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "status": {"type": "string", "enum": ["online", "offline", "all"], "default": "online"}
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_host_metrics",
+            "description": "获取指定主机的最新性能指标（CPU、内存、磁盘、网络）。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "host_id": {"type": "integer", "description": "主机 ID"}
+                },
+                "required": ["host_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_alerts",
+            "description": "查询活跃告警列表。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "host_id": {"type": "integer", "description": "按主机过滤，不填则查全部"},
+                    "severity": {"type": "string", "enum": ["critical", "warning", "info"]},
+                    "limit": {"type": "integer", "default": 20},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_logs",
+            "description": "搜索指定主机的日志。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "host_id": {"type": "integer"},
+                    "keyword": {"type": "string", "description": "搜索关键词"},
+                    "level": {"type": "string", "enum": ["ERROR", "WARN", "INFO", "DEBUG"]},
+                    "hours_back": {"type": "integer", "default": 1},
+                    "limit": {"type": "integer", "default": 50},
+                },
+                "required": ["host_id", "keyword"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "execute_command",
+            "description": "在目标主机上执行 shell 命令进行诊断。命令将发送给用户确认后才会执行，请在 reason 中说明执行目的。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {"type": "string", "description": "要执行的 shell 命令"},
+                    "host_id": {"type": "integer", "description": "目标主机 ID"},
+                    "timeout": {"type": "integer", "description": "超时秒数", "default": 120},
+                    "reason": {"type": "string", "description": "执行此命令的诊断目的"},
+                },
+                "required": ["command", "host_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "ask_user",
+            "description": "向用户提问以获取更多信息。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "question": {"type": "string"},
+                    "input_type": {"type": "string", "enum": ["radio", "checkbox", "text"]},
+                    "options": {"type": "array", "items": {"type": "string"}, "description": "radio/checkbox 时必填"},
+                },
+                "required": ["question", "input_type"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_todo",
+            "description": "更新排障任务清单，让用户了解当前进度。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "todos": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string"},
+                                "text": {"type": "string"},
+                                "status": {"type": "string", "enum": ["pending", "in_progress", "done"]},
+                            },
+                            "required": ["id", "text", "status"],
+                        },
+                    }
+                },
+                "required": ["todos"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "load_skill",
+            "description": "加载运维技能知识库，获取特定中间件的排障流程和命令模板。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "skill_name": {
+                        "type": "string",
+                        "enum": ["mysql-troubleshoot", "nginx-troubleshoot", "redis-troubleshoot",
+                                 "linux-performance", "docker-troubleshoot"],
+                    }
+                },
+                "required": ["skill_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "provide_conclusion",
+            "description": "输出最终排障结论，结束本轮诊断循环。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "conclusion": {"type": "string", "description": "排障结论和建议"},
+                    "resolved": {"type": "boolean", "description": "问题是否已解决"},
+                },
+                "required": ["conclusion"],
+            },
+        },
+    },
+]
 
 
-SYSTEM_PROMPT = """你是 NightMend AI 运维助手，一个专业的 Linux/云原生运维专家。
+SYSTEM_PROMPT = """你是 VigilOps AI 运维助手，一个专业的 Linux/云原生运维专家。
 
 你的工作方式：
 1. 理解用户描述的问题，通过工具调用收集信息
@@ -86,10 +238,6 @@ class OpsAgentLoop:
         self._approval_service = ApprovalService(self._update_message_content)
         # 同一 session 全局串行推理锁（跨多个 WebSocket 连接也生效）
         self._run_lock = asyncio.Lock()
-        # 统一安全层（延迟初始化，等 Redis 可用）
-        self._safety_checker: SafetyChecker | None = None
-        # 当前轮对话前端指定的主机（用于强制约束工具调用目标）
-        self._turn_target_host_id: Optional[int] = None
 
     # ─── 公开接口 ──────────────────────────────────────────────────────────────
 
@@ -109,13 +257,9 @@ class OpsAgentLoop:
             runtime_cfg["use_deep_thinking"] = bool(
                 use_deep_thinking and runtime_cfg.get("supports_deep_thinking")
             )
-            await self._sync_context_limit_tokens(int(runtime_cfg.get("allowed_context_tokens") or 120000))
             await self._ensure_context_loaded()
             if host_id:
                 await self._attach_target_host_context(host_id)
-                self._turn_target_host_id = int(host_id)
-            else:
-                self._turn_target_host_id = None
             # 持久化用户消息
             await self._save_message("user", "text", {"text": user_message})
             self._context.append({"role": "user", "content": user_message})
@@ -132,11 +276,8 @@ class OpsAgentLoop:
                     yield event
 
             # 推理循环
-            try:
-                async for event in self._inference_loop(runtime_cfg):
-                    yield event
-            finally:
-                self._turn_target_host_id = None
+            async for event in self._inference_loop(runtime_cfg):
+                yield event
 
     async def handle_command_confirm(self, message_id: str, action: str):
         """处理前端命令确认/拒绝。action: 'confirm' | 'reject'"""
@@ -180,9 +321,6 @@ class OpsAgentLoop:
             response_text = ""
             reasoning_text = ""
             tool_calls = []
-            usage_prompt_tokens = 0
-            usage_completion_tokens = 0
-            usage_total_tokens = 0
 
             async for chunk in self._call_api_stream(runtime_cfg):
                 if chunk.get("type") == "text_delta":
@@ -193,28 +331,6 @@ class OpsAgentLoop:
                     yield {"event": "reasoning_delta", "delta": chunk["delta"]}
                 elif chunk.get("type") == "tool_calls":
                     tool_calls = chunk["tool_calls"]
-                elif chunk.get("type") == "usage":
-                    usage_prompt_tokens = self._safe_int(chunk.get("prompt_tokens"))
-                    usage_completion_tokens = self._safe_int(chunk.get("completion_tokens"))
-                    usage_total_tokens = self._safe_int(chunk.get("total_tokens"))
-
-            if usage_prompt_tokens > 0 or usage_completion_tokens > 0 or usage_total_tokens > 0:
-                limit_tokens = int(runtime_cfg.get("allowed_context_tokens") or 120000)
-                await self._record_token_usage(
-                    prompt_tokens=usage_prompt_tokens,
-                    completion_tokens=usage_completion_tokens,
-                    total_tokens=usage_total_tokens,
-                    context_limit_tokens=limit_tokens,
-                )
-                used_percent = min(100, int((usage_prompt_tokens / max(limit_tokens, 1)) * 100))
-                yield {
-                    "event": "context_usage",
-                    "prompt_tokens": usage_prompt_tokens,
-                    "completion_tokens": usage_completion_tokens,
-                    "total_tokens": usage_total_tokens,
-                    "context_limit_tokens": limit_tokens,
-                    "used_percent": used_percent,
-                }
 
             # 保存 AI 文本响应
             if response_text or reasoning_text:
@@ -250,7 +366,6 @@ class OpsAgentLoop:
                     arguments = json.loads(tc["function"]["arguments"])
                 except json.JSONDecodeError:
                     arguments = {}
-                arguments = self._apply_target_host_override(tool_name, arguments)
                 tool_call_id = tc["id"]
                 msg_id = str(uuid.uuid4())
 
@@ -312,177 +427,309 @@ class OpsAgentLoop:
 
         yield {"event": "done"}
 
-    def _apply_target_host_override(self, tool_name: str, arguments: dict) -> dict:
-        """对主机相关工具强制应用当前轮目标主机，避免会话内切换主机后仍命中旧主机。"""
-        target_host_id = self._turn_target_host_id
-        if target_host_id is None:
-            return arguments
-
-        host_scoped_tools = {
-            "execute_command",
-            "get_host_metrics",
-            "search_logs",
-            "get_alerts",
-            "run_runbook",
-        }
-        if tool_name not in host_scoped_tools:
-            return arguments
-
-        patched = dict(arguments or {})
-        old_host_id = patched.get("host_id")
-        if old_host_id != target_host_id:
-            patched["host_id"] = target_host_id
-            logger.info(
-                "Override tool host_id by turn target: tool=%s old=%s new=%s session=%s",
-                tool_name,
-                old_host_id,
-                target_host_id,
-                self.session_id,
-            )
-        return patched
-
     # ─── 工具执行 ──────────────────────────────────────────────────────────────
-
-    async def _get_safety_checker(self) -> SafetyChecker:
-        """延迟初始化 SafetyChecker（需要 Redis 连接）。"""
-        if self._safety_checker is None:
-            redis = await get_redis()
-            self._safety_checker = SafetyChecker(redis=redis)
-        return self._safety_checker
-
-    def _get_tools_schema(self) -> list[dict]:
-        """从 ToolRegistry 动态获取工具 schema 列表。"""
-        return tool_registry.get_openai_schemas()
 
     async def _execute_tool(
         self, tool_name: str, arguments: dict, msg_id: str, tool_call_id: str
     ):
         """
-        通过 ToolRegistry 调度工具执行（async generator）。
-        自动包装审计日志 + 执行遥测。
+        执行工具调用（async generator）。
         yield 普通事件 dict，最后 yield {"__type": "__result", "result": ..., "stop": bool}
         """
-        tool = tool_registry.get(tool_name)
-        if not tool:
-            result = {"error": f"Unknown tool: {tool_name}"}
-            yield {"event": "tool_error", "message_id": msg_id,
-                   "tool_name": tool_name, "error": result["error"]}
-            yield {"__type": "__result", "result": result, "stop": False}
-            return
-
-        # 构建 ToolContext
-        redis = await get_redis()
-        safety_checker = await self._get_safety_checker()
-        ctx = ToolContext(
-            session_id=self.session_id,
-            user_id=self.user_id,
-            db_session_factory=AsyncSessionLocal,
-            redis=redis,
-            safety_checker=safety_checker,
-            approval_service=self._approval_service,
-            save_message=self._save_message,
-            context_messages=self._context,
-            caller="ops_assistant",
-        )
-
-        # 执行工具（带超时保护 + 审计日志 + 遥测）
-        start_time = datetime.now(timezone.utc)
-        result = None
         should_stop = False
-        has_result = False
-        error_msg = None
+        result = None
 
         try:
-            event_stream = self._consume_tool_events(tool, arguments, ctx, msg_id)
-            while True:
-                try:
-                    event = await asyncio.wait_for(
-                        event_stream.__anext__(),
-                        timeout=TOOL_EXECUTION_TIMEOUT,
-                    )
-                except StopAsyncIteration:
-                    break
-                if event.get("__type") == "__result":
-                    result = event["result"]
-                    should_stop = event.get("stop", False)
-                    has_result = True
-                else:
-                    yield event
+            if tool_name == "list_hosts":
+                result = await self._tool_list_hosts(arguments)
 
-        except asyncio.TimeoutError:
-            error_msg = f"工具 {tool_name} 执行超时（{TOOL_EXECUTION_TIMEOUT}秒）"
-            logger.error(error_msg)
-            result = {"error": error_msg}
-            yield {"event": "tool_error", "message_id": msg_id,
-                   "tool_name": tool_name, "error": error_msg}
+            elif tool_name == "get_host_metrics":
+                result = await self._tool_get_host_metrics(arguments)
+
+            elif tool_name == "get_alerts":
+                result = await self._tool_get_alerts(arguments)
+
+            elif tool_name == "search_logs":
+                result = await self._tool_search_logs(arguments)
+
+            elif tool_name == "execute_command":
+                # async generator：先 yield command_request，再等待确认
+                async for item in self._tool_execute_command(arguments, msg_id):
+                    if item.get("__type") == "__result":
+                        result = item["result"]
+                    else:
+                        yield item
+
+            elif tool_name == "ask_user":
+                # async generator：先 yield ask_user 事件，再等待回答
+                async for item in self._tool_ask_user(arguments, msg_id):
+                    if item.get("__type") == "__result":
+                        result = item["result"]
+                    else:
+                        yield item
+
+            elif tool_name == "update_todo":
+                result = arguments
+                yield {"event": "todo_update", "todos": arguments.get("todos", [])}
+                await self._save_message("assistant", "todo_update", arguments)
+
+            elif tool_name == "load_skill":
+                result = await self._tool_load_skill(arguments, msg_id)
+
+            elif tool_name == "provide_conclusion":
+                result = arguments
+                should_stop = True
+                await self._save_message("assistant", "text", {"text": arguments.get("conclusion", "")})
+
+            else:
+                result = {"error": f"Unknown tool: {tool_name}"}
 
         except Exception as e:
-            error_msg = str(e)
             logger.error(f"Tool {tool_name} failed: {e}", exc_info=True)
-            result = {"error": error_msg}
+            result = {"error": str(e)}
             yield {"event": "tool_error", "message_id": msg_id,
-                   "tool_name": tool_name, "error": error_msg}
-
-        # 兜底：如果工具未 yield RESULT，补一个空结果
-        if not has_result and result is None:
-            result = {"error": "Tool did not produce a result"}
-
-        # 遥测：记录工具执行指标
-        duration_ms = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
-        try:
-            async with AsyncSessionLocal() as db:
-                log = AIOperationLog(
-                    user_id=self.user_id,
-                    session_id=self.session_id,
-                    request_id=tool_call_id,
-                    host_id=arguments.get("host_id"),
-                    host_name=arguments.get("host_name", ""),
-                    command=f"tool:{tool_name}",
-                    reason=json.dumps(arguments, ensure_ascii=False)[:500],
-                    exit_code=0 if error_msg is None else -1,
-                    duration_ms=duration_ms,
-                    status="success" if error_msg is None else "failed",
-                )
-                db.add(log)
-                await db.commit()
-        except Exception:
-            logger.warning("Failed to write tool telemetry for %s", tool_name, exc_info=True)
+                   "tool_name": tool_name, "error": str(e)}
 
         yield {"__type": "__result", "result": result, "stop": should_stop}
 
-    async def _consume_tool_events(self, tool, arguments, ctx, msg_id):
-        """消费工具的 ToolEvent 流，转换为前端事件格式。"""
-        async for event in tool.execute(arguments, ctx):
-            if event.type == ToolEventType.RESULT:
-                yield {"__type": "__result", "result": event.data, "stop": event.stop}
-            elif event.type == ToolEventType.APPROVAL_REQUEST:
-                yield {"event": event.data.get("event_name", "command_request"), **event.data}
-            elif event.type == ToolEventType.TODO_UPDATE:
-                yield {"event": "todo_update", **event.data}
-            elif event.type == ToolEventType.SKILL_LOADED:
-                # 注入技能内容到对话上下文
-                if ctx.context_messages is not None:
-                    ctx.context_messages.append({
-                        "role": "system",
-                        "content": (
-                            f"【已加载技能：{event.data.get('skill_name', '')}】\n\n"
-                            f"{event.data.get('content', '')}"
-                        ),
-                    })
-                yield {"event": "skill_loaded", "message_id": msg_id, **event.data}
-            elif event.type == ToolEventType.PROGRESS:
-                yield {"event": event.data.get("event_name", "progress"), **event.data}
-            elif event.type == ToolEventType.TEXT:
-                yield {"event": "text_delta", "delta": event.data.get("text", "")}
+    async def _tool_list_hosts(self, args: dict) -> dict:
+        status_filter = args.get("status", "online")
+        query = select(Host)
+        if status_filter != "all":
+            query = query.where(Host.status == status_filter)
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(query.limit(50))
+            hosts = result.scalars().all()
+            return {
+                "hosts": [
+                    {
+                        "id": h.id,
+                        "hostname": h.hostname,
+                        "display_name": h.display_name,
+                        "ip": h.display_ip,
+                        "status": h.status,
+                        "group_name": h.group_name,
+                        "tags": h.tags,
+                    }
+                    for h in hosts
+                ]
+            }
 
-    # ─── 旧的 _tool_* 方法已迁移到 app/tools/builtins/ ──────────────────────
+    async def _tool_get_host_metrics(self, args: dict) -> dict:
+        host_id = args["host_id"]
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(HostMetric)
+                .where(HostMetric.host_id == host_id)
+                .order_by(HostMetric.recorded_at.desc())
+                .limit(1)
+            )
+            metric = result.scalar_one_or_none()
+        if not metric:
+            return {"error": f"No metrics found for host_id={host_id}"}
+        return {
+            "host_id": host_id,
+            "cpu_percent": metric.cpu_percent,
+            "memory_percent": metric.memory_percent,
+            "disk_percent": metric.disk_percent,
+            "cpu_load_1": metric.cpu_load_1,
+            "cpu_load_5": metric.cpu_load_5,
+            "recorded_at": metric.recorded_at.isoformat(),
+        }
 
-    # ─── 上下文压缩（保留） ────────────────────────────────────────────────────
-    # 注意：以下旧代码块已删除，用占位标记。实际的 _tool_* 方法在 git 历史中可查。
-    # _tool_get_host_metrics, _tool_get_alerts, _tool_search_logs,
-    # _DANGEROUS_COMMAND_PATTERNS, _is_dangerous_command, _tool_execute_command,
-    # _wait_command_result, _tool_ask_user, _tool_load_skill
-    # 全部迁移到 app/tools/builtins/ 目录下的独立模块。
+    async def _tool_get_alerts(self, args: dict) -> dict:
+        query = select(Alert).where(Alert.status == "firing")
+        if args.get("host_id"):
+            query = query.where(Alert.host_id == args["host_id"])
+        if args.get("severity"):
+            query = query.where(Alert.severity == args["severity"])
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(query.order_by(Alert.fired_at.desc()).limit(args.get("limit", 20)))
+            alerts = result.scalars().all()
+            return {
+                "alerts": [
+                    {
+                        "id": a.id,
+                        "title": a.title,
+                        "severity": a.severity,
+                        "status": a.status,
+                        "message": a.message,
+                        "fired_at": a.fired_at.isoformat(),
+                        "host_id": a.host_id,
+                    }
+                    for a in alerts
+                ]
+            }
+
+    async def _tool_search_logs(self, args: dict) -> dict:
+        from datetime import timedelta
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=args.get("hours_back", 1))
+        query = (
+            select(LogEntry)
+            .where(LogEntry.host_id == args["host_id"])
+            .where(LogEntry.timestamp > cutoff)
+            .where(LogEntry.message.contains(args["keyword"]))
+        )
+        if args.get("level"):
+            query = query.where(LogEntry.level == args["level"])
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(query.order_by(LogEntry.timestamp.desc()).limit(args.get("limit", 50)))
+            logs = result.scalars().all()
+            return {
+                "logs": [
+                    {
+                        "timestamp": l.timestamp.isoformat(),
+                        "level": l.level,
+                        "service": l.service,
+                        "message": l.message,
+                    }
+                    for l in logs
+                ],
+                "count": len(logs),
+            }
+
+    async def _tool_execute_command(self, args: dict, msg_id: str):
+        """发送命令确认请求（async generator），先 yield command_request 事件，再等待用户确认。"""
+        command = args["command"]
+        host_id = args["host_id"]
+        timeout = args.get("timeout", 120)
+        reason = args.get("reason", "")
+
+        # 获取主机名
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(Host).where(Host.id == host_id))
+            host = result.scalar_one_or_none()
+        host_name = host.display_hostname if host else f"host-{host_id}"
+
+        # 持久化 command_request 消息
+        await self._save_message("assistant", "command_request", {
+            "command": command, "host_id": host_id, "host_name": host_name,
+            "timeout": timeout, "reason": reason, "status": "pending",
+        }, message_id=msg_id)
+        await self._approval_service.register(msg_id, "command_request")
+
+        # ★ 先 yield 事件推送给前端，前端才能显示确认弹窗
+        yield {"event": "command_request", "message_id": msg_id,
+               "command": command, "host_id": host_id, "host_name": host_name,
+               "timeout": timeout, "reason": reason}
+
+        # 等待用户确认（60 秒超时）
+        reply = await self._approval_service.wait_for_reply(
+            msg_id,
+            timeout=COMMAND_CONFIRM_TIMEOUT,
+            timeout_action="expired",
+        )
+        action = reply.get("action", "reject")
+
+        if action == "confirm":
+            redis = await get_redis()
+            request_id = msg_id
+            await redis.set(f"cmd_req_session:{request_id}", self.session_id, ex=timeout + 60)
+            payload = json.dumps({
+                "type": "exec_command",
+                "request_id": request_id,
+                "command": command,
+                "timeout": timeout,
+            })
+            await redis.publish(f"cmd_to_agent:{host_id}", payload)
+            await self._write_audit_log(host_id, command)
+
+            cmd_result = await self._wait_command_result(request_id, timeout + 10)
+            await self._write_ai_operation_log(
+                host_id=host_id,
+                host_name=host_name,
+                command=command,
+                reason=reason,
+                request_id=request_id,
+                cmd_result=cmd_result,
+            )
+            await self._save_message("tool", "command_result", {
+                "request_id": request_id,
+                "exit_code": cmd_result.get("exit_code", -1),
+                "duration_ms": cmd_result.get("duration_ms", 0),
+                "stdout": cmd_result.get("stdout", ""),
+                "stderr": cmd_result.get("stderr", ""),
+            })
+            yield {"event": "command_result", "message_id": msg_id,
+                   "exit_code": cmd_result.get("exit_code", -1),
+                   "duration_ms": cmd_result.get("duration_ms", 0)}
+            yield {"__type": "__result", "result": cmd_result}
+
+        elif action == "reject":
+            yield {"event": "command_expired", "message_id": msg_id, "reason": "rejected"}
+            yield {"__type": "__result", "result": {"error": "用户拒绝执行此命令", "action": "rejected"}}
+        else:
+            yield {"event": "command_expired", "message_id": msg_id, "reason": "timeout"}
+            yield {"__type": "__result", "result": {"error": "命令确认超时，已自动取消", "action": "expired"}}
+
+    async def _wait_command_result(self, request_id: str, timeout: int) -> dict:
+        """订阅 Redis channel 等待命令执行结果。"""
+        redis = await get_redis()
+        channel = f"cmd_result:{self.session_id}"
+        pubsub = redis.pubsub()
+        await pubsub.subscribe(channel)
+        try:
+            deadline = asyncio.get_event_loop().time() + timeout
+            async for message in pubsub.listen():
+                if asyncio.get_event_loop().time() > deadline:
+                    break
+                if message["type"] != "message":
+                    continue
+                try:
+                    data = json.loads(message["data"])
+                    if data.get("request_id") == request_id:
+                        return data
+                except Exception:
+                    continue
+        except asyncio.TimeoutError:
+            pass
+        finally:
+            await pubsub.unsubscribe(channel)
+            await pubsub.close()
+        return {"error": "command result timeout", "exit_code": -1, "stdout": "", "stderr": "timeout"}
+
+    async def _tool_ask_user(self, args: dict, msg_id: str):
+        """向用户提问（async generator），先 yield ask_user 事件，再等待回答。"""
+        await self._save_message("assistant", "ask_user", {
+            "question": args["question"],
+            "input_type": args["input_type"],
+            "options": args.get("options", []),
+            "status": "pending",
+            "answer": None,
+        }, message_id=msg_id)
+        await self._approval_service.register(msg_id, "ask_user")
+
+        # ★ 先 yield 事件推送给前端
+        yield {"event": "ask_user", "message_id": msg_id,
+               "question": args["question"],
+               "input_type": args["input_type"],
+               "options": args.get("options", [])}
+
+        # 等待用户回答（5 分钟超时）
+        reply = await self._approval_service.wait_for_reply(
+            msg_id,
+            timeout=300,
+            timeout_action="expired",
+        )
+        answer = reply.get("answer", "") or ""
+
+        yield {"__type": "__result", "result": {"answer": answer}}
+
+    async def _tool_load_skill(self, args: dict, msg_id: str) -> dict:
+        skill_name = args["skill_name"]
+        content = load_skill(skill_name)
+        if not content:
+            return {"error": f"Skill '{skill_name}' not found"}
+        await self._save_message("assistant", "skill_load", {
+            "skill_name": skill_name,
+            "description": f"已加载 {skill_name} 技能知识库",
+        })
+        return {
+            "skill_name": skill_name,
+            "loaded": True,
+            "content_length": len(content),
+            "skill_content": content,
+        }
 
     # ─── 上下文压缩 ────────────────────────────────────────────────────────────
 
@@ -531,10 +778,7 @@ class OpsAgentLoop:
             result = await db.execute(select(OpsSession).where(OpsSession.id == self.session_id))
             session = result.scalar_one_or_none()
             if session:
-                compact_estimate = len(self._context) * 200
-                session.token_count = compact_estimate
-                session.prompt_tokens = compact_estimate
-                session.total_tokens = max(session.total_tokens, compact_estimate)
+                session.token_count = len(self._context) * 200
                 session.compacted_at = datetime.now(timezone.utc)
                 await db.commit()
 
@@ -582,10 +826,9 @@ class OpsAgentLoop:
         payload = {
             "model": runtime_cfg["model"],
             "messages": safe_messages,
-            "tools": self._get_tools_schema(),
+            "tools": TOOLS,
             "tool_choice": "auto",
             "stream": True,
-            "stream_options": {"include_usage": True},
             "temperature": 0.3,
             "max_tokens": runtime_cfg["max_tokens"],
         }
@@ -600,9 +843,6 @@ class OpsAgentLoop:
         text_buffer = ""
         reasoning_buffer = ""
         tool_calls_buffer: dict[int, dict] = {}
-        usage_prompt_tokens = 0
-        usage_completion_tokens = 0
-        usage_total_tokens = 0
 
         stream_queue: asyncio.Queue = asyncio.Queue()
         STREAM_TIMEOUT = 45
@@ -610,10 +850,6 @@ class OpsAgentLoop:
         async def _do_stream():
             """在独立 task 中运行流式读取，结果写入 queue。"""
             nonlocal text_buffer
-            nonlocal reasoning_buffer
-            nonlocal usage_prompt_tokens
-            nonlocal usage_completion_tokens
-            nonlocal usage_total_tokens
             try:
                 async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, read=15.0), verify=False) as client:
                     async with client.stream("POST", url, json=payload, headers=headers) as resp:
@@ -633,43 +869,7 @@ class OpsAgentLoop:
                             except json.JSONDecodeError:
                                 continue
 
-                            usage = chunk.get("usage")
-                            if isinstance(usage, dict):
-                                prompt_tokens = self._safe_int(
-                                    usage.get("prompt_tokens")
-                                    or usage.get("input_tokens")
-                                    or usage.get("prompt_token_count")
-                                )
-                                completion_tokens = self._safe_int(
-                                    usage.get("completion_tokens")
-                                    or usage.get("output_tokens")
-                                    or usage.get("completion_token_count")
-                                )
-                                total_tokens = self._safe_int(
-                                    usage.get("total_tokens")
-                                    or usage.get("total_token_count")
-                                )
-                                if prompt_tokens > 0:
-                                    usage_prompt_tokens = prompt_tokens
-                                if completion_tokens > 0:
-                                    usage_completion_tokens = completion_tokens
-                                if total_tokens > 0:
-                                    usage_total_tokens = total_tokens
-
-                            choices = chunk.get("choices")
-                            if not isinstance(choices, list) or not choices:
-                                if chunk.get("error"):
-                                    logger.error(f"AI API stream chunk error: {chunk.get('error')}")
-                                continue
-                            first_choice = choices[0] if isinstance(choices[0], dict) else {}
-                            delta = first_choice.get("delta", {})
-
-                            # 只有在启用深度思考时才处理推理内容
-                            if runtime_cfg.get("use_deep_thinking"):
-                                reasoning_delta = self._extract_reasoning_delta(delta)
-                                if reasoning_delta:
-                                    reasoning_buffer += reasoning_delta
-                                    await stream_queue.put({"type": "reasoning_delta", "delta": reasoning_delta})
+                            delta = chunk.get("choices", [{}])[0].get("delta", {})
 
                             if delta.get("content"):
                                 text_buffer += delta["content"]
@@ -701,6 +901,64 @@ class OpsAgentLoop:
         stream_task = asyncio.create_task(_do_stream())
         deadline = asyncio.get_event_loop().time() + STREAM_TIMEOUT
         try:
+<<<<<<< HEAD
+            async with httpx.AsyncClient(timeout=60.0, verify=False) as client:
+                async with client.stream("POST", url, json=payload, headers=headers) as resp:
+                    if resp.status_code != 200:
+                        error_body = await resp.aread()
+                        logger.error(f"AI API error {resp.status_code}: {error_body.decode()[:500]}")
+                        logger.error(f"Request context length: {len(self._context)} messages")
+                        yield {"type": "text_delta", "delta": f"\n[AI API 错误 {resp.status_code}，请重试]"}
+                        return
+                    async for line in resp.aiter_lines():
+                        if not line.startswith("data: "):
+                            continue
+                        data_str = line[6:]
+                        if data_str == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(data_str)
+                        except json.JSONDecodeError:
+                            continue
+
+                        choices = chunk.get("choices")
+                        if not isinstance(choices, list) or not choices:
+                            if chunk.get("error"):
+                                logger.error(f"AI API stream chunk error: {chunk.get('error')}")
+                            continue
+                        first_choice = choices[0] if isinstance(choices[0], dict) else {}
+                        delta = first_choice.get("delta", {})
+
+                        # 只有在启用深度思考时才处理推理内容
+                        if runtime_cfg.get("use_deep_thinking"):
+                            reasoning_delta = self._extract_reasoning_delta(delta)
+                            if reasoning_delta:
+                                reasoning_buffer += reasoning_delta
+                                yield {"type": "reasoning_delta", "delta": reasoning_delta}
+
+                        # 文本内容
+                        if delta.get("content"):
+                            text_buffer += delta["content"]
+                            yield {"type": "text_delta", "delta": delta["content"]}
+
+                        # 工具调用
+                        for tc in delta.get("tool_calls", []):
+                            idx = tc.get("index", 0)
+                            if idx not in tool_calls_buffer:
+                                tool_calls_buffer[idx] = {
+                                    "id": tc.get("id", ""),
+                                    "type": "function",
+                                    "function": {"name": "", "arguments": ""},
+                                }
+                            if tc.get("id"):
+                                tool_calls_buffer[idx]["id"] = tc["id"]
+                            fn = tc.get("function", {})
+                            if fn.get("name"):
+                                tool_calls_buffer[idx]["function"]["name"] += fn["name"]
+                            if fn.get("arguments"):
+                                tool_calls_buffer[idx]["function"]["arguments"] += fn["arguments"]
+
+=======
             while True:
                 remaining = deadline - asyncio.get_event_loop().time()
                 if remaining <= 0:
@@ -718,26 +976,11 @@ class OpsAgentLoop:
                 if item is None:  # stream finished
                     break
                 yield item
+>>>>>>> upstream/security-hardening-2026-03-23
         except Exception as e:
             stream_task.cancel()
             logger.error(f"AI API stream error: {e}")
             yield {"type": "text_delta", "delta": f"\n\n[AI 调用失败：{e}]"}
-        finally:
-            if not stream_task.done():
-                stream_task.cancel()
-
-        if usage_prompt_tokens <= 0:
-            usage_prompt_tokens = self._estimate_tokens_for_messages(safe_messages)
-        if usage_completion_tokens <= 0:
-            usage_completion_tokens = max(1, (len(text_buffer) + len(reasoning_buffer)) // 4)
-        if usage_total_tokens <= 0:
-            usage_total_tokens = usage_prompt_tokens + usage_completion_tokens
-        yield {
-            "type": "usage",
-            "prompt_tokens": usage_prompt_tokens,
-            "completion_tokens": usage_completion_tokens,
-            "total_tokens": usage_total_tokens,
-        }
 
         if tool_calls_buffer:
             yield {"type": "tool_calls", "tool_calls": list(tool_calls_buffer.values())}
@@ -783,18 +1026,6 @@ class OpsAgentLoop:
                 if isinstance(text, str):
                     return text
         return ""
-
-    @staticmethod
-    def _safe_int(value: object) -> int:
-        try:
-            return max(0, int(value or 0))
-        except (TypeError, ValueError):
-            return 0
-
-    @staticmethod
-    def _estimate_tokens_for_messages(messages: list[dict]) -> int:
-        serialized = json.dumps(messages, ensure_ascii=False)
-        return max(1, len(serialized) // 4)
 
     @staticmethod
     def _normalized_messages_for_tool_protocol(messages: list[dict], extra_context: str = "") -> list[dict]:
@@ -1065,39 +1296,6 @@ class OpsAgentLoop:
             result = await db.execute(select(OpsSession).where(OpsSession.id == self.session_id))
             return result.scalar_one_or_none()
 
-    async def _sync_context_limit_tokens(self, context_limit_tokens: int):
-        async with AsyncSessionLocal() as db:
-            result = await db.execute(select(OpsSession).where(OpsSession.id == self.session_id))
-            session = result.scalar_one_or_none()
-            if not session:
-                return
-            if session.context_limit_tokens != context_limit_tokens:
-                session.context_limit_tokens = context_limit_tokens
-            session.updated_at = datetime.now(timezone.utc)
-            await db.commit()
-
-    async def _record_token_usage(
-        self,
-        prompt_tokens: int,
-        completion_tokens: int,
-        total_tokens: int,
-        context_limit_tokens: int,
-    ):
-        async with AsyncSessionLocal() as db:
-            result = await db.execute(select(OpsSession).where(OpsSession.id == self.session_id))
-            session = result.scalar_one_or_none()
-            if not session:
-                return
-            session.prompt_tokens = max(0, prompt_tokens)
-            session.completion_tokens = max(0, completion_tokens)
-            session.total_tokens = max(0, total_tokens)
-            # token_count 兼容旧字段，语义保持为“当前上下文已用 token”
-            session.token_count = max(0, prompt_tokens)
-            session.context_limit_tokens = max(1, context_limit_tokens)
-            session.updated_at = datetime.now(timezone.utc)
-            session.status = "active"
-            await db.commit()
-
     async def _save_message(self, role: str, msg_type: str, content: dict,
                              tool_call_id: Optional[str] = None,
                              message_id: Optional[str] = None) -> str:
@@ -1117,6 +1315,7 @@ class OpsAgentLoop:
             if session:
                 session.updated_at = datetime.now(timezone.utc)
                 session.status = "active"
+                session.token_count += len(json.dumps(content)) // 4
             await db.commit()
         return msg_id
 
@@ -1198,23 +1397,13 @@ class OpsAgentLoop:
                 session.updated_at = datetime.now(timezone.utc)
                 await db.commit()
 
-        # 同一会话中仅保留一条目标主机系统提示，避免历史主机提示干扰模型判断
-        self._context = [
-            m for m in self._context
-            if not (
-                m.get("role") == "system"
-                and isinstance(m.get("content"), str)
-                and m["content"].startswith("【用户已指定本轮目标主机】")
-            )
-        ]
-
         self._context.append({
             "role": "system",
             "content": (
                 "【用户已指定本轮目标主机】\n"
                 f"- host_id: {host_id}\n"
                 f"- host_name: {host_name}\n"
-                "本轮工具调用必须使用该主机；除非用户再次明确切换目标主机。"
+                "后续执行命令时优先针对该主机，除非用户明确要求切换目标。"
             ),
         })
 

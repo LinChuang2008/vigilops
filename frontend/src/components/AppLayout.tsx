@@ -335,7 +335,7 @@ export default function AppLayout() {
 
   /** 渲染菜单内容 */
   const renderMenuContent = (inDrawer = false) => (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       {/* 品牌标识区域 */}
       <div style={{
         height: 64,
@@ -356,7 +356,7 @@ export default function AppLayout() {
         </svg>
         {(inDrawer || !collapsed) ? 'NightMend' : ''}
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+      <div className="app-sidebar-menu-scroll">
         <Menu
           theme={inDrawer ? (isDark ? 'dark' : 'light') : 'dark'}
           mode="inline"
@@ -380,7 +380,7 @@ export default function AppLayout() {
     >
       {/* 桌面端侧边栏 */}
       {!isMobile && (
-        <Sider trigger={null} collapsible collapsed={collapsed} theme="dark" style={{ height: '100vh', overflow: 'hidden' }}>
+        <Sider trigger={null} collapsible collapsed={collapsed} theme="dark" className="app-sidebar">
           {renderMenuContent()}
         </Sider>
       )}
