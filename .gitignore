@@ -50,3 +50,16 @@ docs/quick-start-customer.md
 docs/service-onboarding.md
 docs/VigilOps-*.pptx
 .gstack/
+
+# Claude Code working directory residues — never commit
+tmpclaude-*-cwd
+tmpclaude-*
+
+# Editor / agent backup files
+*.backup
+*.bak
+*.orig
+
+# Built agent bundles (use release artifacts instead)
+agent.zip
+agent-*.zip
