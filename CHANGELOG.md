@@ -4,6 +4,20 @@ All notable changes to NightMend will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.0.0] - 2026-04-10
+
+### Added
+- **Autopilot Demo Mode**: zero-config Docker demo that showcases the full AI detect→diagnose→fix→verify loop. Run `docker compose -f docker-compose.demo.yml up` and watch NightMend auto-detect a disk-full fault, diagnose root cause with AI, execute cleanup, and verify recovery. No configuration needed.
+- Demo orchestrator: pre-seeds 3 hosts, alert rules, service topology, and metrics. Injects disk fault at T+60s, triggers immediate alert evaluation, and auto-starts AI diagnosis session.
+- `GET /api/v1/demo/status` endpoint for frontend to poll demo phase (seeding, exploring, injecting, diagnosing, complete).
+- Auto-approve mode for command execution during demo (skips 60-second user confirmation wait).
+- Frontend: DEMO badge on OpsAssistant, global alert bar with 3-second auto-redirect, demo session auto-select.
+- `docker-compose.demo.yml` with `DEMO_MODE=true` for one-command demo startup.
+
+### Fixed
+- AI ops assistant "new session" button now creates a new session each call instead of reusing blank drafts.
+- Host selector shows "no online hosts" guidance with link to host management when no agents are connected.
+
 ## [2026.04.08] - 2026-04-08
 
 ### Fixed
