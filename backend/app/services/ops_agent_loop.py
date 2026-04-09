@@ -383,6 +383,7 @@ class OpsAgentLoop:
             save_message=self._save_message,
             context_messages=self._context,
             caller="ops_assistant",
+            auto_approve=getattr(self, "_demo_auto_approve", False),
         )
 
         # 执行工具（带超时保护 + 审计日志 + 遥测）

@@ -119,29 +119,52 @@ class ExecuteCommandTool(OpsTool):
                 "timeout": timeout, "reason": reason, "status": "pending",
             }, message_id=msg_id)
 
-        await context.approval_service.register(msg_id, "command_request")
+        # Demo 模式下自动批准命令
+        if context.auto_approve:
+            action = "confirm"
+            # 更新消息状态为已确认
+            if context.save_message is not None:
+                await context.save_message("assistant", "command_request", {
+                    "command": command, "host_id": host_id, "host_name": host_name,
+                    "timeout": timeout, "reason": reason, "status": "confirmed",
+                }, message_id=msg_id)
+            yield ToolEvent(
+                type=ToolEventType.APPROVAL_REQUEST,
+                data={
+                    "event": "command_request",
+                    "message_id": msg_id,
+                    "command": command,
+                    "host_id": host_id,
+                    "host_name": host_name,
+                    "timeout": timeout,
+                    "reason": reason,
+                    "auto_approved": True,
+                },
+            )
+        else:
+            await context.approval_service.register(msg_id, "command_request")
 
-        # 向前端推送确认请求
-        yield ToolEvent(
-            type=ToolEventType.APPROVAL_REQUEST,
-            data={
-                "event": "command_request",
-                "message_id": msg_id,
-                "command": command,
-                "host_id": host_id,
-                "host_name": host_name,
-                "timeout": timeout,
-                "reason": reason,
-            },
-        )
+            # 向前端推送确认请求
+            yield ToolEvent(
+                type=ToolEventType.APPROVAL_REQUEST,
+                data={
+                    "event": "command_request",
+                    "message_id": msg_id,
+                    "command": command,
+                    "host_id": host_id,
+                    "host_name": host_name,
+                    "timeout": timeout,
+                    "reason": reason,
+                },
+            )
 
-        # 等待用户确认
-        reply = await context.approval_service.wait_for_reply(
-            msg_id,
-            timeout=COMMAND_CONFIRM_TIMEOUT,
-            timeout_action="expired",
-        )
-        action = reply.get("action", "reject")
+            # 等待用户确认
+            reply = await context.approval_service.wait_for_reply(
+                msg_id,
+                timeout=COMMAND_CONFIRM_TIMEOUT,
+                timeout_action="expired",
+            )
+            action = reply.get("action", "reject")
 
         if action == "confirm":
             request_id = msg_id

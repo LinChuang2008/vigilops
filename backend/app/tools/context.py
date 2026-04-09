@@ -31,3 +31,4 @@ class ToolContext:
     save_message: Optional[Callable] = None
     context_messages: Optional[list[dict]] = None
     caller: str = "ops_assistant"  # "ops_assistant" | "mcp" | "remediation"
+    auto_approve: bool = False  # Demo 模式下自动批准命令执行
