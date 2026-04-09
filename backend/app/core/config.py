@@ -143,6 +143,10 @@ class Settings(BaseSettings):
     enable_remediation: bool = True  # False = 仅诊断模式，不执行修复 (False = diagnosis-only demo mode)
     demo_sse_max_clients: int = 50  # SSE 最大并发连接数 (Max concurrent SSE connections for demo)
 
+    # Autopilot Demo 配置 (Autopilot Demo Configuration)
+    demo_mode: bool = False  # 启用 Autopilot Demo 模式 (Enable Autopilot Demo mode)
+    demo_fault_delay_seconds: int = 60  # 故障注入延迟秒数 (Fault injection delay in seconds)
+
     # 环境变量别名（Environment Variable Aliases）
     # Pydantic Settings 需要明确指定环境变量名称
     WEBHOOK_ALLOWED_DOMAINS: str = ""
