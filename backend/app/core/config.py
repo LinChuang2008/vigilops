@@ -9,7 +9,6 @@ supporting reading from .env files and environment variables. Provides configura
 management for database connections, Redis cache, AI services, JWT authentication, and other modules.
 """
 import logging
-import os
 import secrets
 
 from pydantic_settings import BaseSettings

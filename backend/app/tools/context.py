@@ -6,7 +6,7 @@ MCP 模式下 approval_service 和 save_message 为 None。
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Optional
 
 if TYPE_CHECKING:
