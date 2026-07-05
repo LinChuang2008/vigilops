@@ -19,6 +19,7 @@ os.environ["POSTGRES_PORT"] = "5432"
 os.environ["REDIS_HOST"] = "localhost"
 os.environ["AI_API_KEY"] = "test-key"
 os.environ["MEMORY_ENABLED"] = "false"
+os.environ["ALERTMANAGER_WEBHOOK_TOKEN"] = "test-webhook-token"
 
 from app.core.database import Base, get_db
 from app.core.security import create_access_token, hash_password
@@ -34,6 +35,12 @@ TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 from sqlalchemy import event, BigInteger
 
 engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+
+# 服务层(OpsAgentLoop、alert_engine 等)模块级 import 了 app.core.database.async_session,
+# 绕过 get_db 依赖覆盖直连真实 Postgres。就地改绑到测试引擎(StaticPool 共享同一
+# in-memory 连接),让这些直连路径跑在 SQLite 上而不是要求本地 5432。
+import app.core.database as _database_module
+_database_module.async_session.configure(bind=engine)
 
 # Register PostgreSQL functions for SQLite compatibility
 @event.listens_for(engine.sync_engine, "connect")

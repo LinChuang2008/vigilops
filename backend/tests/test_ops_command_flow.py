@@ -11,6 +11,7 @@ from app.models.ops_session import OpsSession
 from app.models.user import User
 from app.services import ops_agent_loop as loop_module
 from app.services.ops_agent_loop import OpsAgentLoop
+from app.tools import init_tool_registry, tool_registry
 from tests.conftest import TestingSessionLocal
 
 
@@ -34,6 +35,12 @@ class _FakePubSub:
 
     async def close(self):
         await self.unsubscribe()
+
+    async def get_message(self, ignore_subscribe_messages: bool = True, timeout: float = 0):
+        try:
+            return await asyncio.wait_for(self._queue.get(), timeout=timeout or None)
+        except asyncio.TimeoutError:
+            return None
 
     async def listen(self):
         while True:
@@ -78,6 +85,9 @@ async def _wait_event(events: list[dict], event_name: str, timeout: float = 3.0)
 
 @pytest.mark.asyncio
 async def test_ops_command_confirm_execute_and_result_back(monkeypatch):
+    if tool_registry.tool_count == 0:
+        init_tool_registry()
+
     fake_redis = _FakeRedis()
     async def _fake_get_redis():
         return fake_redis
@@ -108,14 +118,18 @@ async def test_ops_command_confirm_execute_and_result_back(monkeypatch):
         await db.commit()
         await db.refresh(host)
 
-        session = OpsSession(id="sess-ops-flow", user_id=user.id, title="ops-flow")
+        session = OpsSession(
+            id="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+            user_id=user.id,
+            title="ops-flow",
+        )
         db.add(session)
         await db.commit()
 
     # mock AI：第一轮只发 execute_command，第二轮给结论文本后结束
     call_round = {"n": 0}
 
-    async def fake_call_api_stream(self):
+    async def fake_call_api_stream(self, _runtime_cfg=None):
         call_round["n"] += 1
         if call_round["n"] == 1:
             yield {

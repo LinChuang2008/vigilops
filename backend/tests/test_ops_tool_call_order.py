@@ -4,11 +4,15 @@ import json
 
 import pytest
 
+from app.tools import init_tool_registry, tool_registry
 from app.services.ops_agent_loop import OpsAgentLoop
 
 
 @pytest.mark.asyncio
 async def test_load_skill_keeps_tool_protocol_order(monkeypatch):
+    if tool_registry.tool_count == 0:
+        init_tool_registry()
+
     loop = OpsAgentLoop("sess-order", 1)
     loop._context = [{"role": "system", "content": "sys"}]
 
@@ -16,14 +20,17 @@ async def test_load_skill_keeps_tool_protocol_order(monkeypatch):
     async def _noop_save(*args, **kwargs):
         return "msg-1"
 
+    async def _none_session():
+        return None
+
     monkeypatch.setattr(loop, "_save_message", _noop_save)
-    monkeypatch.setattr(loop, "_get_session", lambda: None)
+    monkeypatch.setattr(loop, "_get_session", _none_session)
     monkeypatch.setattr(loop, "_compact_context", lambda: asyncio.sleep(0))
 
     # 第一轮触发 load_skill，第二轮结束
     round_idx = {"n": 0}
 
-    async def fake_call_api_stream():
+    async def fake_call_api_stream(_runtime_cfg=None):
         round_idx["n"] += 1
         if round_idx["n"] == 1:
             yield {
