@@ -8,8 +8,10 @@
 3. 顺手清理用户残留的空白草稿（无消息无标题），避免堆积
 4. 不删除带消息或带标题的会话
 """
+from datetime import datetime, timedelta, timezone
+
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.models.ops_message import OpsMessage
 from app.models.ops_session import OpsSession
@@ -43,10 +45,18 @@ async def test_post_sessions_persists_title(client, auth_headers):
 async def test_post_sessions_cleans_up_empty_drafts(client, auth_headers, db_session, admin_user):
     """连续创建 3 次后，DB 里只应该剩下最新的那一个空白草稿。"""
     ids = []
-    for _ in range(3):
+    for idx in range(3):
         r = await client.post("/api/v1/ops/sessions", json={}, headers=auth_headers)
         assert r.status_code == 200
         ids.append(r.json()["id"])
+        if idx < 2:
+            stale_at = datetime.now(timezone.utc) - timedelta(seconds=120)
+            await db_session.execute(
+                update(OpsSession)
+                .where(OpsSession.id == ids[-1])
+                .values(created_at=stale_at, updated_at=stale_at)
+            )
+            await db_session.commit()
 
     # 三个 id 都不同
     assert len(set(ids)) == 3
