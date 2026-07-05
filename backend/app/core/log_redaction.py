@@ -53,10 +53,21 @@ class RedactionFilter(logging.Filter):
     """对 record.msg 与 record.args 做脱敏；filter 必须返回 True 放行。"""
 
     def filter(self, record: logging.LogRecord) -> bool:
+        if record.args:
+            try:
+                message = record.getMessage()
+            except Exception:
+                # Bad lazy-format records must not break the logging path.
+                if isinstance(record.msg, str):
+                    record.msg = _scrub(record.msg)
+                record.args = _scrub_any(record.args)  # type: ignore[assignment]
+            else:
+                record.msg = _scrub(message)
+                record.args = ()
+            return True
+
         if isinstance(record.msg, str):
             record.msg = _scrub(record.msg)
-        if record.args:
-            record.args = _scrub_any(record.args)  # type: ignore[assignment]
         return True
 
 
