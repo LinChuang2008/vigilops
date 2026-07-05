@@ -63,11 +63,17 @@ def _parse_allowed_networks(raw: str) -> list[ipaddress.IPv4Network | ipaddress.
 
 
 def _extract_client_ip(request: Request) -> str | None:
-    """获取客户端 IP；若 webhook_trust_forwarded 开启则取 X-Forwarded-For 首段。"""
+    """获取客户端 IP。
+
+    X-Forwarded-For 最左段可由客户端自填，容易伪造；右侧段由可信代理追加。
+    因此 webhook_trust_forwarded 开启时按可信代理跳数从右侧取第 N 段。
+    """
     if settings.webhook_trust_forwarded:
         fwd = request.headers.get("x-forwarded-for", "")
-        if fwd:
-            return fwd.split(",")[0].strip() or None
+        parts = [part.strip() for part in fwd.split(",") if part.strip()]
+        hops = max(1, settings.webhook_trusted_proxy_hops)
+        if len(parts) >= hops:
+            return parts[-hops]
     return request.client.host if request.client else None
 
 
@@ -242,8 +248,6 @@ async def receive_alertmanager_webhook(
     _token: str = Depends(_verify_webhook_token),
     db: AsyncSession = Depends(get_db),
 ):
-    # IP 白名单在 token 校验之后执行，防止把 IP 配置错误暴露给未认证调用者
-    _enforce_ip_whitelist(request)
     """接收 Prometheus AlertManager webhook 回调。
 
     解析告警 → 映射 Host → 触发 AI 诊断和修复。
@@ -251,6 +255,8 @@ async def receive_alertmanager_webhook(
 
     幂等性: 相同的 alertname + instance + startsAt 在 5 分钟内不会重复处理。
     """
+    # IP 白名单在 token 校验之后执行，防止把 IP 配置错误暴露给未认证调用者
+    _enforce_ip_whitelist(request)
     try:
         payload = await request.json()
     except Exception:
