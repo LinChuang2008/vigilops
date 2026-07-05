@@ -1,5 +1,9 @@
 # NightMend — Project Instructions
 
+## 项目级配置（架构师-工程师协作）
+- **Vault 根路径**: `/Users/wangchengbin/Documents/Obsidian/Knowledge/dev.nosync/NightMend-vault/`（sessions/ decisions/ knowledge/ board/，模板在 dev.nosync 根目录共用）
+- **Notion 项目映射**: 本目录 → Projects 库「NightMend」
+
 ## Design System
 Always read DESIGN.md before making any visual or UI decisions.
 All font choices, colors, spacing, and aesthetic direction are defined there.
