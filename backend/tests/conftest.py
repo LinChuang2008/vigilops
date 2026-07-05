@@ -399,3 +399,12 @@ async def auth_headers(admin_token: str) -> dict:
 async def viewer_headers(viewer_token: str) -> dict:
     """只读用户认证头。"""
     return {"Authorization": f"Bearer {viewer_token}"}
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """会话结束时释放连接池。
+
+    aiosqlite 每个连接持有一个非 daemon 工作线程；引擎不 dispose 时,
+    池内连接的线程会在解释器退出阶段死等队列,导致 pytest 挂死。
+    """
+    asyncio.run(engine.dispose())
